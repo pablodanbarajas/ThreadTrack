@@ -162,14 +162,16 @@ const Inventory = () => {
 
   const openScannerForNewCode = () => {
     setScannerTarget('newCode')
-    setShowScanner(true)
+    setShowModal(false) // Oculta el modal de Nueva Prenda
+    setTimeout(() => setShowScanner(true), 100) // Espera a que se oculte antes de mostrar el escáner
   }
 
   const handleScanResult = (code: string) => {
     if (scannerTarget === 'search') {
       setSearchTerm(code)
     } else {
-      setNewGarment({ ...newGarment, code })
+      setNewGarment((prev) => ({ ...prev, code }))
+      setTimeout(() => setShowModal(true), 100) // Vuelve a mostrar el modal de Nueva Prenda
     }
     setShowScanner(false)
   }
@@ -233,7 +235,7 @@ const Inventory = () => {
       </div>
 
       {/* Modal para agregar prenda */}
-      {showModal && (
+      {showModal && !showScanner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
             <h2 className="text-xl font-bold mb-4">Nueva Prenda</h2>
