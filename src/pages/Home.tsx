@@ -1,0 +1,116 @@
+import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Shirt, Package, PackageCheck, Droplets, Sparkles, Wrench, AlertTriangle } from 'lucide-react'
+import { garmentService } from '../services/garmentService'
+
+const Home = () => {
+  const [stats, setStats] = useState({ 
+    total: 0, 
+    disponible: 0, 
+    lavado: 0, 
+    esterilizacion: 0, 
+    inspeccion: 0, 
+    reparacion: 0, 
+    baja: 0 
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadStats()
+  }, [])
+
+  const loadStats = async () => {
+    try {
+      const data = await garmentService.getStats()
+      setStats(data)
+    } catch (error) {
+      console.error('Error cargando estadísticas:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* Hero Section */}
+      <div className="text-center py-8">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <Shirt className="w-12 h-12 text-blue-600" />
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
+            ThreadTrack
+          </h1>
+        </div>
+        <p className="text-xl text-gray-600 mb-8">
+          Sistema de Rastreo de Prendas
+        </p>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex justify-center mb-8">
+        <Link
+          to="/inventory"
+          className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm"
+        >
+          <div className="p-3 bg-green-100 rounded-lg">
+            <Package className="w-8 h-8 text-green-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">Inventario</h2>
+            <p className="text-gray-600 text-sm">Gestionar prendas</p>
+          </div>
+        </Link>
+      </div>
+
+      {/* Stats Preview */}
+      <div className="card mb-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumen de Inventario</h3>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+          <div className="text-center p-2 bg-gray-50 rounded-lg">
+            <Shirt className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+            <div className="text-xl font-bold text-blue-600">
+              {loading ? '...' : stats.total}
+            </div>
+            <div className="text-gray-600 text-xs">Total</div>
+          </div>
+          <div className="text-center p-2 bg-green-50 rounded-lg">
+            <PackageCheck className="w-5 h-5 text-green-600 mx-auto mb-1" />
+            <div className="text-xl font-bold text-green-600">
+              {loading ? '...' : stats.disponible}
+            </div>
+            <div className="text-gray-600 text-xs">Disponible</div>
+          </div>
+          <div className="text-center p-2 bg-blue-50 rounded-lg">
+            <Droplets className="w-5 h-5 text-blue-600 mx-auto mb-1" />
+            <div className="text-xl font-bold text-blue-600">
+              {loading ? '...' : stats.lavado}
+            </div>
+            <div className="text-gray-600 text-xs">Lavado</div>
+          </div>
+          <div className="text-center p-2 bg-purple-50 rounded-lg">
+            <Sparkles className="w-5 h-5 text-purple-600 mx-auto mb-1" />
+            <div className="text-xl font-bold text-purple-600">
+              {loading ? '...' : stats.esterilizacion}
+            </div>
+            <div className="text-gray-600 text-xs">Esterilización</div>
+          </div>
+          <div className="text-center p-2 bg-orange-50 rounded-lg">
+            <Wrench className="w-5 h-5 text-orange-600 mx-auto mb-1" />
+            <div className="text-xl font-bold text-orange-600">
+              {loading ? '...' : stats.reparacion}
+            </div>
+            <div className="text-gray-600 text-xs">Reparación</div>
+          </div>
+          <Link to="/bajas" className="text-center p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
+            <AlertTriangle className="w-5 h-5 text-red-600 mx-auto mb-1" />
+            <div className="text-xl font-bold text-red-600">
+              {loading ? '...' : stats.baja}
+            </div>
+            <div className="text-gray-600 text-xs">Bajas</div>
+          </Link>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Home
