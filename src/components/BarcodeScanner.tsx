@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
-import { Camera, X, StopCircle } from 'lucide-react'
+import { Camera, X, StopCircle, FlipHorizontal } from 'lucide-react'
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void
@@ -10,10 +10,11 @@ interface BarcodeScannerProps {
 const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [useBackCamera, setUseBackCamera] = useState(true)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
 
-  // Formatos de código de barras soportados
+  // Todos los formatos de código de barras soportados
   const formatsToSupport = [
     Html5QrcodeSupportedFormats.QR_CODE,
     Html5QrcodeSupportedFormats.EAN_13,
@@ -25,6 +26,8 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
     Html5QrcodeSupportedFormats.UPC_E,
     Html5QrcodeSupportedFormats.ITF,
     Html5QrcodeSupportedFormats.CODABAR,
+    Html5QrcodeSupportedFormats.DATA_MATRIX,
+    Html5QrcodeSupportedFormats.PDF_417,
   ]
 
   useEffect(() => {
@@ -37,33 +40,54 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
   const startScanner = async () => {
     try {
       setError(null)
+      
+      // Limpiar instancia anterior si existe
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop()
+        } catch {}
+        scannerRef.current = null
+      }
+
       const html5QrCode = new Html5Qrcode(containerRef.current, {
         formatsToSupport: formatsToSupport,
-        verbose: false
+        verbose: true // Activar verbose para debugging
       })
       scannerRef.current = html5QrCode
 
+      const config = {
+        fps: 20, // Mayor frecuencia de escaneo
+        qrbox: { width: 300, height: 150 }, // Área de escaneo más grande
+        aspectRatio: 1.5,
+        disableFlip: false, // Permitir flip para mejor detección
+      }
+
       await html5QrCode.start(
-        { facingMode: 'environment' },
-        {
-          fps: 15,
-          qrbox: { width: 280, height: 120 },
-          aspectRatio: 1.777778,
-        },
+        { facingMode: useBackCamera ? 'environment' : 'user' },
+        config,
         (decodedText) => {
+          console.log('Código detectado:', decodedText)
           onScan(decodedText)
           stopScanner()
           onClose()
         },
         () => {
-          // Error silencioso durante escaneo
+          // Callback silencioso mientras busca
         }
       )
       setIsScanning(true)
     } catch (err: any) {
       console.error('Error al iniciar escáner:', err)
-      setError('No se pudo acceder a la cámara. Verifica los permisos.')
+      setError(`No se pudo acceder a la cámara: ${err.message || 'Verifica los permisos'}`)
     }
+  }
+
+  const switchCamera = async () => {
+    await stopScanner()
+    setUseBackCamera(!useBackCamera)
+    setTimeout(() => {
+      startScanner()
+    }, 300)
   }
 
   const stopScanner = async () => {
@@ -91,12 +115,21 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
             <Camera className="w-5 h-5" />
             Escanear Código
           </h3>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={switchCamera}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title="Cambiar cámara"
+            >
+              <FlipHorizontal className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleClose}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-4">
@@ -111,11 +144,16 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
             <>
               <div
                 id={containerRef.current}
-                className="w-full bg-gray-100 rounded-lg overflow-hidden min-h-[250px]"
+                className="w-full bg-gray-900 rounded-lg overflow-hidden min-h-[300px]"
               />
-              <p className="text-center text-sm text-gray-500 mt-3">
-                Apunta la cámara al código de barras
-              </p>
+              <div className="mt-3 space-y-1">
+                <p className="text-center text-sm text-gray-600 font-medium">
+                  📷 Coloca el código dentro del recuadro
+                </p>
+                <p className="text-center text-xs text-gray-400">
+                  Mantén el código estable y bien iluminado
+                </p>
+              </div>
             </>
           )}
         </div>
