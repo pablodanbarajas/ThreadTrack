@@ -11,24 +11,12 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [useBackCamera, setUseBackCamera] = useState(true)
+  const [lastCode, setLastCode] = useState<string | null>(null)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
 
-  // Todos los formatos de código de barras soportados
-  const formatsToSupport = [
-    Html5QrcodeSupportedFormats.QR_CODE,
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.EAN_8,
-    Html5QrcodeSupportedFormats.CODE_128,
-    Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.CODE_93,
-    Html5QrcodeSupportedFormats.UPC_A,
-    Html5QrcodeSupportedFormats.UPC_E,
-    Html5QrcodeSupportedFormats.ITF,
-    Html5QrcodeSupportedFormats.CODABAR,
-    Html5QrcodeSupportedFormats.DATA_MATRIX,
-    Html5QrcodeSupportedFormats.PDF_417,
-  ]
+  // Solo CODE_128 para máxima precisión
+  const formatsToSupport = [Html5QrcodeSupportedFormats.CODE_128]
 
   useEffect(() => {
     startScanner()
@@ -56,8 +44,8 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
       scannerRef.current = html5QrCode
 
       const config = {
-        fps: 20, // Mayor frecuencia de escaneo
-        qrbox: { width: 300, height: 150 }, // Área de escaneo más grande
+        fps: 30, // Máxima frecuencia de escaneo
+        qrbox: { width: 350, height: 180 }, // Área de escaneo aún más grande
         aspectRatio: 1.5,
         disableFlip: false, // Permitir flip para mejor detección
       }
@@ -66,10 +54,12 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
         { facingMode: useBackCamera ? 'environment' : 'user' },
         config,
         (decodedText) => {
-          console.log('Código detectado:', decodedText)
-          onScan(decodedText)
-          stopScanner()
-          onClose()
+          setLastCode(decodedText)
+          setTimeout(() => {
+            onScan(decodedText)
+            stopScanner()
+            onClose()
+          }, 500)
         },
         () => {
           // Callback silencioso mientras busca
@@ -153,6 +143,11 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
                 <p className="text-center text-xs text-gray-400">
                   Mantén el código estable y bien iluminado
                 </p>
+                {lastCode && (
+                  <div className="text-center text-xs text-green-700 bg-green-100 rounded px-2 py-1 mt-2">
+                    <span className="font-mono">Detectado: {lastCode}</span>
+                  </div>
+                )}
               </div>
             </>
           )}
