@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Html5Qrcode } from 'html5-qrcode'
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
 import { Camera, X, StopCircle } from 'lucide-react'
 
 interface BarcodeScannerProps {
@@ -13,6 +13,20 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
 
+  // Formatos de código de barras soportados
+  const formatsToSupport = [
+    Html5QrcodeSupportedFormats.QR_CODE,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.CODE_39,
+    Html5QrcodeSupportedFormats.CODE_93,
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.ITF,
+    Html5QrcodeSupportedFormats.CODABAR,
+  ]
+
   useEffect(() => {
     startScanner()
     return () => {
@@ -23,14 +37,18 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
   const startScanner = async () => {
     try {
       setError(null)
-      const html5QrCode = new Html5Qrcode(containerRef.current)
+      const html5QrCode = new Html5Qrcode(containerRef.current, {
+        formatsToSupport: formatsToSupport,
+        verbose: false
+      })
       scannerRef.current = html5QrCode
 
       await html5QrCode.start(
         { facingMode: 'environment' },
         {
-          fps: 10,
-          qrbox: { width: 250, height: 150 },
+          fps: 15,
+          qrbox: { width: 280, height: 120 },
+          aspectRatio: 1.777778,
         },
         (decodedText) => {
           onScan(decodedText)
