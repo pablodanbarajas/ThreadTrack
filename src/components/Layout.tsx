@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import { Home, Package, Menu, X, Shirt, AlertTriangle, LogOut } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { APP_VERSION } from '../version'
 
 const Layout = () => {
   const location = useLocation()
@@ -25,6 +26,7 @@ const Layout = () => {
             <Link to="/" className="flex items-center space-x-2">
               <Shirt className="w-7 h-7" />
               <span className="text-xl font-bold">ThreadTrack</span>
+              <span className="ml-2 text-xs font-semibold bg-blue-800 text-blue-100 px-2 py-1 rounded-lg">v{APP_VERSION}</span>
             </Link>
 
             {/* Desktop Navigation */}
