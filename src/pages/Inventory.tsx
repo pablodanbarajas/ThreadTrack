@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Wrench, PackageX, Loader2, Trash2, History, X, Camera, Shirt, AlertTriangle, Calendar } from 'lucide-react'
+import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Wrench, PackageX, Loader2, Trash2, History, X, Camera, Shirt, AlertTriangle, Calendar, ScanBarcode } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
@@ -256,7 +256,7 @@ const Inventory = () => {
                     className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
                     title="Escanear código"
                   >
-                    <Camera className="w-5 h-5" />
+                    <ScanBarcode className="w-5 h-5" />
                   </button>
                 </div>
               </div>
