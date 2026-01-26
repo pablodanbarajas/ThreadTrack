@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Wrench, PackageX, Loader2, Trash2, History, X, Camera, Shirt, AlertTriangle, Calendar, ScanBarcode } from 'lucide-react'
+import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Wrench, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
