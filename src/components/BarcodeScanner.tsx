@@ -45,8 +45,8 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
 
       const config = {
         fps: 30, // Máxima frecuencia de escaneo
-        qrbox: { width: 220, height: 70 }, // Área de escaneo más pequeña y delgada para códigos pequeños
-        aspectRatio: 3.0, // Más alargado
+        qrbox: { width: 350, height: 180 }, // Área de escaneo aún más grande
+        aspectRatio: 1.5,
         disableFlip: false, // Permitir flip para mejor detección
       }
 
