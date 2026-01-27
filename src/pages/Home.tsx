@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Shirt, Package, PackageCheck, Droplets, Sparkles, Wrench, AlertTriangle } from 'lucide-react'
+import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 
 const Home = () => {
@@ -94,7 +94,7 @@ const Home = () => {
             <div className="text-gray-600 text-xs">Esterilización</div>
           </div>
           <div className="text-center p-2 bg-orange-50 rounded-lg">
-            <Wrench className="w-5 h-5 text-orange-600 mx-auto mb-1" />
+            <Scissors className="w-5 h-5 text-orange-600 mx-auto mb-1" />
             <div className="text-xl font-bold text-orange-600">
               {loading ? '...' : stats.reparacion}
             </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Wrench, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode } from 'lucide-react'
+import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
@@ -30,7 +30,7 @@ const Inventory = () => {
     lavado: { label: 'En Lavado', color: 'bg-blue-100 text-blue-800', icon: Droplets },
     esterilizacion: { label: 'En Esterilización', color: 'bg-purple-100 text-purple-800', icon: Sparkles },
     inspeccion: { label: 'En Inspección', color: 'bg-yellow-100 text-yellow-800', icon: ClipboardCheck },
-    reparacion: { label: 'En Reparación', color: 'bg-orange-100 text-orange-800', icon: Wrench },
+    reparacion: { label: 'En Reparación', color: 'bg-orange-100 text-orange-800', icon: Scissors },
     baja: { label: 'Baja', color: 'bg-red-100 text-red-800', icon: Trash2 },
   }
 
@@ -38,7 +38,7 @@ const Inventory = () => {
     lavado: { label: 'Enviar a Lavado', icon: Droplets },
     esterilizacion: { label: 'Enviar a Esterilización', icon: Sparkles },
     inspeccion: { label: 'Enviar a Inspección', icon: ClipboardCheck },
-    reparacion: { label: 'Enviar a Reparación', icon: Wrench },
+    reparacion: { label: 'Enviar a Reparación', icon: Scissors },
     baja: { label: 'Dar de Baja', icon: Trash2 },
   }
 
@@ -409,7 +409,7 @@ const Inventory = () => {
           onClick={() => setFilterStatus('reparacion')}
           className={`card text-center py-3 transition-all ${filterStatus === 'reparacion' ? 'ring-2 ring-orange-500 bg-orange-50' : 'hover:bg-gray-50'}`}
         >
-          <Wrench className="w-5 h-5 text-orange-600 mx-auto mb-1" />
+          <Scissors className="w-5 h-5 text-orange-600 mx-auto mb-1" />
           <div className="text-xl font-bold text-orange-600">
             {garments.filter((g) => g.status === 'reparacion').length}
           </div>
@@ -468,7 +468,7 @@ const Inventory = () => {
                       checked={inspectionResult === 'reparacion'}
                       onChange={() => setInspectionResult('reparacion')}
                     />
-                    <Wrench className="w-5 h-5 text-orange-600" />
+                    <Scissors className="w-5 h-5 text-orange-600" />
                     <span>Requiere Reparación</span>
                   </label>
                   <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
@@ -629,10 +629,10 @@ const Inventory = () => {
                       {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
                     </span>
                   </div>
-                  <div className="flex gap-2 text-xs text-gray-600">
-                    <span className="inline-flex items-center gap-1 bg-blue-50 px-2 py-1 rounded"><Droplets className="w-4 h-4 text-blue-500" /> {lavadoCount} Lavados</span>
-                    <span className="inline-flex items-center gap-1 bg-purple-50 px-2 py-1 rounded"><Sparkles className="w-4 h-4 text-purple-500" /> {esterilizacionCount} Esterilizaciones</span>
-                    <span className="inline-flex items-center gap-1 bg-orange-50 px-2 py-1 rounded"><Wrench className="w-4 h-4 text-orange-500" /> {reparacionCount} Reparaciones</span>
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-600 w-full">
+                    <span className="inline-flex items-center gap-1 bg-blue-50 px-2 py-1 rounded whitespace-nowrap"><Droplets className="w-4 h-4 text-blue-500" /> {lavadoCount} Lavados</span>
+                    <span className="inline-flex items-center gap-1 bg-purple-50 px-2 py-1 rounded whitespace-nowrap"><Sparkles className="w-4 h-4 text-purple-500" /> {esterilizacionCount} Esterilizaciones</span>
+                    <span className="inline-flex items-center gap-1 bg-orange-50 px-2 py-1 rounded whitespace-nowrap"><Scissors className="w-4 h-4 text-orange-500" /> {reparacionCount} Reparaciones</span>
                   </div>
                 </div>
 
