@@ -5,7 +5,7 @@ import BarcodeScanner from '../components/BarcodeScanner'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
-  const [garments, setGarments] = useState<Garment[]>([])
+  const [garments, setGarments] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
@@ -46,11 +46,19 @@ const Inventory = () => {
     loadGarments()
   }, [])
 
+  // Cargar prendas y sus acciones
   const loadGarments = async () => {
     try {
       setLoading(true)
       const data = await garmentService.getAll()
-      setGarments(data)
+      // Para cada prenda, cargar sus acciones
+      const garmentsWithActions = await Promise.all(
+        data.map(async (g) => {
+          const actions = await garmentService.getActions(g.id)
+          return { ...g, actions }
+        })
+      )
+      setGarments(garmentsWithActions)
     } catch (error) {
       console.error('Error cargando prendas:', error)
     } finally {
@@ -574,9 +582,16 @@ const Inventory = () => {
       ) : (
         <div className="space-y-3">
           {filteredGarments.map((garment) => {
-            const StatusIcon = statusLabels[garment.status]?.icon || Package
-            const availableActions = getAvailableActions(garment.status)
-            
+            const StatusIcon = statusLabels[garment.status as GarmentStatus]?.icon || Package
+            const availableActions = getAvailableActions(garment.status as GarmentStatus)
+            // Contadores de acciones
+            const actions = (garment.actions ?? []) as import('../types').GarmentAction[];
+            const lavadoCount = actions.filter((a) => a.action_type === 'lavado').length
+            const esterilizacionCount = actions.filter((a) => a.action_type === 'esterilizacion').length
+            const reparacionCount = actions.filter((a) =>
+              a.action_type === 'reparacion' ||
+              (a.action_type === 'inspeccion' && a.result === 'reparacion')
+            ).length
             return (
               <div key={garment.id} className="card">
                 <div className="flex items-start justify-between mb-3">
@@ -605,13 +620,20 @@ const Inventory = () => {
                   </div>
                 </div>
                 
-                {/* Estado actual */}
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-sm text-gray-500">Estado:</span>
-                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${statusLabels[garment.status]?.color || 'bg-gray-100'}`}>
-                    <StatusIcon className="w-4 h-4" />
-                    {statusLabels[garment.status]?.label || garment.status}
-                  </span>
+                {/* Estado actual y resumen de acciones */}
+                <div className="flex flex-col md:flex-row md:items-center md:gap-4 mb-3">
+                  <div className="flex items-center gap-2 mb-1 md:mb-0">
+                    <span className="text-sm text-gray-500">Estado:</span>
+                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${statusLabels[garment.status as GarmentStatus]?.color || 'bg-gray-100'}`}>
+                      <StatusIcon className="w-4 h-4" />
+                      {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 text-xs text-gray-600">
+                    <span className="inline-flex items-center gap-1 bg-blue-50 px-2 py-1 rounded"><Droplets className="w-4 h-4 text-blue-500" /> {lavadoCount} Lavados</span>
+                    <span className="inline-flex items-center gap-1 bg-purple-50 px-2 py-1 rounded"><Sparkles className="w-4 h-4 text-purple-500" /> {esterilizacionCount} Esterilizaciones</span>
+                    <span className="inline-flex items-center gap-1 bg-orange-50 px-2 py-1 rounded"><Wrench className="w-4 h-4 text-orange-500" /> {reparacionCount} Reparaciones</span>
+                  </div>
                 </div>
 
                 {/* Acciones disponibles */}
