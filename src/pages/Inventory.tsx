@@ -341,47 +341,51 @@ const Inventory = () => {
         </div>
       )}
 
-      {/* Compact Status Filters */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      {/* Compact Status Filters - Horizontal scroll on mobile */}
+      <div className="flex gap-2 mb-4 overflow-x-auto md:flex-wrap pb-2 md:pb-0">
         <button
           onClick={() => setFilterStatus('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Total ({garments.length})
         </button>
         <button
           onClick={() => setFilterStatus('disponible')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'disponible' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'disponible' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
-          Disponible ({garments.filter((g) => g.status === 'disponible').length})
+          <span className="hidden md:inline">Disponible</span>
+          <span className="md:hidden">Disp.</span> ({garments.filter((g) => g.status === 'disponible').length})
         </button>
         <button
           onClick={() => setFilterStatus('lavado')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'lavado' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'lavado' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Lavado ({garments.filter((g) => g.status === 'lavado').length})
         </button>
         <button
           onClick={() => setFilterStatus('esterilizacion')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'esterilizacion' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'esterilizacion' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
-          Esterilización ({garments.filter((g) => g.status === 'esterilizacion').length})
+          <span className="hidden md:inline">Esterilización</span>
+          <span className="md:hidden">Esteril.</span> ({garments.filter((g) => g.status === 'esterilizacion').length})
         </button>
         <button
           onClick={() => setFilterStatus('inspeccion')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'inspeccion' ? 'bg-yellow-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'inspeccion' ? 'bg-yellow-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
-          Inspección ({garments.filter((g) => g.status === 'inspeccion').length})
+          <span className="hidden md:inline">Inspección</span>
+          <span className="md:hidden">Insp.</span> ({garments.filter((g) => g.status === 'inspeccion').length})
         </button>
         <button
           onClick={() => setFilterStatus('reparacion')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'reparacion' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'reparacion' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
-          Reparación ({garments.filter((g) => g.status === 'reparacion').length})
+          <span className="hidden md:inline">Reparación</span>
+          <span className="md:hidden">Repar.</span> ({garments.filter((g) => g.status === 'reparacion').length})
         </button>
         <button
           onClick={() => setFilterStatus('baja')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'baja' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === 'baja' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
         >
           Bajas ({garments.filter((g) => g.status === 'baja').length})
         </button>
