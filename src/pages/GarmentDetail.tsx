@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, Download, Copy, ArrowLeft } from 'lucide-react'
+import { Loader, AlertCircle, Home, Download, Copy, ArrowLeft, Droplets, Sparkles, Scissors } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { generateQRUrl } from '../lib/qrGenerator'
-import type { Garment, Document } from '../types'
+import type { Garment, Document, GarmentAction } from '../types'
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
   const [garment, setGarment] = useState<Garment | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
+  const [actions, setActions] = useState<GarmentAction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -42,6 +43,10 @@ const GarmentDetail = () => {
 
       // Obtener documentos
       const docs = await documentService.getByGarmentId(id)
+
+      // Obtener acciones
+      const garmentActions = await garmentService.getActions(id)
+      setActions(garmentActions)
       setDocuments(docs)
     } catch (err: any) {
       console.error('Error:', err)
@@ -130,23 +135,67 @@ const GarmentDetail = () => {
           </Link>
         </div>
 
-        {/* Main Card */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          {/* Header Section */}
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between mb-4">
               <div>
                 <h1 className="text-3xl font-bold mb-2">{garment.name}</h1>
-                <p className="text-blue-100">Código: <span className="font-mono">{garment.code}</span></p>
+                <p className="text-blue-100">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
               </div>
               <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(garment.status)}`}>
                 {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
               </span>
             </div>
+            
+            {garment.client_name && (
+              <div className="pt-4 border-t border-blue-400">
+                <p className="text-blue-100 text-sm">Cliente</p>
+                <p className="text-white font-semibold">{garment.client_name}</p>
+                {garment.client_phone && (
+                  <p className="text-blue-100 text-sm">{garment.client_phone}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Content */}
           <div className="p-6 space-y-6">
+            {/* Estadísticas de Acciones */}
+            {actions.length > 0 && (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-4 bg-blue-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Droplets className="w-5 h-5 text-blue-600" />
+                    <span className="text-2xl font-bold text-blue-600">
+                      {actions.filter(a => a.action_type === 'lavado').length}
+                    </span>
+                  </div>
+                  <p className="text-sm text-blue-700 font-medium">Lavados</p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                    <span className="text-2xl font-bold text-purple-600">
+                      {actions.filter(a => a.action_type === 'esterilizacion').length}
+                    </span>
+                  </div>
+                  <p className="text-sm text-purple-700 font-medium">Esterilizaciones</p>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Scissors className="w-5 h-5 text-orange-600" />
+                    <span className="text-2xl font-bold text-orange-600">
+                      {actions.filter(a => 
+                        a.action_type === 'reparacion' || 
+                        (a.action_type === 'inspeccion' && a.result === 'reparacion')
+                      ).length}
+                    </span>
+                  </div>
+                  <p className="text-sm text-orange-700 font-medium">Reparaciones</p>
+                </div>
+              </div>
+            )}
+
             {/* QR Section */}
             <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
               <div className="mb-4">
@@ -175,41 +224,49 @@ const GarmentDetail = () => {
               </div>
             </div>
 
-            {/* Details Grid */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">ID de Prenda</p>
-                <p className="text-gray-800 font-mono text-sm break-all">{garment.id}</p>
-              </div>
-
+            {/* Información detallada */}
+            <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
               {garment.description && (
                 <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Descripción</p>
-                  <p className="text-gray-800">{garment.description}</p>
-                </div>
-              )}
-
-              {garment.client_name && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Cliente</p>
-                  <p className="text-gray-800">{garment.client_name}</p>
-                </div>
-              )}
-
-              {garment.client_phone && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-1">Teléfono</p>
-                  <p className="text-gray-800">{garment.client_phone}</p>
+                  <p className="text-sm font-medium text-gray-600 mb-2">Descripción</p>
+                  <p className="text-gray-800 bg-gray-50 p-3 rounded-lg">{garment.description}</p>
                 </div>
               )}
 
               {garment.notes && (
-                <div className="md:col-span-2">
-                  <p className="text-sm font-medium text-gray-600 mb-1">Notas</p>
-                  <p className="text-gray-800">{garment.notes}</p>
+                <div>
+                  <p className="text-sm font-medium text-gray-600 mb-2">Notas</p>
+                  <p className="text-gray-800 bg-gray-50 p-3 rounded-lg">{garment.notes}</p>
                 </div>
               )}
             </div>
+
+            {/* Historial de acciones */}
+            {actions.length > 0 && (
+              <div className="pt-4 border-t">
+                <h2 className="font-semibold text-gray-800 mb-3">Historial de Acciones ({actions.length})</h2>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {actions.slice().reverse().map((action, idx) => (
+                    <div key={idx} className="p-3 bg-gray-50 rounded-lg text-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-gray-800">
+                          {action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {new Date(action.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {action.result && (
+                        <p className="text-xs text-gray-600">Resultado: {action.result}</p>
+                      )}
+                      {action.notes && (
+                        <p className="text-xs text-gray-600 mt-1">Notas: {action.notes}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Timestamps */}
             <div className="pt-4 border-t space-y-1 text-xs text-gray-500">
@@ -254,3 +311,4 @@ const GarmentDetail = () => {
 }
 
 export default GarmentDetail
+
