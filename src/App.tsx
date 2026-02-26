@@ -8,6 +8,7 @@ import Bajas from './pages/Bajas'
 import Scanner from './pages/Scanner'
 import CreateGarment from './pages/CreateGarment'
 import GarmentDetail from './pages/GarmentDetail'
+import AdminUsers from './pages/AdminUsers'
 import Login from './pages/Login'
 
 function App() {
@@ -31,6 +32,7 @@ function App() {
             <Route path="bajas" element={<Bajas />} />
             <Route path="scanner" element={<Scanner />} />
             <Route path="crear-prenda" element={<CreateGarment />} />
+            <Route path="admin/usuarios" element={<ProtectedRoute requiredRole="jefe"><AdminUsers /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

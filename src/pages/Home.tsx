@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle, FileDown } from 'lucide-react'
+import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle, FileDown, Users } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
 import { roleBadges } from '../lib/rbac'
 import { garmentService } from '../services/garmentService'
@@ -109,6 +109,21 @@ const Home = () => {
               <p className="text-gray-600 text-sm">PDF con toda la información</p>
             </div>
           </button>
+        )}
+
+        {role === 'jefe' && (
+          <Link
+            to="/admin/usuarios"
+            className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm"
+          >
+            <div className="p-3 bg-purple-100 rounded-lg">
+              <Users className="w-8 h-8 text-purple-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-800">Gestionar Usuarios</h2>
+              <p className="text-gray-600 text-sm">Administrar roles</p>
+            </div>
+          </Link>
         )}
       </div>
 
