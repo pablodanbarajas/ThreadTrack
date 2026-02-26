@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle, FileDown } from 'lucide-react'
+import { useRole } from '../contexts/AuthContext'
+import { roleBadges } from '../lib/rbac'
 import { garmentService } from '../services/garmentService'
 import { generateReportPDF } from '../services/reportService'
 
 const Home = () => {
+  const { role, canDownloadReport } = useRole()
   const [stats, setStats] = useState({ 
     total: 0, 
     disponible: 0, 
@@ -26,7 +29,7 @@ const Home = () => {
     try {
       const data = await garmentService.getStats()
       setStats(data)
-      // Cargar también todas las prendas con sus acciones para el reporte
+      // Cargar todas las prendas con sus acciones para el reporte
       const allGarments = await garmentService.getAll()
       const garmentsWithActions = await Promise.all(
         allGarments.map(async (g) => {
@@ -54,6 +57,9 @@ const Home = () => {
     }
   }
 
+  const badgeColor = role ? roleBadges[role].color : ''
+  const badgeLabel = role ? roleBadges[role].label : 'Sin rol'
+
   return (
     <div className="max-w-4xl mx-auto">
       {/* Hero Section */}
@@ -64,9 +70,12 @@ const Home = () => {
             ThreadTrack
           </h1>
         </div>
-        <p className="text-xl text-gray-600 mb-8">
+        <p className="text-xl text-gray-600 mb-4">
           Sistema de Rastreo de Prendas
         </p>
+        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${badgeColor}`}>
+          {badgeLabel}
+        </span>
       </div>
 
       {/* Quick Actions */}
@@ -84,21 +93,23 @@ const Home = () => {
           </div>
         </Link>
 
-        <button
-          onClick={handleGenerateReport}
-          disabled={loading || generatingReport || garments.length === 0}
-          className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <div className="p-3 bg-blue-100 rounded-lg">
-            <FileDown className="w-8 h-8 text-blue-600" />
-          </div>
-          <div className="text-left">
-            <h2 className="text-lg font-semibold text-gray-800">
-              {generatingReport ? 'Generando...' : 'Descargar Reporte'}
-            </h2>
-            <p className="text-gray-600 text-sm">PDF con toda la información</p>
-          </div>
-        </button>
+        {canDownloadReport && (
+          <button
+            onClick={handleGenerateReport}
+            disabled={loading || generatingReport || garments.length === 0}
+            className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <FileDown className="w-8 h-8 text-blue-600" />
+            </div>
+            <div className="text-left">
+              <h2 className="text-lg font-semibold text-gray-800">
+                {generatingReport ? 'Generando...' : 'Descargar Reporte'}
+              </h2>
+              <p className="text-gray-600 text-sm">PDF con toda la información</p>
+            </div>
+          </button>
+        )}
       </div>
 
       {/* Stats Preview */}

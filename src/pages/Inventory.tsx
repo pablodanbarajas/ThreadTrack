@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown } from 'lucide-react'
 import QRCode from 'qrcode.react'
+import { useRole } from '../contexts/AuthContext'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
+  const { canCreateGarment, canDeleteGarment, canRecordAction } = useRole()
   const [garments, setGarments] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -89,6 +91,10 @@ const Inventory = () => {
   })
 
   const handleAddGarment = async () => {
+    if (!canCreateGarment) {
+      alert('No tienes permisos para crear prendas')
+      return
+    }
     if (!newGarment.code || !newGarment.name) return
     try {
       await garmentService.create({
@@ -136,6 +142,10 @@ const Inventory = () => {
   }
 
   const handleDelete = async (id: string) => {
+    if (!canDeleteGarment) {
+      alert('No tienes permisos para eliminar prendas')
+      return
+    }
     try {
       await garmentService.delete(id)
       setShowDeleteModal(false)
@@ -440,8 +450,16 @@ const Inventory = () => {
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
                 Cancelar
               </button>
-              <button onClick={handleAddGarment} className="btn-primary flex-1">
-                Guardar
+              <button 
+                onClick={handleAddGarment} 
+                disabled={!canCreateGarment}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  canCreateGarment
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {canCreateGarment ? 'Guardar' : 'Sin permiso'}
               </button>
             </div>
           </div>
@@ -631,13 +649,15 @@ const Inventory = () => {
                   >
                     <History className="w-4 h-4" />
                   </button>
-                  <button
-                    onClick={() => openDeleteModal(garment)}
-                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  {canDeleteGarment && (
+                    <button
+                      onClick={() => openDeleteModal(garment)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Código */}
@@ -698,12 +718,13 @@ const Inventory = () => {
                       <button
                         key={action}
                         onClick={() => openActionModal(garment, action)}
-                        disabled={isCurrentAction}
+                        disabled={isCurrentAction || !canRecordAction}
                         className={`w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
-                          isCurrentAction 
+                          isCurrentAction || !canRecordAction
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' 
                             : 'bg-gray-100 hover:bg-gray-200 cursor-pointer'
                         }`}
+                        title={!canRecordAction ? 'No tienes permiso para registrar acciones' : undefined}
                       >
                         <ActionIcon className="w-3 h-3" />
                         <span className="hidden md:inline">{actionLabels[action].label}</span>
@@ -715,7 +736,7 @@ const Inventory = () => {
                   })}
 
                   {/* Resultado de Inspección */}
-                  {garment.status === 'inspeccion' && (
+                  {garment.status === 'inspeccion' && canRecordAction && (
                     <button
                       onClick={() => openActionModal(garment, 'inspeccion')}
                       className="col-span-2 w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded text-xs font-medium transition-colors cursor-pointer"
