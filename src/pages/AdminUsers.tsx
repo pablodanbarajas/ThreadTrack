@@ -120,10 +120,10 @@ const AdminUsers = () => {
               return (
                 <div
                   key={user.id}
-                  className="card p-4 flex items-center justify-between gap-4"
+                  className="card p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
                 >
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-800">{user.email}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-gray-800 break-words">{user.email}</div>
                     <div className="text-sm text-gray-500">
                       ID: {user.id.substring(0, 8)}...
                     </div>
@@ -132,7 +132,7 @@ const AdminUsers = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {/* Rol actual o selector */}
                     {isEditing ? (
                       <div className="flex gap-2">
