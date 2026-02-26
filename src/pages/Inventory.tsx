@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode, Download, Copy } from 'lucide-react'
+import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode, Download, Copy, ChevronDown, Plus } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
@@ -12,6 +12,7 @@ const Inventory = () => {
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
+  const [showDateFilters, setShowDateFilters] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
@@ -226,7 +227,7 @@ const Inventory = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 md:pb-0">
+    <div className="max-w-6xl mx-auto pb-20 md:pb-0">
       {/* Modal de Confirmación de Eliminación */}
       {showDeleteModal && garmentToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -268,12 +269,123 @@ const Inventory = () => {
         />
       )}
 
-      <div className="flex items-center gap-3 mb-6">
-        <Package className="w-8 h-8 text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-800">Inventario</h1>
+      <div className="flex items-center gap-3 mb-4">
+        <Package className="w-6 h-6 text-blue-600" />
+        <h1 className="text-xl font-bold text-gray-800">Inventario</h1>
       </div>
 
-      {/* Modal para agregar prenda */}
+      {/* Search and Quick Filters */}
+      <div className="flex flex-col md:flex-row gap-3 mb-4">
+        <div className="flex-1">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar código, nombre..."
+              className="input-field flex-1 py-2"
+            />
+            <button
+              type="button"
+              onClick={openScannerForSearch}
+              className="md:hidden px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+              title="Escanear código para buscar"
+            >
+              <ScanBarcode className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowDateFilters(!showDateFilters)}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+            showDateFilters
+              ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          Fechas
+          <ChevronDown className={`w-4 h-4 transition-transform ${showDateFilters ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {/* Date Filters (Collapsible) */}
+      {showDateFilters && (
+        <div className="flex flex-col md:flex-row gap-3 mb-4 p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600 whitespace-nowrap">Desde</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="input-field text-xs py-1 px-2"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-600 whitespace-nowrap">Hasta</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              className="input-field text-xs py-1 px-2"
+            />
+          </div>
+          {(filterDateFrom || filterDateTo) && (
+            <button
+              onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Compact Status Filters */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        <button
+          onClick={() => setFilterStatus('all')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Total ({garments.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('disponible')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'disponible' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Disponible ({garments.filter((g) => g.status === 'disponible').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('lavado')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'lavado' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Lavado ({garments.filter((g) => g.status === 'lavado').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('esterilizacion')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'esterilizacion' ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Esterilización ({garments.filter((g) => g.status === 'esterilizacion').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('inspeccion')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'inspeccion' ? 'bg-yellow-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Inspección ({garments.filter((g) => g.status === 'inspeccion').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('reparacion')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'reparacion' ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Reparación ({garments.filter((g) => g.status === 'reparacion').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('baja')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${filterStatus === 'baja' ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+        >
+          Bajas ({garments.filter((g) => g.status === 'baja').length})
+        </button>
+      </div>
       {showModal && !showScanner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
@@ -331,132 +443,6 @@ const Inventory = () => {
           </div>
         </div>
       )}
-
-      {/* Search and Filter */}
-      <div className="card mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Buscar
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Código o nombre..."
-                className="input-field flex-1"
-              />
-              <button
-                type="button"
-                onClick={openScannerForSearch}
-                className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
-                title="Escanear código para buscar"
-              >
-                <ScanBarcode className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-          <div className="flex flex-col gap-1 min-w-[140px]">
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-gray-600 whitespace-nowrap">
-                <Calendar className="w-3 h-3 inline mr-1" />
-                Desde
-              </label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="input-field text-xs py-1 px-2"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-gray-600 whitespace-nowrap">
-                <Calendar className="w-3 h-3 inline mr-1" />
-                Hasta
-              </label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-                className="input-field text-xs py-1 px-2"
-              />
-            </div>
-            {(filterDateFrom || filterDateTo) && (
-              <button
-                onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
-                className="text-xs text-blue-600 hover:text-blue-800 text-right"
-              >
-                Limpiar fechas
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Stats - Click para filtrar */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
-        <button
-          onClick={() => setFilterStatus('all')}
-          className={`card text-center py-3 transition-all ${filterStatus === 'all' ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
-        >
-          <Shirt className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-          <div className="text-xl font-bold text-blue-600">
-            {garments.length}
-          </div>
-          <div className="text-xs text-gray-600">Total</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus('disponible')}
-          className={`card text-center py-3 transition-all ${filterStatus === 'disponible' ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}`}
-        >
-          <PackageCheck className="w-5 h-5 text-green-600 mx-auto mb-1" />
-          <div className="text-xl font-bold text-green-600">
-            {garments.filter((g) => g.status === 'disponible').length}
-          </div>
-          <div className="text-xs text-gray-600">Disponible</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus('lavado')}
-          className={`card text-center py-3 transition-all ${filterStatus === 'lavado' ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}`}
-        >
-          <Droplets className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-          <div className="text-xl font-bold text-blue-600">
-            {garments.filter((g) => g.status === 'lavado').length}
-          </div>
-          <div className="text-xs text-gray-600">Lavado</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus('esterilizacion')}
-          className={`card text-center py-3 transition-all ${filterStatus === 'esterilizacion' ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-50'}`}
-        >
-          <Sparkles className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-          <div className="text-xl font-bold text-purple-600">
-            {garments.filter((g) => g.status === 'esterilizacion').length}
-          </div>
-          <div className="text-xs text-gray-600">Esterilización</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus('reparacion')}
-          className={`card text-center py-3 transition-all ${filterStatus === 'reparacion' ? 'ring-2 ring-orange-500 bg-orange-50' : 'hover:bg-gray-50'}`}
-        >
-          <Scissors className="w-5 h-5 text-orange-600 mx-auto mb-1" />
-          <div className="text-xl font-bold text-orange-600">
-            {garments.filter((g) => g.status === 'reparacion').length}
-          </div>
-          <div className="text-xs text-gray-600">Reparación</div>
-        </button>
-        <button
-          onClick={() => setFilterStatus('baja')}
-          className={`card text-center py-3 transition-all ${filterStatus === 'baja' ? 'ring-2 ring-red-500 bg-red-50' : 'hover:bg-gray-50'}`}
-        >
-          <AlertTriangle className="w-5 h-5 text-red-600 mx-auto mb-1" />
-          <div className="text-xl font-bold text-red-600">
-            {garments.filter((g) => g.status === 'baja').length}
-          </div>
-          <div className="text-xs text-gray-600">Bajas</div>
-        </button>
-      </div>
 
       {/* Modal de Acción */}
       {showActionModal && selectedGarment && (
@@ -611,7 +597,7 @@ const Inventory = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {filteredGarments.map((garment) => {
             const StatusIcon = statusLabels[garment.status as GarmentStatus]?.icon || Package
             const availableActions = getAvailableActions(garment.status as GarmentStatus)
@@ -624,86 +610,82 @@ const Inventory = () => {
               (a.action_type === 'inspeccion' && a.result === 'reparacion')
             ).length
             return (
-              <div key={garment.id} className="card">
-                {/* Botones de acción - Arriba */}
-                <div className="flex justify-center gap-2 mb-4 pb-4 border-b">
+              <div key={garment.id} className="card p-4">
+                {/* Botones de acción */}
+                <div className="flex justify-end gap-1 mb-3 pb-3 border-b">
                   <button
                     onClick={() => openQRModal(garment)}
-                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                     title="Ver QR"
                   >
-                    <ScanBarcode className="w-5 h-5" />
+                    <ScanBarcode className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => openHistoryModal(garment)}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Ver historial"
                   >
-                    <History className="w-5 h-5" />
+                    <History className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => openDeleteModal(garment)}
-                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     title="Eliminar"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* Código - Full width */}
-                <div className="mb-3 text-center">
-                  <div className="font-mono text-lg font-semibold text-gray-800">{garment.code}</div>
-                </div>
+                {/* Código */}
+                <div className="font-mono text-sm font-semibold text-gray-800 mb-2">{garment.code}</div>
 
-                {/* Nombre - Full width */}
-                <div className="mb-3 text-center">
-                  <p className="text-sm font-medium text-gray-700 line-clamp-2">{garment.name}</p>
-                </div>
+                {/* Nombre */}
+                <p className="text-sm font-medium text-gray-700 line-clamp-2 mb-2">{garment.name}</p>
 
-                {/* Cliente - Full width si existe */}
+                {/* Cliente */}
                 {garment.client_name && (
-                  <div className="mb-3 text-center text-sm text-gray-600">
-                    <p>{garment.client_name}</p>
+                  <div className="text-xs text-gray-600 mb-2 line-clamp-1">
+                    {garment.client_name}
                   </div>
                 )}
 
-                {/* Estado - Centrado */}
-                <div className="mb-4 flex justify-center">
-                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${statusLabels[garment.status as GarmentStatus]?.color || 'bg-gray-100'}`}>
-                    <StatusIcon className="w-4 h-4" />
+                {/* Estado */}
+                <div className="mb-3">
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusLabels[garment.status as GarmentStatus]?.color || 'bg-gray-100'}`}>
+                    <StatusIcon className="w-3 h-3" />
                     {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
                   </span>
                 </div>
 
                 {/* Contadores - Grid 3 columnas */}
                 {actions.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="p-2 bg-blue-50 rounded-lg text-center">
-                      <div className="flex justify-center mb-1">
-                        <Droplets className="w-4 h-4 text-blue-600" />
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    <div className="p-2 bg-blue-50 rounded text-center">
+                      <div className="flex justify-center mb-0.5">
+                        <Droplets className="w-3 h-3 text-blue-600" />
                       </div>
-                      <p className="text-lg font-bold text-blue-600">{lavadoCount}</p>
+                      <p className="text-sm font-bold text-blue-600">{lavadoCount}</p>
                       <p className="text-xs text-blue-700">Lavados</p>
                     </div>
-                    <div className="p-2 bg-purple-50 rounded-lg text-center">
-                      <div className="flex justify-center mb-1">
-                        <Sparkles className="w-4 h-4 text-purple-600" />
+                    <div className="p-2 bg-purple-50 rounded text-center">
+                      <div className="flex justify-center mb-0.5">
+                        <Sparkles className="w-3 h-3 text-purple-600" />
                       </div>
-                      <p className="text-lg font-bold text-purple-600">{esterilizacionCount}</p>
+                      <p className="text-sm font-bold text-purple-600">{esterilizacionCount}</p>
                       <p className="text-xs text-purple-700">Esterilizaciones</p>
                     </div>
-                    <div className="p-2 bg-orange-50 rounded-lg text-center">
-                      <div className="flex justify-center mb-1">
-                        <Scissors className="w-4 h-4 text-orange-600" />
+                    <div className="p-2 bg-orange-50 rounded text-center">
+                      <div className="flex justify-center mb-0.5">
+                        <Scissors className="w-3 h-3 text-orange-600" />
                       </div>
-                      <p className="text-lg font-bold text-orange-600">{reparacionCount}</p>
+                      <p className="text-sm font-bold text-orange-600">{reparacionCount}</p>
                       <p className="text-xs text-orange-700">Reparaciones</p>
                     </div>
                   </div>
                 )}
 
-                {/* Botones de acciones - Grid 2x2 en mobile, 3 columnas en desktop */}
-                <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                {/* Botones de acciones - Grid 2 columnas */}
+                <div className="grid grid-cols-2 gap-2">
                   {/* Todos los botones de acciones */}
                   {availableActions.filter(a => a === 'lavado' || a === 'esterilizacion' || a === 'inspeccion' || a === 'reparacion').map((action) => {
                     const ActionIcon = actionLabels[action].icon
@@ -713,14 +695,17 @@ const Inventory = () => {
                         key={action}
                         onClick={() => openActionModal(garment, action)}
                         disabled={isCurrentAction}
-                        className={`w-full inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${
+                        className={`w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors ${
                           isCurrentAction 
                             ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' 
                             : 'bg-gray-100 hover:bg-gray-200 cursor-pointer'
                         }`}
                       >
-                        <ActionIcon className="w-4 h-4" />
-                        <span>{actionLabels[action].label}</span>
+                        <ActionIcon className="w-3 h-3" />
+                        <span className="hidden md:inline">{actionLabels[action].label}</span>
+                        <span className="md:hidden text-xs">
+                          {action === 'lavado' ? 'Lavado' : action === 'esterilizacion' ? 'Esteriliz.' : action === 'inspeccion' ? 'Inspección' : 'Reparación'}
+                        </span>
                       </button>
                     )
                   })}
@@ -729,9 +714,9 @@ const Inventory = () => {
                   {garment.status === 'inspeccion' && (
                     <button
                       onClick={() => openActionModal(garment, 'inspeccion')}
-                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg text-xs md:text-sm font-medium transition-colors cursor-pointer"
+                      className="col-span-2 w-full inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded text-xs font-medium transition-colors cursor-pointer"
                     >
-                      <ClipboardCheck className="w-4 h-4" />
+                      <ClipboardCheck className="w-3 h-3" />
                       <span>Registrar Resultado</span>
                     </button>
                   )}
