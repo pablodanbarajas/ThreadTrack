@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle } from 'lucide-react'
+import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle, FileDown } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
+import { generateReportPDF } from '../services/reportService'
 
 const Home = () => {
   const [stats, setStats] = useState({ 
@@ -13,7 +14,9 @@ const Home = () => {
     reparacion: 0, 
     baja: 0 
   })
+  const [garments, setGarments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [generatingReport, setGeneratingReport] = useState(false)
 
   useEffect(() => {
     loadStats()
@@ -23,10 +26,31 @@ const Home = () => {
     try {
       const data = await garmentService.getStats()
       setStats(data)
+      // Cargar también todas las prendas con sus acciones para el reporte
+      const allGarments = await garmentService.getAll()
+      const garmentsWithActions = await Promise.all(
+        allGarments.map(async (g) => {
+          const actions = await garmentService.getActions(g.id)
+          return { ...g, actions }
+        })
+      )
+      setGarments(garmentsWithActions)
     } catch (error) {
-      console.error('Error cargando estadísticas:', error)
+      console.error('Error cargando datos:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleGenerateReport = async () => {
+    try {
+      setGeneratingReport(true)
+      await generateReportPDF(garments)
+    } catch (error) {
+      console.error('Error generando reporte:', error)
+      alert('Error al generar el reporte')
+    } finally {
+      setGeneratingReport(false)
     }
   }
 
@@ -46,7 +70,7 @@ const Home = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex justify-center mb-8">
+      <div className="flex flex-col md:flex-row gap-4 justify-center mb-8">
         <Link
           to="/inventory"
           className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm"
@@ -59,6 +83,22 @@ const Home = () => {
             <p className="text-gray-600 text-sm">Gestionar prendas</p>
           </div>
         </Link>
+
+        <button
+          onClick={handleGenerateReport}
+          disabled={loading || generatingReport || garments.length === 0}
+          className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <div className="p-3 bg-blue-100 rounded-lg">
+            <FileDown className="w-8 h-8 text-blue-600" />
+          </div>
+          <div className="text-left">
+            <h2 className="text-lg font-semibold text-gray-800">
+              {generatingReport ? 'Generando...' : 'Descargar Reporte'}
+            </h2>
+            <p className="text-gray-600 text-sm">PDF con toda la información</p>
+          </div>
+        </button>
       </div>
 
       {/* Stats Preview */}
