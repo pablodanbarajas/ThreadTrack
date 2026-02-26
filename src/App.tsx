@@ -7,6 +7,7 @@ import Inventory from './pages/Inventory'
 import Bajas from './pages/Bajas'
 import Scanner from './pages/Scanner'
 import CreateGarment from './pages/CreateGarment'
+import GarmentDetail from './pages/GarmentDetail'
 import Login from './pages/Login'
 
 function App() {
@@ -15,6 +16,8 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Ruta pública para ver detalles de prenda por QR */}
+          <Route path="/prenda/:id" element={<GarmentDetail />} />
           <Route
             path="/"
             element={
