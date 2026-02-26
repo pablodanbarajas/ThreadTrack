@@ -3,7 +3,7 @@ import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, Pa
 import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
-import { generateQRUrl } from '../lib/qrGenerator'
+import { generateQRUrl, extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
@@ -73,6 +73,7 @@ const Inventory = () => {
 
   const filteredGarments = garments.filter((garment) => {
     const matchesSearch =
+      garment.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       garment.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       garment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (garment.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
@@ -208,10 +209,13 @@ const Inventory = () => {
 
   const handleScanResult = (code: string) => {
     if (scannerTarget === 'search') {
-      setSearchTerm(code)
+      // Extrae el ID de la URL del QR, si es una URL válida
+      const extractedId = extractGarmentIdFromUrl(code)
+      // Si es una URL con ID, usa el ID; si no, busca el código como antes
+      setSearchTerm(extractedId || code)
     } else {
       setNewGarment((prev) => ({ ...prev, code }))
-      setTimeout(() => setShowModal(true), 100) // Vuelve a mostrar el modal de Nueva Prenda
+      setTimeout(() => setShowModal(true), 100)
     }
     setShowScanner(false)
   }
