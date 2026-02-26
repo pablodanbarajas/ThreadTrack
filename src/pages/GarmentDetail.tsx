@@ -246,7 +246,7 @@ const GarmentDetail = () => {
               <div className="pt-4 border-t">
                 <h2 className="font-semibold text-gray-800 mb-3">Historial de Acciones ({actions.length})</h2>
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {actions.slice().reverse().map((action, idx) => (
+                  {actions.map((action, idx) => (
                     <div key={idx} className="p-3 bg-gray-50 rounded-lg text-sm">
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-gray-800">
