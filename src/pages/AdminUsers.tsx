@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Edit2, Trash2, Plus, Loader2, AlertTriangle } from 'lucide-react'
+import { Users, Edit2, Trash2, Loader2, AlertTriangle } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
 import type { UserRole } from '../contexts/AuthContext'
 import { roleBadges, roleDescriptions } from '../lib/rbac'
@@ -14,8 +14,6 @@ const AdminUsers = () => {
   const [loading, setLoading] = useState(true)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [newRole, setNewRole] = useState<UserRole>('operador')
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [newUser, setNewUser] = useState({ email: '', password: '', role: 'operador' as UserRole })
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -68,17 +66,6 @@ const AdminUsers = () => {
     }
   }
 
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    setMessage({ 
-      type: 'error', 
-      text: 'Para crear usuarios, usa Supabase Authentication o crea una función Edge personalizada. Ver ADMIN_FUNCTION_SETUP.sql para instrucciones.' 
-    })
-    
-    // Aquí iría la lógica de crear usuario si tuvieras función Edge configurada
-  }
-
   return (
     <div className="max-w-6xl mx-auto pb-20 md:pb-0">
       {/* Header */}
@@ -110,86 +97,7 @@ const AdminUsers = () => {
         </div>
       )}
 
-      {/* Botón crear usuario */}
-      <button
-        onClick={() => setShowCreateForm(!showCreateForm)}
-        className="mb-6 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
-      >
-        <Plus className="w-4 h-4" />
-        Crear Usuario
-      </button>
 
-      {/* Formulario crear usuario */}
-      {showCreateForm && (
-        <div className="card mb-6 p-6">
-          <h2 className="text-lg font-bold mb-4">Crear Nuevo Usuario</h2>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-800">
-              <strong>Para crear usuarios desde la UI:</strong> 
-              <br />
-              1. Lee el archivo ADMIN_FUNCTION_SETUP.sql
-              <br />
-              2. Crea una función Edge en Supabase (Database → Functions)
-              <br />
-              3. O usa Authentication → Users en Supabase para crear manualmente
-            </p>
-          </div>
-          
-          <form onSubmit={handleCreateUser} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={newUser.email}
-                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                className="input-field"
-                placeholder="usuario@example.com"
-                disabled
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-              <input
-                type="password"
-                value={newUser.password}
-                onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                className="input-field"
-                placeholder="••••••••"
-                disabled
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-              <select
-                value={newUser.role}
-                onChange={(e) => setNewUser({ ...newUser, role: e.target.value as UserRole })}
-                className="input-field"
-                disabled
-              >
-                <option value="operador">Operador</option>
-                <option value="supervisor">Supervisor</option>
-                <option value="jefe">Jefe</option>
-              </select>
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled
-                className="btn-primary flex-1 opacity-50 cursor-not-allowed"
-              >
-                Crear
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* Lista de usuarios */}
       {loading ? (
