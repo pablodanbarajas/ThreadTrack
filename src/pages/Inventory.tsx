@@ -621,83 +621,114 @@ const Inventory = () => {
             ).length
             return (
               <div key={garment.id} className="card">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="font-mono text-lg text-gray-800">{garment.code}</div>
-                    <div className="text-gray-600">{garment.name}</div>
-                    {garment.client_name && (
-                      <div className="text-sm text-gray-500">Cliente: {garment.client_name}</div>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => openQRModal(garment)}
-                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                      title="Ver QR"
-                    >
-                      <ScanBarcode className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => openHistoryModal(garment)}
-                      className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Ver historial"
-                    >
-                      <History className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => openDeleteModal(garment)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Estado actual y resumen de acciones */}
-                <div className="flex flex-col md:flex-row md:items-center md:gap-4 mb-3">
-                  <div className="flex items-center gap-2 mb-1 md:mb-0">
-                    <span className="text-sm text-gray-500">Estado:</span>
-                    <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${statusLabels[garment.status as GarmentStatus]?.color || 'bg-gray-100'}`}>
-                      <StatusIcon className="w-4 h-4" />
-                      {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs text-gray-600 w-full">
-                    <span className="inline-flex items-center gap-1 bg-blue-50 px-2 py-1 rounded whitespace-nowrap"><Droplets className="w-4 h-4 text-blue-500" /> {lavadoCount} Lavados</span>
-                    <span className="inline-flex items-center gap-1 bg-purple-50 px-2 py-1 rounded whitespace-nowrap"><Sparkles className="w-4 h-4 text-purple-500" /> {esterilizacionCount} Esterilizaciones</span>
-                    <span className="inline-flex items-center gap-1 bg-orange-50 px-2 py-1 rounded whitespace-nowrap"><Scissors className="w-4 h-4 text-orange-500" /> {reparacionCount} Reparaciones</span>
-                  </div>
+                {/* Botones de acción - Arriba */}
+                <div className="flex justify-center gap-2 mb-4 pb-4 border-b">
+                  <button
+                    onClick={() => openQRModal(garment)}
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    title="Ver QR"
+                  >
+                    <ScanBarcode className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => openHistoryModal(garment)}
+                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                    title="Ver historial"
+                  >
+                    <History className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => openDeleteModal(garment)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
                 </div>
 
-                {/* Acciones disponibles */}
-                <div className="flex flex-wrap gap-2">
-                  {availableActions.map((action) => {
+                {/* Código - Full width */}
+                <div className="mb-3 text-center">
+                  <div className="font-mono text-lg font-semibold text-gray-800">{garment.code}</div>
+                </div>
+
+                {/* Nombre - Full width */}
+                <div className="mb-3 text-center">
+                  <p className="text-sm font-medium text-gray-700 line-clamp-2">{garment.name}</p>
+                </div>
+
+                {/* Cliente - Full width si existe */}
+                {garment.client_name && (
+                  <div className="mb-3 text-center text-sm text-gray-600">
+                    <p>{garment.client_name}</p>
+                  </div>
+                )}
+
+                {/* Estado - Centrado */}
+                <div className="mb-4 flex justify-center">
+                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${statusLabels[garment.status as GarmentStatus]?.color || 'bg-gray-100'}`}>
+                    <StatusIcon className="w-4 h-4" />
+                    {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
+                  </span>
+                </div>
+
+                {/* Contadores - Grid 3 columnas */}
+                {actions.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="p-2 bg-blue-50 rounded-lg text-center">
+                      <div className="flex justify-center mb-1">
+                        <Droplets className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <p className="text-lg font-bold text-blue-600">{lavadoCount}</p>
+                      <p className="text-xs text-blue-700">Lavados</p>
+                    </div>
+                    <div className="p-2 bg-purple-50 rounded-lg text-center">
+                      <div className="flex justify-center mb-1">
+                        <Sparkles className="w-4 h-4 text-purple-600" />
+                      </div>
+                      <p className="text-lg font-bold text-purple-600">{esterilizacionCount}</p>
+                      <p className="text-xs text-purple-700">Esterilizaciones</p>
+                    </div>
+                    <div className="p-2 bg-orange-50 rounded-lg text-center">
+                      <div className="flex justify-center mb-1">
+                        <Scissors className="w-4 h-4 text-orange-600" />
+                      </div>
+                      <p className="text-lg font-bold text-orange-600">{reparacionCount}</p>
+                      <p className="text-xs text-orange-700">Reparaciones</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Botones de acciones - Grid 2x2 en mobile, 3 columnas en desktop */}
+                <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                  {/* Todos los botones de acciones */}
+                  {availableActions.filter(a => a === 'lavado' || a === 'esterilizacion' || a === 'inspeccion' || a === 'reparacion').map((action) => {
                     const ActionIcon = actionLabels[action].icon
-                    // Resaltar el botón si la prenda ya está en ese estado
                     const isCurrentAction = garment.status === action
                     return (
                       <button
                         key={action}
                         onClick={() => openActionModal(garment, action)}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        disabled={isCurrentAction}
+                        className={`w-full inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors ${
                           isCurrentAction 
-                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200' 
-                            : 'bg-gray-100 hover:bg-gray-200'
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60' 
+                            : 'bg-gray-100 hover:bg-gray-200 cursor-pointer'
                         }`}
                       >
                         <ActionIcon className="w-4 h-4" />
-                        {actionLabels[action].label}
+                        <span>{actionLabels[action].label}</span>
                       </button>
                     )
                   })}
+
+                  {/* Resultado de Inspección */}
                   {garment.status === 'inspeccion' && (
                     <button
                       onClick={() => openActionModal(garment, 'inspeccion')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg text-sm font-medium transition-colors"
+                      className="w-full inline-flex items-center justify-center gap-1 px-2 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg text-xs md:text-sm font-medium transition-colors cursor-pointer"
                     >
                       <ClipboardCheck className="w-4 h-4" />
-                      Registrar Resultado
+                      <span>Registrar Resultado</span>
                     </button>
                   )}
                 </div>
