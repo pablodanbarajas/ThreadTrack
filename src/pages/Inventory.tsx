@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode, Download, Copy } from 'lucide-react'
+import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode, Download, Copy } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
@@ -264,14 +264,9 @@ const Inventory = () => {
         />
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Package className="w-8 h-8 text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-800">Inventario</h1>
-        </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary flex items-center gap-2">
-          <Plus className="w-5 h-5" /> Nueva Prenda
-        </button>
+      <div className="flex items-center gap-3 mb-6">
+        <Package className="w-8 h-8 text-blue-600" />
+        <h1 className="text-2xl font-bold text-gray-800">Inventario</h1>
       </div>
 
       {/* Modal para agregar prenda */}

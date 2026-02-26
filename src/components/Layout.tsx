@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, Shirt, AlertTriangle, LogOut, ScanBarcode, Plus } from 'lucide-react'
+import { Home, Package, Menu, X, Shirt, AlertTriangle, LogOut, Plus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 
@@ -13,7 +13,6 @@ const Layout = () => {
     { path: '/', label: 'Inicio', icon: Home },
     { path: '/inventory', label: 'Inventario', icon: Package },
     { path: '/bajas', label: 'Bajas', icon: AlertTriangle },
-    { path: '/scanner', label: 'Escáner QR', icon: ScanBarcode },
     { path: '/crear-prenda', label: 'Crear Prenda', icon: Plus },
   ]
 
