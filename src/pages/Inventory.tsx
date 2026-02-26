@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Package, Plus, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Shirt, AlertTriangle, Calendar, ScanBarcode, Download, Copy } from 'lucide-react'
+import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
+import { generateQRUrl } from '../lib/qrGenerator'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
@@ -24,6 +26,9 @@ const Inventory = () => {
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
   const [newGarment, setNewGarment] = useState({ code: '', name: '', client_name: '' })
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [copiedQR, setCopiedQR] = useState(false)
+  const qrRef = useRef<HTMLDivElement>(null)
 
   const statusLabels: Record<GarmentStatus, { label: string; color: string; icon: any }> = {
     disponible: { label: 'Disponible', color: 'bg-green-100 text-green-800', icon: PackageCheck },
@@ -99,6 +104,33 @@ const Inventory = () => {
         console.error('Error creando prenda:', error)
       }
     }
+  }
+
+  const downloadQR = () => {
+    if (!selectedGarment || !qrRef.current) return
+
+    const element = qrRef.current.querySelector('canvas')
+    if (!element) return
+
+    const link = document.createElement('a')
+    link.href = element.toDataURL('image/png')
+    link.download = `qr-${selectedGarment.code}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const copyQRUrl = () => {
+    if (!selectedGarment) return
+    const url = generateQRUrl(selectedGarment.id)
+    navigator.clipboard.writeText(url)
+    setCopiedQR(true)
+    setTimeout(() => setCopiedQR(false), 2000)
+  }
+
+  const openQRModal = (garment: Garment) => {
+    setSelectedGarment(garment)
+    setShowQRModal(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -666,10 +698,80 @@ const Inventory = () => {
                       Registrar Resultado
                     </button>
                   )}
+                  <button
+                    onClick={() => openQRModal(garment)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg text-sm font-medium transition-colors"
+                    title="Ver/Descargar QR"
+                  >
+                    <ScanBarcode className="w-4 h-4" />
+                    Ver QR
+                  </button>
                 </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* QR Modal */}
+      {showQRModal && selectedGarment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold text-gray-800">QR de {selectedGarment.name}</h3>
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* QR Display */}
+            <div className="p-6 flex flex-col items-center">
+              <div
+                ref={qrRef}
+                className="bg-gray-50 p-4 rounded-lg mb-4"
+              >
+                <QRCode
+                  value={generateQRUrl(selectedGarment.id)}
+                  size={200}
+                  level="H"
+                  includeMargin={true}
+                />
+              </div>
+              <p className="text-sm text-gray-600 text-center font-mono break-all mb-4">
+                {generateQRUrl(selectedGarment.id)}
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 border-t space-y-2">
+              <button
+                onClick={downloadQR}
+                className="btn-secondary w-full flex items-center justify-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                Descargar QR
+              </button>
+
+              <button
+                onClick={copyQRUrl}
+                className="btn-secondary w-full flex items-center justify-center gap-2"
+              >
+                <Copy className="w-5 h-5" />
+                {copiedQR ? 'Copiado!' : 'Copiar URL'}
+              </button>
+
+              <button
+                onClick={() => setShowQRModal(false)}
+                className="btn-outline w-full"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
