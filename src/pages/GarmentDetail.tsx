@@ -137,12 +137,12 @@ const GarmentDetail = () => {
 
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold mb-2">{garment.name}</h1>
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <h1 className="text-2xl md:text-3xl font-bold mb-2 break-words">{garment.name}</h1>
                 <p className="text-blue-100">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
               </div>
-              <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(garment.status)}`}>
+              <span className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
                 {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
               </span>
             </div>
@@ -162,36 +162,36 @@ const GarmentDetail = () => {
           <div className="p-6 space-y-6">
             {/* Estadísticas de Acciones */}
             {actions.length > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-4 bg-blue-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <Droplets className="w-5 h-5 text-blue-600" />
-                    <span className="text-2xl font-bold text-blue-600">
+              <div className="grid grid-cols-3 gap-2 md:gap-3">
+                <div className="p-3 md:p-4 bg-blue-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                    <Droplets className="w-4 md:w-5 h-4 md:h-5 text-blue-600" />
+                    <span className="text-xl md:text-2xl font-bold text-blue-600">
                       {actions.filter(a => a.action_type === 'lavado').length}
                     </span>
                   </div>
-                  <p className="text-sm text-blue-700 font-medium">Lavados</p>
+                  <p className="text-xs md:text-sm text-blue-700 font-medium break-words">Lavados</p>
                 </div>
-                <div className="p-4 bg-purple-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <Sparkles className="w-5 h-5 text-purple-600" />
-                    <span className="text-2xl font-bold text-purple-600">
+                <div className="p-3 md:p-4 bg-purple-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                    <Sparkles className="w-4 md:w-5 h-4 md:h-5 text-purple-600" />
+                    <span className="text-xl md:text-2xl font-bold text-purple-600">
                       {actions.filter(a => a.action_type === 'esterilizacion').length}
                     </span>
                   </div>
-                  <p className="text-sm text-purple-700 font-medium">Esterilizaciones</p>
+                  <p className="text-xs md:text-sm text-purple-700 font-medium break-words">Esterilizaciones</p>
                 </div>
-                <div className="p-4 bg-orange-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-2 mb-1">
-                    <Scissors className="w-5 h-5 text-orange-600" />
-                    <span className="text-2xl font-bold text-orange-600">
+                <div className="p-3 md:p-4 bg-orange-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
+                    <Scissors className="w-4 md:w-5 h-4 md:h-5 text-orange-600" />
+                    <span className="text-xl md:text-2xl font-bold text-orange-600">
                       {actions.filter(a => 
                         a.action_type === 'reparacion' || 
                         (a.action_type === 'inspeccion' && a.result === 'reparacion')
                       ).length}
                     </span>
                   </div>
-                  <p className="text-sm text-orange-700 font-medium">Reparaciones</p>
+                  <p className="text-xs md:text-sm text-orange-700 font-medium break-words">Reparaciones</p>
                 </div>
               </div>
             )}
@@ -253,7 +253,7 @@ const GarmentDetail = () => {
                           {action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)}
                         </span>
                         <span className="text-xs text-gray-500">
-                          {new Date(action.created_at).toLocaleDateString()}
+                          {new Date(action.created_at).toLocaleString()}
                         </span>
                       </div>
                       {action.result && (

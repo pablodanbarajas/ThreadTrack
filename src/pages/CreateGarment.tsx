@@ -77,7 +77,7 @@ const CreateGarment = () => {
   const qrUrl = createdGarment ? generateQRUrl(createdGarment.id) : ''
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 md:pb-0">
+    <div className="w-full pb-20 md:pb-0">
       <div className="flex items-center gap-3 mb-6">
         <Plus className="w-8 h-8 text-green-600" />
         <h1 className="text-2xl font-bold text-gray-800">Crear Prenda con QR</h1>
@@ -98,36 +98,40 @@ const CreateGarment = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Código de Prenda *
-                </label>
-                <input
-                  type="text"
-                  name="code"
-                  value={formData.code}
-                  onChange={handleChange}
-                  placeholder="Ej: SHIRT-001"
-                  className="input-field"
-                  required
-                />
+              {/* Código y Nombre en dos columnas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Código de Prenda *
+                  </label>
+                  <input
+                    type="text"
+                    name="code"
+                    value={formData.code}
+                    onChange={handleChange}
+                    placeholder="Ej: SHIRT-001"
+                    className="input-field"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Ej: Camisa blanca talla M"
+                    className="input-field"
+                    required
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="Ej: Camisa blanca talla M"
-                  className="input-field"
-                  required
-                />
-              </div>
-
+              {/* Descripción ancho completo */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Descripción
@@ -142,34 +146,38 @@ const CreateGarment = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Cliente
-                </label>
-                <input
-                  type="text"
-                  name="client_name"
-                  value={formData.client_name}
-                  onChange={handleChange}
-                  placeholder="Nombre del cliente"
-                  className="input-field"
-                />
+              {/* Cliente y Teléfono en dos columnas */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Cliente
+                  </label>
+                  <input
+                    type="text"
+                    name="client_name"
+                    value={formData.client_name}
+                    onChange={handleChange}
+                    placeholder="Nombre del cliente"
+                    className="input-field"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Teléfono
+                  </label>
+                  <input
+                    type="text"
+                    name="client_phone"
+                    value={formData.client_phone}
+                    onChange={handleChange}
+                    placeholder="Teléfono del cliente"
+                    className="input-field"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Teléfono
-                </label>
-                <input
-                  type="text"
-                  name="client_phone"
-                  value={formData.client_phone}
-                  onChange={handleChange}
-                  placeholder="Teléfono del cliente"
-                  className="input-field"
-                />
-              </div>
-
+              {/* Notas ancho completo */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Notas

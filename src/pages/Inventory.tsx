@@ -631,6 +631,13 @@ const Inventory = () => {
                   </div>
                   <div className="flex gap-1">
                     <button
+                      onClick={() => openQRModal(garment)}
+                      className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                      title="Ver QR"
+                    >
+                      <ScanBarcode className="w-5 h-5" />
+                    </button>
+                    <button
                       onClick={() => openHistoryModal(garment)}
                       className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                       title="Ver historial"
@@ -693,14 +700,6 @@ const Inventory = () => {
                       Registrar Resultado
                     </button>
                   )}
-                  <button
-                    onClick={() => openQRModal(garment)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded-lg text-sm font-medium transition-colors"
-                    title="Ver/Descargar QR"
-                  >
-                    <ScanBarcode className="w-4 h-4" />
-                    Ver QR
-                  </button>
                 </div>
               </div>
             )
