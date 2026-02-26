@@ -1,6 +1,7 @@
 export type GarmentStatus = 'disponible' | 'lavado' | 'esterilizacion' | 'inspeccion' | 'reparacion' | 'baja'
 export type ActionType = 'lavado' | 'esterilizacion' | 'inspeccion' | 'reparacion' | 'baja'
 export type InspectionResult = 'aprobado' | 'reparacion' | 'baja'
+export type DocumentType = 'etiqueta' | 'certificado' | 'factura' | 'otro'
 
 export interface Garment {
   id: string
@@ -13,8 +14,25 @@ export interface Garment {
   notes?: string
   baja_reason?: string
   baja_date?: string
+  qr_code?: string // URL del QR generada dinámicamente
   created_at: string
   updated_at: string
+}
+
+export interface Document {
+  id: string
+  garment_id: string
+  type: DocumentType
+  url: string
+  file_name?: string
+  created_at: string
+  uploaded_by?: string
+}
+
+export interface GarmentWithDetails extends Garment {
+  documents?: Document[]
+  actions?: GarmentAction[]
+  movements?: Movement[]
 }
 
 export interface GarmentAction {
@@ -55,4 +73,12 @@ export interface GarmentUpdate {
   notes?: string
   baja_reason?: string
   baja_date?: string
+}
+
+export interface DocumentInsert {
+  garment_id: string
+  type: DocumentType
+  url: string
+  file_name?: string
+  uploaded_by?: string
 }

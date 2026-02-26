@@ -5,18 +5,23 @@ import { Camera, X, StopCircle, FlipHorizontal } from 'lucide-react'
 interface BarcodeScannerProps {
   onScan: (code: string) => void
   onClose: () => void
+  mode?: 'auto' | 'barcode' | 'qr' // 'auto' detecta ambos
 }
 
-const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
+const BarcodeScanner = ({ onScan, onClose, mode = 'auto' }: BarcodeScannerProps) => {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [useBackCamera, setUseBackCamera] = useState(true)
   const [lastCode, setLastCode] = useState<string | null>(null)
+  const [scanType, setScanType] = useState<string>('')
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
 
-  // Solo CODE_128 para máxima precisión
-  const formatsToSupport = [Html5QrcodeSupportedFormats.CODE_128]
+  // Determinar formatos según el modo
+  const formatsToSupport = 
+    mode === 'barcode' ? [Html5QrcodeSupportedFormats.CODE_128] :
+    mode === 'qr' ? [Html5QrcodeSupportedFormats.QR_CODE] :
+    [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.QR_CODE]
 
   useEffect(() => {
     startScanner()
@@ -55,6 +60,8 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
         config,
         (decodedText) => {
           setLastCode(decodedText)
+          setScanType('detectado')
+          
           setTimeout(() => {
             onScan(decodedText)
             stopScanner()
@@ -138,14 +145,16 @@ const BarcodeScanner = ({ onScan, onClose }: BarcodeScannerProps) => {
               />
               <div className="mt-3 space-y-1">
                 <p className="text-center text-sm text-gray-600 font-medium">
-                  📷 Coloca el código dentro del recuadro
+                  📷 {mode === 'qr' ? 'Apunta el QR' : mode === 'barcode' ? 'Apunta el código de barras' : 'Apunta un código QR o código de barras'}
                 </p>
                 <p className="text-center text-xs text-gray-400">
                   Mantén el código estable y bien iluminado
                 </p>
                 {lastCode && (
-                  <div className="text-center text-xs text-green-700 bg-green-100 rounded px-2 py-1 mt-2">
-                    <span className="font-mono">Detectado: {lastCode}</span>
+                  <div className="text-center text-xs bg-green-100 rounded px-2 py-2 mt-2">
+                    <p className="text-green-700 font-semibold">✓ Detectado</p>
+                    <p className="text-green-600 font-mono text-xs mt-1 break-all">{lastCode}</p>
+                    {scanType && <p className="text-green-500 text-xs mt-1">Tipo: {scanType}</p>}
                   </div>
                 )}
               </div>
