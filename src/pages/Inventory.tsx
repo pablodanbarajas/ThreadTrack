@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown } from 'lucide-react'
+import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import { useRole } from '../contexts/AuthContext'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentIdFromUrl } from '../lib/qrGenerator'
+import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
@@ -32,6 +33,12 @@ const Inventory = () => {
   const [showQRModal, setShowQRModal] = useState(false)
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
+  // Filtros para códigos de prenda
+  const [filterGarmentType, setFilterGarmentType] = useState<GarmentType | ''>('')
+  const [filterColor, setFilterColor] = useState<Color | ''>('')
+  const [filterSize, setFilterSize] = useState<Size | ''>('')
+  const [filterBatch, setFilterBatch] = useState('')
+  const [showCodeFilters, setShowCodeFilters] = useState(false)
 
   const statusLabels: Record<GarmentStatus, { label: string; color: string; icon: any }> = {
     disponible: { label: 'Disponible', color: 'bg-green-100 text-green-800', icon: PackageCheck },
@@ -87,7 +94,22 @@ const Inventory = () => {
     const matchesDateFrom = !filterDateFrom || garmentDate >= new Date(filterDateFrom).setHours(0, 0, 0, 0)
     const matchesDateTo = !filterDateTo || garmentDate <= new Date(filterDateTo).setHours(23, 59, 59, 999)
     
-    return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo
+    // Filtro por código de prenda (si está configurado)
+    let matchesCodeFilters = true
+    if (filterGarmentType || filterColor || filterSize || filterBatch) {
+      const parsed = parseGarmentCode(garment.code)
+      if (parsed.valid) {
+        if (filterGarmentType && parsed.garmentType !== filterGarmentType) matchesCodeFilters = false
+        if (filterColor && parsed.color !== filterColor) matchesCodeFilters = false
+        if (filterSize && parsed.size !== filterSize) matchesCodeFilters = false
+        if (filterBatch && parsed.batchCode !== filterBatch) matchesCodeFilters = false
+      } else {
+        // Si el código no es válido y hay filtros activos, excluir
+        matchesCodeFilters = false
+      }
+    }
+    
+    return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters
   })
 
   const handleAddGarment = async () => {
@@ -400,6 +422,103 @@ const Inventory = () => {
           Bajas ({garments.filter((g) => g.status === 'baja').length})
         </button>
       </div>
+
+      {/* Filtros de código de prenda */}
+      <div className="mb-4 flex gap-2">
+        <button
+          onClick={() => setShowCodeFilters(!showCodeFilters)}
+          className={`px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+            showCodeFilters || filterGarmentType || filterColor || filterSize || filterBatch
+              ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          <Filter className="w-4 h-4" />
+          Filtrar código
+          <ChevronDown className={`w-4 h-4 transition-transform ${showCodeFilters ? 'rotate-180' : ''}`} />
+        </button>
+        {(filterGarmentType || filterColor || filterSize || filterBatch) && (
+          <button
+            onClick={() => {
+              setFilterGarmentType('')
+              setFilterColor('')
+              setFilterSize('')
+              setFilterBatch('')
+            }}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-2"
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
+      {showCodeFilters && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+          {/* Filtro por tipo de prenda */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">Prenda</label>
+            <select
+              value={filterGarmentType}
+              onChange={(e) => setFilterGarmentType(e.target.value as GarmentType | '')}
+              className="input-field text-sm"
+            >
+              <option value="">Todas</option>
+              {Object.entries(GARMENT_TYPES).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por talla */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">Talla</label>
+            <select
+              value={filterSize}
+              onChange={(e) => setFilterSize(e.target.value as Size | '')}
+              className="input-field text-sm"
+            >
+              <option value="">Todas</option>
+              {Object.entries(SIZES).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por color */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">Color</label>
+            <select
+              value={filterColor}
+              onChange={(e) => setFilterColor(e.target.value as Color | '')}
+              className="input-field text-sm"
+            >
+              <option value="">Todos</option>
+              {Object.entries(COLORS).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por lote */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">Lote</label>
+            <input
+              type="text"
+              value={filterBatch}
+              onChange={(e) => setFilterBatch(e.target.value.toUpperCase())}
+              placeholder="Ej: 202512A"
+              className="input-field text-sm"
+            />
+          </div>
+        </div>
+      )}
+
       {showModal && !showScanner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
@@ -662,6 +781,22 @@ const Inventory = () => {
 
                 {/* Código */}
                 <div className="font-mono text-sm font-semibold text-gray-800 mb-2">{garment.code}</div>
+
+                {/* Información extraída del código */}
+                {(() => {
+                  const parsed = parseGarmentCode(garment.code)
+                  if (parsed.valid) {
+                    return (
+                      <div className="text-xs text-gray-600 mb-2 space-y-0.5 p-2 bg-gray-50 rounded">
+                        <div><strong>Prenda:</strong> {parsed.garmentName}</div>
+                        <div><strong>Talla:</strong> {parsed.sizeName}</div>
+                        <div><strong>Color:</strong> {parsed.colorName}</div>
+                        <div><strong>Lote:</strong> {parsed.batchCode}</div>
+                      </div>
+                    )
+                  }
+                  return null
+                })()}
 
                 {/* Nombre */}
                 <p className="text-sm font-medium text-gray-700 line-clamp-2 mb-2">{garment.name}</p>

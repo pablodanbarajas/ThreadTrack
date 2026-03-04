@@ -5,6 +5,7 @@ import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { generateQRUrl } from '../lib/qrGenerator'
+import { parseGarmentCode } from '../lib/garmentCodeParser'
 import type { Garment, Document, GarmentAction } from '../types'
 
 const GarmentDetail = () => {
@@ -195,6 +196,51 @@ const GarmentDetail = () => {
                 </div>
               </div>
             )}
+
+            {/* Información del código de prenda */}
+            {(() => {
+              const parsed = parseGarmentCode(garment.code)
+              if (parsed.valid) {
+                return (
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-indigo-900 mb-3">Información del Código</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="bg-white p-3 rounded-lg">
+                        <p className="text-xs text-indigo-600 font-medium mb-1">Prenda</p>
+                        <p className="text-sm font-semibold text-gray-800">{parsed.garmentName}</p>
+                        <p className="text-xs text-gray-500">{parsed.garmentType}</p>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg">
+                        <p className="text-xs text-indigo-600 font-medium mb-1">Talla</p>
+                        <p className="text-sm font-semibold text-gray-800">{parsed.sizeName}</p>
+                        <p className="text-xs text-gray-500">{parsed.size}</p>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg">
+                        <p className="text-xs text-indigo-600 font-medium mb-1">Color</p>
+                        <p className="text-sm font-semibold text-gray-800">{parsed.colorName}</p>
+                        <p className="text-xs text-gray-500">{parsed.color}</p>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg">
+                        <p className="text-xs text-indigo-600 font-medium mb-1">Lote</p>
+                        <p className="text-sm font-semibold text-gray-800">{parsed.batchCode}</p>
+                        <p className="text-xs text-gray-500">#{parsed.sequenceNumber.toString().padStart(3, '0')}</p>
+                      </div>
+                      <div className="col-span-2 bg-white p-3 rounded-lg">
+                        <p className="text-xs text-indigo-600 font-medium mb-1">Mes del Lote</p>
+                        <p className="text-sm font-semibold text-gray-800">
+                          {new Date(parsed.batchYear, parsed.batchMonth - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                        </p>
+                      </div>
+                      <div className="col-span-2 bg-white p-3 rounded-lg">
+                        <p className="text-xs text-indigo-600 font-medium mb-1">Código Completo</p>
+                        <p className="text-sm font-mono font-semibold text-gray-800 break-all">{parsed.fullCode}</p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+              return null
+            })()}
 
             {/* QR Section */}
             <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
