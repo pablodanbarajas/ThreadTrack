@@ -288,7 +288,7 @@ const Inventory = () => {
           })
 
           // Convertir canvas a blob
-          await new Promise<void>((resolve, reject) => {
+          await new Promise<void>((resolve) => {
             canvas.toBlob((blob) => {
               if (blob) {
                 // Parsear el código para generar nombre legible
@@ -794,8 +794,8 @@ const Inventory = () => {
                             {garment.valid ? (
                               <Check className="w-4 h-4 text-green-600 mx-auto" />
                             ) : (
-                              <div className="text-red-600">
-                                <AlertCircle className="w-4 h-4 mx-auto" title={garment.error} />
+                              <div className="text-red-600" title={garment.error}>
+                                <AlertCircle className="w-4 h-4 mx-auto" />
                               </div>
                             )}
                           </td>
