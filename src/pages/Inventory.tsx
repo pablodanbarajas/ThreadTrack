@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter } from 'lucide-react'
+import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive } from 'lucide-react'
 import QRCode from 'qrcode.react'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
 import { useRole } from '../contexts/AuthContext'
 import { garmentService } from '../services/garmentService'
 import BarcodeScanner from '../components/BarcodeScanner'
@@ -39,6 +41,14 @@ const Inventory = () => {
   const [filterSize, setFilterSize] = useState<Size | ''>('')
   const [filterBatch, setFilterBatch] = useState('')
   const [showCodeFilters, setShowCodeFilters] = useState(false)
+  // Ingreso masivo de prendas
+  const [showBulkModal, setShowBulkModal] = useState(false)
+  const [bulkInput, setBulkInput] = useState('')
+  const [bulkClientName, setBulkClientName] = useState('')
+  const [bulkGarments, setBulkGarments] = useState<any[]>([])
+  const [bulkLoading, setBulkLoading] = useState(false)
+  // Descarga masiva de QR
+  const [downloadingQRs, setDownloadingQRs] = useState(false)
 
   const statusLabels: Record<GarmentStatus, { label: string; color: string; icon: any }> = {
     disponible: { label: 'Disponible', color: 'bg-green-100 text-green-800', icon: PackageCheck },
@@ -253,9 +263,157 @@ const Inventory = () => {
     setShowScanner(false)
   }
 
+  const downloadFilteredQRs = async () => {
+    if (filteredGarments.length === 0) {
+      alert('No hay prendas para descargar')
+      return
+    }
+
+    try {
+      setDownloadingQRs(true)
+      const zip = new JSZip()
+      const qrFolder = zip.folder('QR_Prendas')
+      const QRCodeLib = await import('qrcode')
+
+      for (const garment of filteredGarments) {
+        const qrUrl = generateQRUrl(garment.id)
+
+        try {
+          // Crear canvas y generar QR
+          const canvas = document.createElement('canvas')
+          await QRCodeLib.default.toCanvas(canvas, qrUrl, {
+            width: 300,
+            margin: 10,
+            color: { dark: '#000000', light: '#FFFFFF' },
+          })
+
+          // Convertir canvas a blob
+          await new Promise<void>((resolve, reject) => {
+            canvas.toBlob((blob) => {
+              if (blob) {
+                // Parsear el código para generar nombre legible
+                const parsed = parseGarmentCode(garment.code)
+                let fileName: string
+                
+                if (parsed.valid) {
+                  const sequenceStr = parsed.sequenceNumber.toString().padStart(3, '0')
+                  fileName = `${parsed.garmentName} - Talla ${parsed.sizeName} - ${parsed.colorName} - ${sequenceStr}`
+                } else {
+                  fileName = garment.code
+                }
+                
+                qrFolder?.file(`${fileName}.png`, blob)
+              }
+              resolve()
+            }, 'image/png')
+          })
+        } catch (error) {
+          console.error(`Error generando QR para ${garment.code}:`, error)
+        }
+      }
+
+      // Generar nombre del ZIP con información de filtros
+      let zipName = 'QR_Prendas'
+      if (filterGarmentType || filterColor || filterSize || filterBatch) {
+        const filters = []
+        if (filterGarmentType) filters.push(GARMENT_TYPES[filterGarmentType])
+        if (filterSize) filters.push(`Talla${filterSize}`)
+        if (filterColor) filters.push(COLORS[filterColor])
+        if (filterBatch) filters.push(filterBatch)
+        zipName = `QR_${filters.join('_')}`
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      saveAs(zipBlob, `${zipName}_${new Date().toISOString().split('T')[0]}.zip`)
+      alert(`Descargados ${filteredGarments.length} QR en formato ZIP`)
+    } catch (error) {
+      console.error('Error descargando QR:', error)
+      alert('Error al descargar QR')
+    } finally {
+      setDownloadingQRs(false)
+    }
+  }
+
   const openDeleteModal = (garment: Garment) => {
     setGarmentToDelete(garment)
     setShowDeleteModal(true)
+  }
+
+  const processBulkCodes = (input: string) => {
+    const codes = input
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+
+    const processed = codes.map((code) => {
+      const parsed = parseGarmentCode(code)
+      if (parsed.valid) {
+        const name = `${parsed.garmentName} - Talla ${parsed.sizeName} - ${parsed.colorName}`
+        return {
+          code: parsed.fullCode,
+          name,
+          client_name: bulkClientName,
+          parsed,
+          valid: true,
+        }
+      } else {
+        return {
+          code,
+          name: '',
+          client_name: bulkClientName,
+          error: parsed.error,
+          valid: false,
+        }
+      }
+    })
+
+    setBulkGarments(processed)
+  }
+
+  const handleBulkCreate = async () => {
+    const validGarments = bulkGarments.filter((g) => g.valid)
+
+    if (validGarments.length === 0) {
+      alert('No hay prendas válidas para crear')
+      return
+    }
+
+    if (!canCreateGarment) {
+      alert('No tienes permisos para crear prendas')
+      return
+    }
+
+    try {
+      setBulkLoading(true)
+      let successCount = 0
+      let errorCount = 0
+
+      for (const garment of validGarments) {
+        try {
+          await garmentService.create({
+            code: garment.code,
+            name: garment.name,
+            client_name: garment.client_name || undefined,
+          })
+          successCount++
+        } catch (error: any) {
+          console.error(`Error creando ${garment.code}:`, error)
+          errorCount++
+        }
+      }
+
+      alert(`Creadas ${successCount} prendas. Errores: ${errorCount}`)
+      setBulkInput('')
+      setBulkClientName('')
+      setBulkGarments([])
+      setShowBulkModal(false)
+      loadGarments()
+    } catch (error) {
+      console.error('Error en ingreso masivo:', error)
+      alert('Error al crear prendas')
+    } finally {
+      setBulkLoading(false)
+    }
   }
 
   return (
@@ -452,6 +610,37 @@ const Inventory = () => {
         )}
       </div>
 
+      {/* Botón de ingreso masivo */}
+      <div className="mb-4 flex gap-2 flex-wrap">
+        <button
+          onClick={() => {
+            setShowBulkModal(true)
+            setBulkInput('')
+            setBulkClientName('')
+            setBulkGarments([])
+          }}
+          className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm bg-green-100 text-green-700 hover:bg-green-200"
+        >
+          <Upload className="w-4 h-4" />
+          Ingreso Masivo
+        </button>
+
+        {/* Botón para descargar QR filtrados */}
+        <button
+          onClick={downloadFilteredQRs}
+          disabled={downloadingQRs || filteredGarments.length === 0}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+            downloadingQRs || filteredGarments.length === 0
+              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+          }`}
+        >
+          {downloadingQRs && <Loader2 className="w-4 h-4 animate-spin" />}
+          {!downloadingQRs && <FileArchive className="w-4 h-4" />}
+          {downloadingQRs ? 'Generando...' : `Descargar QR (${filteredGarments.length})`}
+        </button>
+      </div>
+
       {showCodeFilters && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
           {/* Filtro por tipo de prenda */}
@@ -515,6 +704,130 @@ const Inventory = () => {
               placeholder="Ej: 202512A"
               className="input-field text-sm"
             />
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Ingreso Masivo */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl p-6 w-full max-w-2xl my-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Ingreso Masivo de Prendas</h2>
+              <button onClick={() => setShowBulkModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Cliente */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cliente (opcional)</label>
+                <input
+                  type="text"
+                  value={bulkClientName}
+                  onChange={(e) => {
+                    setBulkClientName(e.target.value)
+                    processBulkCodes(bulkInput)
+                  }}
+                  placeholder="Nombre del cliente"
+                  className="input-field w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
+              </div>
+
+              {/* Textarea */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Códigos de Prendas (uno por línea)
+                </label>
+                <textarea
+                  value={bulkInput}
+                  onChange={(e) => {
+                    setBulkInput(e.target.value)
+                    processBulkCodes(e.target.value)
+                  }}
+                  placeholder="202512A-OV-M-NE-001&#10;202512A-FI-L-AC-002&#10;202512A-PA-S-AM-003"
+                  className="input-field w-full h-32 font-mono text-sm resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">Formato: LOTE-PRENDA-TALLA-COLOR-NNN</p>
+              </div>
+
+              {/* Preview Table */}
+              {bulkGarments.length > 0 && (
+                <div className="overflow-x-auto">
+                  <h3 className="text-sm font-semibold text-gray-800 mb-2">
+                    Preview ({bulkGarments.filter((g) => g.valid).length} válidos de {bulkGarments.length})
+                  </h3>
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-2 py-1 text-left">Código</th>
+                        <th className="border border-gray-300 px-2 py-1 text-left">Prenda</th>
+                        <th className="border border-gray-300 px-2 py-1 text-left">Talla</th>
+                        <th className="border border-gray-300 px-2 py-1 text-left">Color</th>
+                        <th className="border border-gray-300 px-2 py-1 text-left">Lote</th>
+                        <th className="border border-gray-300 px-2 py-1 text-left">Cliente</th>
+                        <th className="border border-gray-300 px-2 py-1 text-center">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkGarments.map((garment, idx) => (
+                        <tr key={idx} className={garment.valid ? 'bg-green-50' : 'bg-red-50'}>
+                          <td className="border border-gray-300 px-2 py-1 font-mono">{garment.code}</td>
+                          <td className="border border-gray-300 px-2 py-1">
+                            {garment.valid ? garment.parsed.garmentName : '-'}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1">
+                            {garment.valid ? garment.parsed.sizeName : '-'}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1">
+                            {garment.valid ? garment.parsed.colorName : '-'}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1">
+                            {garment.valid ? garment.parsed.batchCode : '-'}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 text-sm">
+                            {garment.client_name || '-'}
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1 text-center">
+                            {garment.valid ? (
+                              <Check className="w-4 h-4 text-green-600 mx-auto" />
+                            ) : (
+                              <div className="text-red-600">
+                                <AlertCircle className="w-4 h-4 mx-auto" title={garment.error} />
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowBulkModal(false)}
+                  className="btn-secondary flex-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleBulkCreate}
+                  disabled={bulkLoading || bulkGarments.filter((g) => g.valid).length === 0}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                    bulkLoading || bulkGarments.filter((g) => g.valid).length === 0
+                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  {bulkLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {bulkLoading ? 'Creando...' : 'Crear Prendas'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
