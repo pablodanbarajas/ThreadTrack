@@ -1,8 +1,9 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, Shirt, AlertTriangle, LogOut, Plus } from 'lucide-react'
+import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
+import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 const Layout = () => {
   const location = useLocation()
@@ -25,7 +26,7 @@ const Layout = () => {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center space-x-2">
-              <Shirt className="w-7 h-7" />
+              <img src={Logo} alt="ThreadTrack Logo" className="h-8 w-auto" />
               <span className="text-xl font-bold">ThreadTrack</span>
               <span className="ml-2 text-xs font-semibold bg-blue-800 text-blue-100 px-2 py-1 rounded-lg">v{APP_VERSION}</span>
             </Link>

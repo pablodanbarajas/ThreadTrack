@@ -42,6 +42,24 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto' }: BarcodeScannerProps)
         scannerRef.current = null
       }
 
+      // Solicitar permiso de cámara explícitamente primero
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: useBackCamera ? 'environment' : 'user' }
+        })
+        // Detener el stream de prueba
+        stream.getTracks().forEach(track => track.stop())
+      } catch (permissionError: any) {
+        if (permissionError.name === 'NotAllowedError') {
+          setError('Permiso denegado: Necesitas autorizar el acceso a la cámara en los ajustes del navegador.')
+        } else if (permissionError.name === 'NotFoundError') {
+          setError('No se encontró cámara en tu dispositivo. Conecta una webcam.')
+        } else {
+          setError(`No se puede acceder a la cámara: ${permissionError.message || 'Verifica los permisos'}`)
+        }
+        return
+      }
+
       const html5QrCode = new Html5Qrcode(containerRef.current, {
         formatsToSupport: formatsToSupport,
         verbose: true // Activar verbose para debugging
@@ -131,8 +149,18 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto' }: BarcodeScannerProps)
 
         <div className="p-4">
           {error ? (
-            <div className="text-center py-8">
-              <p className="text-red-600 mb-4">{error}</p>
+            <div className="text-center py-8 space-y-3">
+              <div className="text-4xl">📷</div>
+              <p className="text-red-600 font-medium text-sm">{error}</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-left text-xs text-gray-700 space-y-1">
+                <p className="font-semibold text-blue-900">Soluciones:</p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Verifica que hayas permitido el acceso a la cámara en el navegador</li>
+                  <li>En Chrome/Edge: Click en el icono del candado en la URL y habilita la cámara</li>
+                  <li>Conecta una webcam si estás en desktop</li>
+                  <li>Cierra otras aplicaciones que usen la cámara</li>
+                </ul>
+              </div>
               <button onClick={startScanner} className="btn-primary">
                 Reintentar
               </button>

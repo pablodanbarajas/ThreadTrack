@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Shirt, Loader2, Mail, Lock } from 'lucide-react'
+import { Loader2, Mail, Lock } from 'lucide-react'
+import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 const Login = () => {
   const [email, setEmail] = useState('')
@@ -40,8 +41,8 @@ const Login = () => {
         <div className="card">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Shirt className="w-12 h-12 text-blue-600" />
+            <div className="flex flex-col items-center justify-center gap-3 mb-4">
+              <img src={Logo} alt="ThreadTrack Logo" className="h-16 w-auto" />
               <h1 className="text-3xl font-bold text-gray-800">ThreadTrack</h1>
             </div>
             <p className="text-gray-600">Sistema de Rastreo de Prendas</p>

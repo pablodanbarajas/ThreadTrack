@@ -5,6 +5,7 @@ import { useRole } from '../contexts/AuthContext'
 import { roleBadges } from '../lib/rbac'
 import { garmentService } from '../services/garmentService'
 import { generateReportPDF } from '../services/reportService'
+import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 const Home = () => {
   const { role, canDownloadReport } = useRole()
@@ -65,7 +66,7 @@ const Home = () => {
       {/* Hero Section */}
       <div className="text-center py-8">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <Shirt className="w-12 h-12 text-blue-600" />
+          <img src={Logo} alt="ThreadTrack Logo" className="h-12 w-auto" />
           <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
             ThreadTrack
           </h1>
