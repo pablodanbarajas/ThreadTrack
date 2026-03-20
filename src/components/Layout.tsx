@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus } from 'lucide-react'
+import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus, ScanBarcode } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
@@ -14,6 +14,7 @@ const Layout = () => {
     { path: '/', label: 'Inicio', icon: Home },
     { path: '/inventory', label: 'Inventario', icon: Package },
     { path: '/bajas', label: 'Bajas', icon: AlertTriangle },
+    { path: '/lote', label: 'Acciones en Lote', icon: ScanBarcode },
     { path: '/crear-prenda', label: 'Crear Prenda', icon: Plus },
   ]
 

@@ -10,6 +10,7 @@ import CreateGarment from './pages/CreateGarment'
 import GarmentDetail from './pages/GarmentDetail'
 import AdminUsers from './pages/AdminUsers'
 import Login from './pages/Login'
+import BatchActions from './pages/BatchActions'
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
             <Route path="bajas" element={<Bajas />} />
             <Route path="scanner" element={<Scanner />} />
             <Route path="crear-prenda" element={<CreateGarment />} />
+            <Route path="lote" element={<BatchActions />} />
             <Route path="admin/usuarios" element={<ProtectedRoute requiredRole="jefe"><AdminUsers /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
