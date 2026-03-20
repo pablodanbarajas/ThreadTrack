@@ -125,7 +125,7 @@ const BatchActions = () => {
   }
 
   const handleCameraScan = (code: string) => {
-    setShowScanner(false)
+    // In continuous mode the camera stays open — just process the code
     resolveGarmentFromCode(code)
   }
 
@@ -408,19 +408,14 @@ const BatchActions = () => {
         </div>
       </div>
 
-      {/* Camera scanner overlay */}
+      {/* Camera scanner — continuous mode, stays open until manually closed */}
       {showScanner && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl overflow-hidden w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between px-4 py-3 border-b">
-              <span className="font-semibold text-gray-800">Escanear QR / Código</span>
-              <button onClick={() => setShowScanner(false)} className="p-1 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <BarcodeScanner onScan={handleCameraScan} onClose={() => setShowScanner(false)} mode="auto" />
-          </div>
-        </div>
+        <BarcodeScanner
+          onScan={handleCameraScan}
+          onClose={() => setShowScanner(false)}
+          mode="auto"
+          continuous
+        />
       )}
     </div>
   )

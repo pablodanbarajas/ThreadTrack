@@ -6,16 +6,36 @@ interface BarcodeScannerProps {
   onScan: (code: string) => void
   onClose: () => void
   mode?: 'auto' | 'barcode' | 'qr' // 'auto' detecta ambos
+  continuous?: boolean // stays open and keeps scanning after each read
 }
 
-const BarcodeScanner = ({ onScan, onClose, mode = 'auto' }: BarcodeScannerProps) => {
+const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: BarcodeScannerProps) => {
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [useBackCamera, setUseBackCamera] = useState(true)
   const [lastCode, setLastCode] = useState<string | null>(null)
   const [scanType, setScanType] = useState<string>('')
+  const [scanCount, setScanCount] = useState(0)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
+  const lastScannedRef = useRef<string | null>(null)  // cooldown for continuous mode
+
+  // Beep using Web Audio API
+  const playBeep = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = 1200
+      osc.type = 'square'
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + 0.12)
+    } catch {}
+  }
 
   // Determinar formatos según el modo
   const formatsToSupport = 
@@ -77,14 +97,25 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto' }: BarcodeScannerProps)
         { facingMode: useBackCamera ? 'environment' : 'user' },
         config,
         (decodedText) => {
-          setLastCode(decodedText)
-          setScanType('detectado')
-          
-          setTimeout(() => {
+          if (continuous) {
+            // In continuous mode: ignore same code within 1.5 s, stay open
+            if (lastScannedRef.current === decodedText) return
+            lastScannedRef.current = decodedText
+            setTimeout(() => { lastScannedRef.current = null }, 1500)
+            playBeep()
+            setLastCode(decodedText)
+            setScanType('detectado')
+            setScanCount(prev => prev + 1)
             onScan(decodedText)
-            stopScanner()
-            onClose()
-          }, 500)
+          } else {
+            setLastCode(decodedText)
+            setScanType('detectado')
+            setTimeout(() => {
+              onScan(decodedText)
+              stopScanner()
+              onClose()
+            }, 500)
+          }
         },
         () => {
           // Callback silencioso mientras busca
@@ -180,7 +211,9 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto' }: BarcodeScannerProps)
                 </p>
                 {lastCode && (
                   <div className="text-center text-xs bg-green-100 rounded px-2 py-2 mt-2">
-                    <p className="text-green-700 font-semibold">✓ Detectado</p>
+                    <p className="text-green-700 font-semibold">
+                      ✓ Detectado {continuous && scanCount > 0 && <span className="ml-1 bg-green-600 text-white px-1.5 py-0.5 rounded-full">{scanCount}</span>}
+                    </p>
                     <p className="text-green-600 font-mono text-xs mt-1 break-all">{lastCode}</p>
                     {scanType && <p className="text-green-500 text-xs mt-1">Tipo: {scanType}</p>}
                   </div>
