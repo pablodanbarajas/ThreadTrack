@@ -272,30 +272,50 @@ const GarmentDetail = () => {
             })()}
 
             {/* Acciones Rápidas */}
-            {garment.status !== 'baja' && garment.status !== 'inspeccion' && (
+            {garment.status !== 'baja' && (
               <div className="pt-4 border-t">
                 <h2 className="font-semibold text-gray-800 mb-3">Registrar Acción</h2>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => openActionModal('lavado')}
-                    className="flex flex-col items-center gap-1.5 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                    disabled={garment.status === 'lavado'}
+                    className={`flex flex-col items-center gap-1.5 p-3 border rounded-lg transition-colors ${
+                      garment.status === 'lavado'
+                        ? 'bg-gray-50 border-gray-200 opacity-40 cursor-not-allowed'
+                        : 'bg-blue-50 hover:bg-blue-100 border-blue-200'
+                    }`}
                   >
-                    <Droplets className="w-6 h-6 text-blue-600" />
-                    <span className="text-xs font-medium text-blue-700 text-center">Enviar a Lavado</span>
+                    <Droplets className={`w-6 h-6 ${garment.status === 'lavado' ? 'text-gray-400' : 'text-blue-600'}`} />
+                    <span className={`text-xs font-medium text-center ${garment.status === 'lavado' ? 'text-gray-400' : 'text-blue-700'}`}>
+                      {garment.status === 'lavado' ? 'Ya en Lavado' : 'Enviar a Lavado'}
+                    </span>
                   </button>
                   <button
                     onClick={() => openActionModal('esterilizacion')}
-                    className="flex flex-col items-center gap-1.5 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors"
+                    disabled={garment.status === 'esterilizacion'}
+                    className={`flex flex-col items-center gap-1.5 p-3 border rounded-lg transition-colors ${
+                      garment.status === 'esterilizacion'
+                        ? 'bg-gray-50 border-gray-200 opacity-40 cursor-not-allowed'
+                        : 'bg-purple-50 hover:bg-purple-100 border-purple-200'
+                    }`}
                   >
-                    <Sparkles className="w-6 h-6 text-purple-600" />
-                    <span className="text-xs font-medium text-purple-700 text-center">Enviar a Esterilización</span>
+                    <Sparkles className={`w-6 h-6 ${garment.status === 'esterilizacion' ? 'text-gray-400' : 'text-purple-600'}`} />
+                    <span className={`text-xs font-medium text-center ${garment.status === 'esterilizacion' ? 'text-gray-400' : 'text-purple-700'}`}>
+                      {garment.status === 'esterilizacion' ? 'Ya en Esterilización' : 'Enviar a Esterilización'}
+                    </span>
                   </button>
                   <button
                     onClick={() => openActionModal('inspeccion')}
-                    className="flex flex-col items-center gap-1.5 p-3 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 rounded-lg transition-colors"
+                    className={`flex flex-col items-center gap-1.5 p-3 border rounded-lg transition-colors ${
+                      garment.status === 'inspeccion'
+                        ? 'bg-yellow-50 hover:bg-yellow-100 border-yellow-300'
+                        : 'bg-yellow-50 hover:bg-yellow-100 border-yellow-200'
+                    }`}
                   >
                     <ClipboardCheck className="w-6 h-6 text-yellow-600" />
-                    <span className="text-xs font-medium text-yellow-700 text-center">Enviar a Inspección</span>
+                    <span className="text-xs font-medium text-yellow-700 text-center">
+                      {garment.status === 'inspeccion' ? 'Registrar Resultado' : 'Enviar a Inspección'}
+                    </span>
                   </button>
                 </div>
               </div>
