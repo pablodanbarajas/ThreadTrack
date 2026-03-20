@@ -42,6 +42,7 @@ const BatchActions = () => {
   const [done, setDone] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
+  const scanLockRef = useRef(false)  // prevents duplicate rapid-fire scans
 
   // Keep input focused for pistol scanner
   useEffect(() => {
@@ -54,6 +55,11 @@ const BatchActions = () => {
     const trimmed = raw.trim()
     if (!trimmed) return
 
+    // Pistol scanners fire Enter multiple times — block repeat within 600ms
+    if (scanLockRef.current) return
+    scanLockRef.current = true
+    setTimeout(() => { scanLockRef.current = false }, 600)
+
     setLoadingCode(true)
     try {
       // Try to extract garment ID from QR URL
@@ -63,7 +69,6 @@ const BatchActions = () => {
         : await garmentService.getByCode(trimmed)
 
       if (!garment) {
-        // Add error entry so operator sees what failed
         setItems(prev => [{
           uid: `${Date.now()}-${trimmed}`,
           garmentId: '',
@@ -76,26 +81,26 @@ const BatchActions = () => {
         return
       }
 
-      // Check duplicate
-      const isDuplicate = items.some(i => i.garmentId === garment.id)
-      if (isDuplicate) {
-        setLastAdded(`dup-${garment.id}`)
-        setTimeout(() => setLastAdded(null), 1200)
-        return
-      }
-
-      const newItem: ScannedItem = {
-        uid: `${Date.now()}-${garment.id}`,
-        garmentId: garment.id,
-        code: garment.code,
-        name: garment.name,
-        status: garment.status,
-        applyStatus: garment.status === 'baja' ? 'skipped' : 'pending',
-        errorMsg: garment.status === 'baja' ? 'Ya está dada de baja' : undefined,
-      }
-      setItems(prev => [newItem, ...prev])
-      setLastAdded(garment.id)
-      setTimeout(() => setLastAdded(null), 800)
+      // Check duplicate inside functional updater to avoid stale closure
+      setItems(prev => {
+        if (prev.some(i => i.garmentId === garment.id)) {
+          setLastAdded(`dup-${garment.id}`)
+          setTimeout(() => setLastAdded(null), 1200)
+          return prev
+        }
+        const newItem: ScannedItem = {
+          uid: `${Date.now()}-${garment.id}`,
+          garmentId: garment.id,
+          code: garment.code,
+          name: garment.name,
+          status: garment.status,
+          applyStatus: garment.status === 'baja' ? 'skipped' : 'pending',
+          errorMsg: garment.status === 'baja' ? 'Ya está dada de baja' : undefined,
+        }
+        setLastAdded(garment.id)
+        setTimeout(() => setLastAdded(null), 800)
+        return [newItem, ...prev]
+      })
     } catch (err: any) {
       setItems(prev => [{
         uid: `${Date.now()}-err`,
@@ -109,7 +114,7 @@ const BatchActions = () => {
     } finally {
       setLoadingCode(false)
     }
-  }, [items])
+  }, [])
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
