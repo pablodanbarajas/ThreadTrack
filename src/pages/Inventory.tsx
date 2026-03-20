@@ -581,8 +581,8 @@ const Inventory = () => {
         </button>
       </div>
 
-      {/* Filtros de código de prenda */}
-      <div className="mb-4 flex gap-2">
+      {/* Filtros de código + Ingreso Masivo + Descargar QR — misma fila */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setShowCodeFilters(!showCodeFilters)}
           className={`px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
@@ -608,10 +608,9 @@ const Inventory = () => {
             Limpiar filtros
           </button>
         )}
-      </div>
 
-      {/* Botón de ingreso masivo */}
-      <div className="mb-4 flex gap-2 flex-wrap">
+        <div className="flex-1" />
+
         <button
           onClick={() => {
             setShowBulkModal(true)
@@ -625,7 +624,6 @@ const Inventory = () => {
           Ingreso Masivo
         </button>
 
-        {/* Botón para descargar QR filtrados */}
         <button
           onClick={downloadFilteredQRs}
           disabled={downloadingQRs || filteredGarments.length === 0}
