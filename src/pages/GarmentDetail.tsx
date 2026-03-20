@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, Download, Copy, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X } from 'lucide-react'
-import QRCode from 'qrcode.react'
+import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
-import { generateQRUrl } from '../lib/qrGenerator'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
 import type { Garment, Document, GarmentAction, ActionType, InspectionResult } from '../types'
 
@@ -15,7 +13,6 @@ const GarmentDetail = () => {
   const [actions, setActions] = useState<GarmentAction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [actionType, setActionType] = useState<ActionType>('lavado')
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
@@ -74,14 +71,6 @@ const GarmentDetail = () => {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
-  const copyQRUrl = () => {
-    if (!garment) return
-    const url = generateQRUrl(garment.id)
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
   const openActionModal = (type: ActionType) => {
     setActionType(type)
     setActionNotes('')
@@ -104,19 +93,6 @@ const GarmentDetail = () => {
     } finally {
       setActionLoading(false)
     }
-  }
-
-  const downloadQR = () => {
-    if (!garment) return
-    const canvas = document.querySelector('canvas')
-    if (!canvas) return
-
-    const link = document.createElement('a')
-    link.href = canvas.toDataURL('image/png')
-    link.download = `qr-${garment.code}.png`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
   }
 
   if (loading) {
@@ -152,129 +128,111 @@ const GarmentDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors mb-4"
-          >
-            <ArrowLeft className="w-5 h-5" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 md:p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Back link */}
+        <div className="mb-2 md:mb-4">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 transition-colors text-sm">
+            <ArrowLeft className="w-4 h-4" />
             Volver
           </Link>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+        {/* Header card – full width */}
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-2 md:mb-4">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 md:p-6">
+            <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h1 className="text-2xl md:text-3xl font-bold mb-2 break-words">{garment.name}</h1>
-                <p className="text-blue-100">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
+                <h1 className="text-lg md:text-3xl font-bold leading-tight break-words">{garment.name}</h1>
+                <p className="text-blue-100 text-xs md:text-sm mt-0.5">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
               </div>
-              <span className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
+              <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
                 {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
               </span>
             </div>
-            
             {garment.client_name && (
-              <div className="pt-4 border-t border-blue-400">
-                <p className="text-blue-100 text-sm">Cliente</p>
-                <p className="text-white font-semibold">{garment.client_name}</p>
+              <div className="mt-2 pt-2 border-t border-blue-400 flex flex-wrap gap-x-6 gap-y-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-blue-200 text-xs">Cliente:</span>
+                  <span className="text-white text-xs font-semibold">{garment.client_name}</span>
+                </div>
                 {garment.client_phone && (
-                  <p className="text-blue-100 text-sm">{garment.client_phone}</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-blue-200 text-xs">Tel:</span>
+                    <span className="text-white text-xs font-semibold">{garment.client_phone}</span>
+                  </div>
                 )}
               </div>
             )}
           </div>
+        </div>
 
-          {/* Content */}
-          <div className="p-6 space-y-6">
-            {/* Estadísticas de Acciones */}
-            {actions.length > 0 && (
-              <div className="grid grid-cols-3 gap-2 md:gap-3">
-                <div className="p-3 md:p-4 bg-blue-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                    <Droplets className="w-4 md:w-5 h-4 md:h-5 text-blue-600" />
-                    <span className="text-xl md:text-2xl font-bold text-blue-600">
-                      {actions.filter(a => a.action_type === 'lavado').length}
-                    </span>
-                  </div>
-                  <p className="text-xs md:text-sm text-blue-700 font-medium break-words">Lavados</p>
-                </div>
-                <div className="p-3 md:p-4 bg-purple-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                    <Sparkles className="w-4 md:w-5 h-4 md:h-5 text-purple-600" />
-                    <span className="text-xl md:text-2xl font-bold text-purple-600">
-                      {actions.filter(a => a.action_type === 'esterilizacion').length}
-                    </span>
-                  </div>
-                  <p className="text-xs md:text-sm text-purple-700 font-medium break-words">Esterilizaciones</p>
-                </div>
-                <div className="p-3 md:p-4 bg-orange-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 md:gap-2 mb-1">
-                    <Scissors className="w-4 md:w-5 h-4 md:h-5 text-orange-600" />
-                    <span className="text-xl md:text-2xl font-bold text-orange-600">
-                      {actions.filter(a => 
-                        a.action_type === 'reparacion' || 
-                        (a.action_type === 'inspeccion' && a.result === 'reparacion')
-                      ).length}
-                    </span>
-                  </div>
-                  <p className="text-xs md:text-sm text-orange-700 font-medium break-words">Reparaciones</p>
-                </div>
-              </div>
-            )}
+        {/* Two-column layout on desktop */}
+        <div className="grid md:grid-cols-2 gap-2 md:gap-4 items-start">
 
-            {/* Información del código de prenda */}
+          {/* ── LEFT COLUMN ── */}
+          <div className="space-y-2 md:space-y-4">
+
+            {/* Información del código */}
             {(() => {
               const parsed = parseGarmentCode(garment.code)
-              if (parsed.valid) {
-                return (
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                    <h3 className="font-semibold text-indigo-900 mb-3">Información del Código</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="bg-white p-3 rounded-lg">
-                        <p className="text-xs text-indigo-600 font-medium mb-1">Prenda</p>
-                        <p className="text-sm font-semibold text-gray-800">{parsed.garmentName}</p>
-                        <p className="text-xs text-gray-500">{parsed.garmentType}</p>
-                      </div>
-                      <div className="bg-white p-3 rounded-lg">
-                        <p className="text-xs text-indigo-600 font-medium mb-1">Talla</p>
-                        <p className="text-sm font-semibold text-gray-800">{parsed.sizeName}</p>
-                        <p className="text-xs text-gray-500">{parsed.size}</p>
-                      </div>
-                      <div className="bg-white p-3 rounded-lg">
-                        <p className="text-xs text-indigo-600 font-medium mb-1">Color</p>
-                        <p className="text-sm font-semibold text-gray-800">{parsed.colorName}</p>
-                        <p className="text-xs text-gray-500">{parsed.color}</p>
-                      </div>
-                      <div className="bg-white p-3 rounded-lg">
-                        <p className="text-xs text-indigo-600 font-medium mb-1">Lote</p>
-                        <p className="text-sm font-semibold text-gray-800">{parsed.batchCode}</p>
-                        <p className="text-xs text-gray-500">#{parsed.sequenceNumber.toString().padStart(3, '0')}</p>
-                      </div>
-                      <div className="col-span-2 bg-white p-3 rounded-lg">
-                        <p className="text-xs text-indigo-600 font-medium mb-1">Mes del Lote</p>
-                        <p className="text-sm font-semibold text-gray-800">
-                          {new Date(parsed.batchYear, parsed.batchMonth - 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
-                        </p>
-                      </div>
-                      <div className="col-span-2 bg-white p-3 rounded-lg">
-                        <p className="text-xs text-indigo-600 font-medium mb-1">Código Completo</p>
-                        <p className="text-sm font-mono font-semibold text-gray-800 break-all">{parsed.fullCode}</p>
-                      </div>
+              if (!parsed.valid) return null
+              return (
+                <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+                  <h3 className="font-semibold text-indigo-900 text-sm md:text-base mb-2">Información del Código</h3>
+                  <div className="grid grid-cols-3 md:grid-cols-2 gap-1.5 md:gap-3">
+                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-indigo-500 font-medium">Prenda</p>
+                      <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.garmentName}</p>
+                      <p className="text-xs text-gray-400">{parsed.garmentType}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-indigo-500 font-medium">Talla</p>
+                      <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.sizeName}</p>
+                      <p className="text-xs text-gray-400">{parsed.size}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-indigo-500 font-medium">Color</p>
+                      <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.colorName}</p>
+                      <p className="text-xs text-gray-400">{parsed.color}</p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-indigo-500 font-medium">Lote</p>
+                      <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.batchCode} <span className="text-gray-400">#{parsed.sequenceNumber.toString().padStart(3, '0')}</span></p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-indigo-500 font-medium">Mes del Lote</p>
+                      <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">
+                        {new Date(parsed.batchYear, parsed.batchMonth - 1).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-indigo-500 font-medium">Código</p>
+                      <p className="text-xs font-mono font-semibold text-gray-800 break-all leading-tight">{parsed.fullCode}</p>
                     </div>
                   </div>
-                )
-              }
-              return null
+                </div>
+              )
             })()}
 
-            {/* Acciones Rápidas */}
+            {/* Acciones rápidas */}
             {garment.status !== 'baja' && (
-              <div className="pt-4 border-t">
-                <h2 className="font-semibold text-gray-800 mb-3">Registrar Acción</h2>
+              <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="font-semibold text-gray-800 text-sm md:text-base">Registrar Acción</h2>
+                  {/* Contadores inline — solo mobile */}
+                  <div className="flex items-center gap-2 md:hidden">
+                    <span className="flex items-center gap-0.5 text-xs text-blue-600 font-semibold">
+                      <Droplets className="w-3.5 h-3.5" />{actions.filter(a => a.action_type === 'lavado').length}
+                    </span>
+                    <span className="flex items-center gap-0.5 text-xs text-purple-600 font-semibold">
+                      <Sparkles className="w-3.5 h-3.5" />{actions.filter(a => a.action_type === 'esterilizacion').length}
+                    </span>
+                    <span className="flex items-center gap-0.5 text-xs text-orange-600 font-semibold">
+                      <Scissors className="w-3.5 h-3.5" />{actions.filter(a => a.action_type === 'reparacion' || (a.action_type === 'inspeccion' && a.result === 'reparacion')).length}
+                    </span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => openActionModal('lavado')}
@@ -306,11 +264,7 @@ const GarmentDetail = () => {
                   </button>
                   <button
                     onClick={() => openActionModal('inspeccion')}
-                    className={`flex flex-col items-center gap-1.5 p-3 border rounded-lg transition-colors ${
-                      garment.status === 'inspeccion'
-                        ? 'bg-yellow-50 hover:bg-yellow-100 border-yellow-300'
-                        : 'bg-yellow-50 hover:bg-yellow-100 border-yellow-200'
-                    }`}
+                    className="flex flex-col items-center gap-1.5 p-3 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 rounded-lg transition-colors"
                   >
                     <ClipboardCheck className="w-6 h-6 text-yellow-600" />
                     <span className="text-xs font-medium text-yellow-700 text-center">
@@ -321,87 +275,99 @@ const GarmentDetail = () => {
               </div>
             )}
 
-            {/* QR Section */}
-            <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
-              <div className="mb-4">
-                <QRCode
-                  value={generateQRUrl(garment.id)}
-                  size={150}
-                  level="H"
-                  includeMargin={true}
-                />
+            {/* Descripción y Notas */}
+            {(garment.description || garment.notes) && (
+              <div className="bg-white rounded-xl shadow-lg p-3 md:p-5 space-y-2 md:space-y-3">
+                {garment.description && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Descripción</p>
+                    <p className="text-gray-800 bg-gray-50 p-3 rounded-lg text-sm">{garment.description}</p>
+                  </div>
+                )}
+                {garment.notes && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 mb-1">Notas</p>
+                    <p className="text-gray-800 bg-gray-50 p-3 rounded-lg text-sm">{garment.notes}</p>
+                  </div>
+                )}
               </div>
-              <div className="space-y-2 w-full">
-                <button
-                  onClick={copyQRUrl}
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                >
-                  <Copy className="w-4 h-4" />
-                  {copied ? 'URL Copiada!' : 'Copiar URL del QR'}
-                </button>
-                <button
-                  onClick={downloadQR}
-                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar QR
-                </button>
+            )}
+          </div>
+
+          {/* ── RIGHT COLUMN ── */}
+          <div className="space-y-2 md:space-y-4">
+
+            {/* Estadísticas — solo desktop (en mobile se muestran inline en la tarjeta de acciones) */}
+            <div className="hidden md:block bg-white rounded-xl shadow-lg p-5">
+              <h2 className="font-semibold text-gray-800 mb-3">Resumen de Ciclos</h2>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-4 bg-blue-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Droplets className="w-5 h-5 text-blue-600" />
+                    <span className="text-2xl font-bold text-blue-600">
+                      {actions.filter(a => a.action_type === 'lavado').length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-700 font-medium">Lavados</p>
+                </div>
+                <div className="p-4 bg-purple-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Sparkles className="w-5 h-5 text-purple-600" />
+                    <span className="text-2xl font-bold text-purple-600">
+                      {actions.filter(a => a.action_type === 'esterilizacion').length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-purple-700 font-medium">Esterilizaciones</p>
+                </div>
+                <div className="p-4 bg-orange-50 rounded-lg text-center">
+                  <div className="flex items-center justify-center gap-1 mb-1">
+                    <Scissors className="w-5 h-5 text-orange-600" />
+                    <span className="text-2xl font-bold text-orange-600">
+                      {actions.filter(a =>
+                        a.action_type === 'reparacion' ||
+                        (a.action_type === 'inspeccion' && a.result === 'reparacion')
+                      ).length}
+                    </span>
+                  </div>
+                  <p className="text-xs text-orange-700 font-medium">Reparaciones</p>
+                </div>
               </div>
-            </div>
-
-            {/* Información detallada */}
-            <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
-              {garment.description && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-2">Descripción</p>
-                  <p className="text-gray-800 bg-gray-50 p-3 rounded-lg">{garment.description}</p>
-                </div>
-              )}
-
-              {garment.notes && (
-                <div>
-                  <p className="text-sm font-medium text-gray-600 mb-2">Notas</p>
-                  <p className="text-gray-800 bg-gray-50 p-3 rounded-lg">{garment.notes}</p>
-                </div>
-              )}
             </div>
 
             {/* Historial de acciones */}
-            {actions.length > 0 && (
-              <div className="pt-4 border-t">
-                <h2 className="font-semibold text-gray-800 mb-3">Historial de Acciones ({actions.length})</h2>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+              <h2 className="font-semibold text-gray-800 text-sm md:text-base mb-2">
+                Historial de Acciones {actions.length > 0 && `(${actions.length})`}
+              </h2>
+              {actions.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-3">Sin acciones registradas</p>
+              ) : (
+                <div className="space-y-1.5 max-h-60 md:max-h-72 overflow-y-auto pr-1">
                   {actions.map((action, idx) => (
-                    <div key={idx} className="p-3 bg-gray-50 rounded-lg text-sm">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-gray-800">
+                    <div key={idx} className="p-2 md:p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-gray-800">
                           {action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)}
                         </span>
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-400">
                           {new Date(action.created_at).toLocaleString()}
                         </span>
                       </div>
                       {action.result && (
-                        <p className="text-xs text-gray-600">Resultado: {action.result}</p>
+                        <p className="text-xs text-gray-500">Resultado: {action.result}</p>
                       )}
                       {action.notes && (
-                        <p className="text-xs text-gray-600 mt-1">Notas: {action.notes}</p>
+                        <p className="text-xs text-gray-500">Notas: {action.notes}</p>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Timestamps */}
-            <div className="pt-4 border-t space-y-1 text-xs text-gray-500">
-              <p>Creado: {new Date(garment.created_at).toLocaleString()}</p>
-              <p>Actualizado: {new Date(garment.updated_at).toLocaleString()}</p>
+              )}
             </div>
 
-            {/* Documents */}
+            {/* Documentos */}
             {documents.length > 0 && (
-              <div className="pt-4 border-t">
+              <div className="bg-white rounded-xl shadow-lg p-5">
                 <h2 className="font-semibold text-gray-800 mb-3">Documentos ({documents.length})</h2>
                 <div className="space-y-2">
                   {documents.map((doc) => (
@@ -423,11 +389,17 @@ const GarmentDetail = () => {
                 </div>
               </div>
             )}
+
+            {/* Timestamps */}
+            <div className="bg-white rounded-xl shadow-lg p-2 md:p-4 flex gap-4 text-xs text-gray-400">
+              <span>Creado: {new Date(garment.created_at).toLocaleString()}</span>
+              <span>Actualizado: {new Date(garment.updated_at).toLocaleString()}</span>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="mt-6 text-center text-sm text-gray-600">
+        <div className="mt-4 text-center text-xs text-gray-400">
           <p>ThreadTrack - Sistema de Rastreo de Prendas</p>
         </div>
       </div>
