@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, Download, Copy, ArrowLeft, Droplets, Sparkles, Scissors } from 'lucide-react'
+import { Loader, AlertCircle, Home, Download, Copy, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { generateQRUrl } from '../lib/qrGenerator'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
-import type { Garment, Document, GarmentAction } from '../types'
+import type { Garment, Document, GarmentAction, ActionType, InspectionResult } from '../types'
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -16,6 +16,11 @@ const GarmentDetail = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [showActionModal, setShowActionModal] = useState(false)
+  const [actionType, setActionType] = useState<ActionType>('lavado')
+  const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
+  const [actionNotes, setActionNotes] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     loadGarmentData()
@@ -75,6 +80,30 @@ const GarmentDetail = () => {
     navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const openActionModal = (type: ActionType) => {
+    setActionType(type)
+    setActionNotes('')
+    setInspectionResult('aprobado')
+    setShowActionModal(true)
+  }
+
+  const handleAction = async () => {
+    if (!garment) return
+    setActionLoading(true)
+    try {
+      await garmentService.registerAction(garment.id, actionType, {
+        result: actionType === 'inspeccion' ? inspectionResult : undefined,
+        notes: actionNotes || undefined,
+      })
+      setShowActionModal(false)
+      await loadGarmentData()
+    } catch (err) {
+      console.error('Error registrando acción:', err)
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   const downloadQR = () => {
@@ -242,6 +271,36 @@ const GarmentDetail = () => {
               return null
             })()}
 
+            {/* Acciones Rápidas */}
+            {garment.status !== 'baja' && garment.status !== 'inspeccion' && (
+              <div className="pt-4 border-t">
+                <h2 className="font-semibold text-gray-800 mb-3">Registrar Acción</h2>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => openActionModal('lavado')}
+                    className="flex flex-col items-center gap-1.5 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                  >
+                    <Droplets className="w-6 h-6 text-blue-600" />
+                    <span className="text-xs font-medium text-blue-700 text-center">Enviar a Lavado</span>
+                  </button>
+                  <button
+                    onClick={() => openActionModal('esterilizacion')}
+                    className="flex flex-col items-center gap-1.5 p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors"
+                  >
+                    <Sparkles className="w-6 h-6 text-purple-600" />
+                    <span className="text-xs font-medium text-purple-700 text-center">Enviar a Esterilización</span>
+                  </button>
+                  <button
+                    onClick={() => openActionModal('inspeccion')}
+                    className="flex flex-col items-center gap-1.5 p-3 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 rounded-lg transition-colors"
+                  >
+                    <ClipboardCheck className="w-6 h-6 text-yellow-600" />
+                    <span className="text-xs font-medium text-yellow-700 text-center">Enviar a Inspección</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* QR Section */}
             <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg">
               <div className="mb-4">
@@ -352,6 +411,77 @@ const GarmentDetail = () => {
           <p>ThreadTrack - Sistema de Rastreo de Prendas</p>
         </div>
       </div>
+
+      {/* Modal de Acción */}
+      {showActionModal && garment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">
+                {actionType === 'lavado' && 'Enviar a Lavado'}
+                {actionType === 'esterilizacion' && 'Enviar a Esterilización'}
+                {actionType === 'inspeccion' && 'Resultado de Inspección'}
+              </h2>
+              <button onClick={() => setShowActionModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="font-mono text-lg">{garment.code}</div>
+              <div className="text-gray-600">{garment.name}</div>
+            </div>
+
+            {actionType === 'inspeccion' && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Resultado</label>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="result" value="aprobado" checked={inspectionResult === 'aprobado'} onChange={() => setInspectionResult('aprobado')} />
+                    <PackageCheck className="w-5 h-5 text-green-600" />
+                    <span>Aprobado - Vuelve a Disponible</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="result" value="reparacion" checked={inspectionResult === 'reparacion'} onChange={() => setInspectionResult('reparacion')} />
+                    <Scissors className="w-5 h-5 text-orange-600" />
+                    <span>Requiere Reparación</span>
+                  </label>
+                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input type="radio" name="result" value="baja" checked={inspectionResult === 'baja'} onChange={() => setInspectionResult('baja')} />
+                    <Trash2 className="w-5 h-5 text-red-600" />
+                    <span>Dar de Baja</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {actionType === 'inspeccion' && inspectionResult === 'baja' ? 'Motivo de Baja *' : 'Notas (opcional)'}
+              </label>
+              <textarea
+                value={actionNotes}
+                onChange={(e) => setActionNotes(e.target.value)}
+                className="input-field min-h-[80px]"
+                placeholder={actionType === 'inspeccion' && inspectionResult === 'baja' ? 'Describe el motivo de la baja...' : 'Agregar notas...'}
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowActionModal(false)} className="btn-secondary flex-1">
+                Cancelar
+              </button>
+              <button
+                onClick={handleAction}
+                className="btn-primary flex-1"
+                disabled={actionLoading || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes)}
+              >
+                {actionLoading ? 'Guardando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
