@@ -45,8 +45,12 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
 
   useEffect(() => {
     startScanner()
+    // Lock body scroll while scanner is open
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     return () => {
       stopScanner()
+      document.body.style.overflow = prev
     }
   }, [])
 
