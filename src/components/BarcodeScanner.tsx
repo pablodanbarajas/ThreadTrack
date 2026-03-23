@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
-import { Camera, X, StopCircle, FlipHorizontal } from 'lucide-react'
+import { Camera, X, StopCircle, FlipHorizontal, CheckCircle2 } from 'lucide-react'
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void
@@ -159,30 +159,29 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b">
+      <div className="bg-white rounded-xl w-full max-w-md overflow-hidden flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">
             <Camera className="w-5 h-5" />
             Escanear Código
+            {continuous && scanCount > 0 && (
+              <span className="ml-1 bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">
+                {scanCount} leídos
+              </span>
+            )}
           </h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={switchCamera}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Cambiar cámara"
-            >
-              <FlipHorizontal className="w-5 h-5" />
-            </button>
-            <button
-              onClick={handleClose}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={switchCamera}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Cambiar cámara"
+          >
+            <FlipHorizontal className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="p-4">
+        {/* Camera / error area */}
+        <div className="p-4 shrink-0">
           {error ? (
             <div className="text-center py-8 space-y-3">
               <div className="text-4xl">📷</div>
@@ -204,39 +203,41 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
             <>
               <div
                 id={containerRef.current}
-                className="w-full bg-gray-900 rounded-lg overflow-hidden min-h-[300px]"
+                className="w-full bg-gray-900 rounded-lg overflow-hidden min-h-[280px]"
               />
-              <div className="mt-3 space-y-1">
-                <p className="text-center text-sm text-gray-600 font-medium">
-                  📷 {mode === 'qr' ? 'Apunta el QR' : mode === 'barcode' ? 'Apunta el código de barras' : 'Apunta un código QR o código de barras'}
-                </p>
-                <p className="text-center text-xs text-gray-400">
-                  Mantén el código estable y bien iluminado
-                </p>
-                {lastCode && (
-                  <div className="text-center text-xs bg-green-100 rounded px-2 py-2 mt-2">
-                    <p className="text-green-700 font-semibold">
-                      ✓ Detectado {continuous && scanCount > 0 && <span className="ml-1 bg-green-600 text-white px-1.5 py-0.5 rounded-full">{scanCount}</span>}
+              {/* Fixed-height status bar — never changes layout */}
+              <div className="h-14 mt-2 flex items-center justify-center">
+                {lastCode ? (
+                  <div className="w-full text-center px-2 py-1.5 bg-green-100 rounded-lg">
+                    <p className="text-green-700 text-xs font-semibold truncate">
+                      ✓ {lastCode}
                     </p>
-                    <p className="text-green-600 font-mono text-xs mt-1 break-all">{lastCode}</p>
-                    {scanType && <p className="text-green-500 text-xs mt-1">Tipo: {scanType}</p>}
+                    <p className="text-green-500 text-xs">
+                      {mode === 'qr' ? 'QR detectado' : 'Código detectado'}
+                    </p>
                   </div>
+                ) : (
+                  <p className="text-center text-sm text-gray-400">
+                    📷 {mode === 'qr' ? 'Apunta el QR' : mode === 'barcode' ? 'Apunta el código de barras' : 'Apunta el QR o código de barras'}
+                  </p>
                 )}
               </div>
             </>
           )}
         </div>
 
-        <div className="p-4 border-t">
-          {isScanning && (
-            <button
-              onClick={handleClose}
-              className="btn-secondary w-full flex items-center justify-center gap-2"
-            >
-              <StopCircle className="w-5 h-5" />
-              Cancelar
-            </button>
-          )}
+        {/* Footer button */}
+        <div className="px-4 pb-4 shrink-0">
+          <button
+            onClick={handleClose}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white"
+          >
+            {continuous ? (
+              <><CheckCircle2 className="w-5 h-5" /> Listo — cerrar cámara</>
+            ) : (
+              <><X className="w-5 h-5" /> Cancelar</>
+            )}
+          </button>
         </div>
       </div>
     </div>
