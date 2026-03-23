@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode'
-import { Camera, X, StopCircle, FlipHorizontal, CheckCircle2 } from 'lucide-react'
+import { Camera, X, FlipHorizontal, CheckCircle2 } from 'lucide-react'
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void
@@ -10,11 +10,9 @@ interface BarcodeScannerProps {
 }
 
 const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: BarcodeScannerProps) => {
-  const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [useBackCamera, setUseBackCamera] = useState(true)
   const [lastCode, setLastCode] = useState<string | null>(null)
-  const [scanType, setScanType] = useState<string>('')
   const [scanCount, setScanCount] = useState(0)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
@@ -108,12 +106,10 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
             setTimeout(() => { lastScannedRef.current = null }, 1500)
             playBeep()
             setLastCode(decodedText)
-            setScanType('detectado')
             setScanCount(prev => prev + 1)
             onScan(decodedText)
           } else {
             setLastCode(decodedText)
-            setScanType('detectado')
             setTimeout(() => {
               onScan(decodedText)
               stopScanner()
@@ -125,7 +121,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
           // Callback silencioso mientras busca
         }
       )
-      setIsScanning(true)
     } catch (err: any) {
       console.error('Error al iniciar escáner:', err)
       setError(`No se pudo acceder a la cámara: ${err.message || 'Verifica los permisos'}`)
@@ -149,7 +144,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
         console.error('Error al detener escáner:', err)
       }
     }
-    setIsScanning(false)
   }
 
   const handleClose = () => {
