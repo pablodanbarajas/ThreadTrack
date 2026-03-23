@@ -135,7 +135,7 @@ const AdminUsers = () => {
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Rol actual o selector */}
                     {isEditing ? (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <select
                           value={newRole}
                           onChange={(e) => setNewRole(e.target.value as UserRole)}

@@ -158,7 +158,7 @@ const Home = () => {
             <div className="text-xl font-bold text-purple-600">
               {loading ? '...' : stats.esterilizacion}
             </div>
-            <div className="text-gray-600 text-xs">Esterilización</div>
+            <div className="text-gray-600 text-xs truncate">Esterilización</div>
           </div>
           <div className="text-center p-2 bg-orange-50 rounded-lg">
             <Scissors className="w-5 h-5 text-orange-600 mx-auto mb-1" />

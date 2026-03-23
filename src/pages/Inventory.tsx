@@ -599,48 +599,50 @@ const Inventory = () => {
         </button>
       </div>
 
-      {/* Filtros de código + Ingreso Masivo + Descargar QR — misma fila */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => setShowCodeFilters(!showCodeFilters)}
-          className={`px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-            showCodeFilters || filterGarmentType || filterColor || filterSize || filterBatch
-              ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Filter className="w-4 h-4" />
-          Filtrar código
-          <ChevronDown className={`w-4 h-4 transition-transform ${showCodeFilters ? 'rotate-180' : ''}`} />
-        </button>
-        {(filterGarmentType || filterColor || filterSize || filterBatch) && (
+      {/* Filtros de código + Ingreso Masivo + Descargar QR */}
+      <div className="mb-4 flex flex-col gap-2">
+        {/* Fila 1: filtros de código */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setShowCodeFilters(!showCodeFilters)}
+            className={`px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+              showCodeFilters || filterGarmentType || filterColor || filterSize || filterBatch
+                ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            Filtrar código
+            <ChevronDown className={`w-4 h-4 transition-transform ${showCodeFilters ? 'rotate-180' : ''}`} />
+          </button>
+          {(filterGarmentType || filterColor || filterSize || filterBatch) && (
+            <button
+              onClick={() => {
+                setFilterGarmentType('')
+                setFilterColor('')
+                setFilterSize('')
+                setFilterBatch('')
+              }}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-2"
+            >
+              Limpiar filtros
+            </button>
+          )}
+        </div>
+        {/* Fila 2: acciones de inventario */}
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => {
-              setFilterGarmentType('')
-              setFilterColor('')
-              setFilterSize('')
-              setFilterBatch('')
+              setShowBulkModal(true)
+              setBulkInput('')
+              setBulkClientName('')
+              setBulkGarments([])
             }}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-2"
+            className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm bg-green-100 text-green-700 hover:bg-green-200"
           >
-            Limpiar filtros
+            <Upload className="w-4 h-4" />
+            Ingreso Masivo
           </button>
-        )}
-
-        <div className="flex-1" />
-
-        <button
-          onClick={() => {
-            setShowBulkModal(true)
-            setBulkInput('')
-            setBulkClientName('')
-            setBulkGarments([])
-          }}
-          className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm bg-green-100 text-green-700 hover:bg-green-200"
-        >
-          <Upload className="w-4 h-4" />
-          Ingreso Masivo
-        </button>
 
         <button
           onClick={downloadFilteredReport}
@@ -668,7 +670,8 @@ const Inventory = () => {
           {downloadingQRs && <Loader2 className="w-4 h-4 animate-spin" />}
           {!downloadingQRs && <FileArchive className="w-4 h-4" />}
           {downloadingQRs ? 'Generando...' : `Descargar QR (${filteredGarments.length})`}
-        </button>
+          </button>
+        </div>
       </div>
 
       {showCodeFilters && (
@@ -1236,7 +1239,7 @@ const Inventory = () => {
           <div className="bg-white rounded-xl max-w-md w-full overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold text-gray-800">QR de {selectedGarment.name}</h3>
+              <h3 className="font-semibold text-gray-800 truncate min-w-0">QR de {selectedGarment.name}</h3>
               <button
                 onClick={() => setShowQRModal(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"

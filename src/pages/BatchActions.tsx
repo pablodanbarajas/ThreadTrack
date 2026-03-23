@@ -189,7 +189,7 @@ const BatchActions = () => {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4 items-start">
+      <div className="grid md:grid-cols-2 gap-4 items-start">
 
         {/* ── LEFT: scanner + list ── */}
         <div className="space-y-3">

@@ -391,7 +391,7 @@ const GarmentDetail = () => {
             )}
 
             {/* Timestamps */}
-            <div className="bg-white rounded-xl shadow-lg p-2 md:p-4 flex gap-4 text-xs text-gray-400">
+            <div className="bg-white rounded-xl shadow-lg p-2 md:p-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
               <span>Creado: {new Date(garment.created_at).toLocaleString()}</span>
               <span>Actualizado: {new Date(garment.updated_at).toLocaleString()}</span>
             </div>
@@ -407,7 +407,7 @@ const GarmentDetail = () => {
       {/* Modal de Acción */}
       {showActionModal && garment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">
                 {actionType === 'lavado' && 'Enviar a Lavado'}

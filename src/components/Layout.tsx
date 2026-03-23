@@ -33,12 +33,12 @@ const Layout = () => {
             </Link>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-4">
+            <nav className="hidden md:flex items-center gap-1">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center px-4 py-2 rounded-lg transition-colors duration-200 ${
+                  className={`flex items-center px-2 lg:px-4 py-2 rounded-lg transition-colors duration-200 text-sm ${
                     isActive(item.path)
                       ? 'bg-blue-700 text-white'
                       : 'hover:bg-blue-500'
