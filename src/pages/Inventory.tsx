@@ -5,6 +5,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { useRole } from '../contexts/AuthContext'
 import { garmentService } from '../services/garmentService'
+import { generateReportPDF } from '../services/reportService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
@@ -49,6 +50,7 @@ const Inventory = () => {
   const [bulkLoading, setBulkLoading] = useState(false)
   // Descarga masiva de QR
   const [downloadingQRs, setDownloadingQRs] = useState(false)
+  const [downloadingReport, setDownloadingReport] = useState(false)
 
   const statusLabels: Record<GarmentStatus, { label: string; color: string; icon: any }> = {
     disponible: { label: 'Disponible', color: 'bg-green-100 text-green-800', icon: PackageCheck },
@@ -331,6 +333,22 @@ const Inventory = () => {
       alert('Error al descargar QR')
     } finally {
       setDownloadingQRs(false)
+    }
+  }
+
+  const downloadFilteredReport = async () => {
+    if (filteredGarments.length === 0) {
+      alert('No hay prendas para reportar')
+      return
+    }
+    try {
+      setDownloadingReport(true)
+      await generateReportPDF(filteredGarments)
+    } catch (error) {
+      console.error('Error generando reporte:', error)
+      alert('Error al generar el reporte PDF')
+    } finally {
+      setDownloadingReport(false)
     }
   }
 
@@ -622,6 +640,20 @@ const Inventory = () => {
         >
           <Upload className="w-4 h-4" />
           Ingreso Masivo
+        </button>
+
+        <button
+          onClick={downloadFilteredReport}
+          disabled={downloadingReport || filteredGarments.length === 0}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+            downloadingReport || filteredGarments.length === 0
+              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+              : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+          }`}
+        >
+          {downloadingReport && <Loader2 className="w-4 h-4 animate-spin" />}
+          {!downloadingReport && <Download className="w-4 h-4" />}
+          {downloadingReport ? 'Generando...' : `Reporte PDF (${filteredGarments.length})`}
         </button>
 
         <button
