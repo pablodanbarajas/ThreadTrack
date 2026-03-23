@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Loader2, Mail, Lock } from 'lucide-react'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
@@ -10,10 +10,12 @@ const Login = () => {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn, user } = useAuth()
+  const location = useLocation()
+  const from = (location.state as { from?: string })?.from || '/'
 
-  // Si ya está autenticado, redirigir a inicio
+  // Si ya está autenticado, redirigir a la página de origen o inicio
   if (user) {
-    return <Navigate to="/" replace />
+    return <Navigate to={from} replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
