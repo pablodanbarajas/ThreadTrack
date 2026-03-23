@@ -11,11 +11,11 @@ const Layout = () => {
   const { user, signOut } = useAuth()
 
   const navItems = [
-    { path: '/', label: 'Inicio', icon: Home },
-    { path: '/inventory', label: 'Inventario', icon: Package },
-    { path: '/bajas', label: 'Bajas', icon: AlertTriangle },
-    { path: '/lote', label: 'Acciones en Lote', icon: ScanBarcode },
-    { path: '/crear-prenda', label: 'Crear Prenda', icon: Plus },
+    { path: '/', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
+    { path: '/inventory', label: 'Inventario', shortLabel: 'Inventario', icon: Package },
+    { path: '/bajas', label: 'Bajas', shortLabel: 'Bajas', icon: AlertTriangle },
+    { path: '/lote', label: 'Acciones en Lote', shortLabel: 'En Lote', icon: ScanBarcode },
+    { path: '/crear-prenda', label: 'Crear Prenda', shortLabel: 'Crear', icon: Plus },
   ]
 
   const isActive = (path: string) => location.pathname === path
@@ -113,12 +113,12 @@ const Layout = () => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center py-3 px-4 ${
+              className={`flex flex-col items-center py-2 flex-1 min-w-0 ${
                 isActive(item.path) ? 'text-blue-600' : 'text-gray-500'
               }`}
             >
-              <item.icon className="w-6 h-6" />
-              <span className="text-xs mt-1">{item.label}</span>
+              <item.icon className="w-6 h-6 shrink-0" />
+              <span className="text-[10px] mt-0.5 leading-tight text-center w-full truncate px-1">{item.shortLabel}</span>
             </Link>
           ))}
         </div>

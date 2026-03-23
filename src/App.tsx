@@ -18,8 +18,6 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
-          {/* Ruta pública para ver detalles de prenda por QR */}
-          <Route path="/prenda/:id" element={<GarmentDetail />} />
           <Route
             path="/"
             element={
@@ -34,6 +32,7 @@ function App() {
             <Route path="scanner" element={<Scanner />} />
             <Route path="crear-prenda" element={<CreateGarment />} />
             <Route path="lote" element={<BatchActions />} />
+            <Route path="prenda/:id" element={<GarmentDetail />} />
             <Route path="admin/usuarios" element={<ProtectedRoute requiredRole="jefe"><AdminUsers /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
