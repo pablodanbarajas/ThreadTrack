@@ -14,7 +14,7 @@ import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type 
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
-  const { canCreateGarment, canDeleteGarment, canRecordAction, isAdministrador } = useRole()
+  const { canCreateGarment, canDeleteGarment, canRecordAction, canEditGarment, isAdministrador } = useRole()
   const [garments, setGarments] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -1286,7 +1286,7 @@ const Inventory = () => {
                   >
                     <History className="w-4 h-4" />
                   </button>
-                  {isAdministrador && (
+                  {canEditGarment && (
                     <button
                       onClick={() => openEditModal(garment)}
                       className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

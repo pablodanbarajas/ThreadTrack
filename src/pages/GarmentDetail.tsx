@@ -9,7 +9,7 @@ import type { Garment, Document, GarmentAction, ActionType, InspectionResult } f
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
-  const { isAdministrador } = useRole()
+  const { isAdministrador, canEditGarment } = useRole()
   const [garment, setGarment] = useState<Garment | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [actions, setActions] = useState<GarmentAction[]>([])
@@ -193,7 +193,7 @@ const GarmentDetail = () => {
                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
                   {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
                 </span>
-                {isAdministrador && (
+                {canEditGarment && (
                   <button
                     onClick={openEditModal}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-xs font-medium"
