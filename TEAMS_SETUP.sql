@@ -103,10 +103,10 @@ CREATE POLICY "Staff garment update"
     OR (team_id IS NOT NULL AND team_id = public.get_my_team_id())
   );
 
--- Solo admin elimina
+-- Admin y Jefe pueden eliminar
 CREATE POLICY "Administrador garment delete"
   ON public.garments FOR DELETE
-  USING (public.get_my_role() = 'administrador');
+  USING (public.get_my_role() IN ('administrador', 'jefe'));
 
 -- ============================================================
 -- 5. Actualizar RLS en garment_actions (basada en equipo)

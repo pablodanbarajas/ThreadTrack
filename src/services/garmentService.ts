@@ -150,12 +150,13 @@ export const garmentService = {
 
   // Eliminar prenda
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
+    const { error, count } = await supabase
       .from('garments')
-      .delete()
+      .delete({ count: 'exact' })
       .eq('id', id)
 
     if (error) throw error
+    if (count === 0) throw new Error('No tienes permisos para eliminar esta prenda o ya no existe.')
   },
 
   // Obtener estadísticas

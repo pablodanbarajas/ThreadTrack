@@ -58,6 +58,7 @@ const Inventory = () => {
   const [assignTargetGarment, setAssignTargetGarment] = useState<Garment | null>(null)
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
   const [allUsersForAssign, setAllUsersForAssign] = useState<UserProfile[]>([])
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [loadingAssign, setLoadingAssign] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
   const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
@@ -235,16 +236,18 @@ const Inventory = () => {
 
   const handleDelete = async (id: string) => {
     if (!canDeleteGarment) {
-      alert('No tienes permisos para eliminar prendas')
+      setDeleteError('No tienes permisos para eliminar prendas')
       return
     }
     try {
       await garmentService.delete(id)
       setShowDeleteModal(false)
       setGarmentToDelete(null)
+      setDeleteError(null)
       loadGarments()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error eliminando prenda:', error)
+      setDeleteError(error.message || 'Error al eliminar la prenda')
     }
   }
 
@@ -412,6 +415,7 @@ const Inventory = () => {
 
   const openDeleteModal = (garment: Garment) => {
     setGarmentToDelete(garment)
+    setDeleteError(null)
     setShowDeleteModal(true)
   }
 
@@ -542,6 +546,9 @@ const Inventory = () => {
                 <div className="font-mono text-sm">{garmentToDelete.code}</div>
                 <div className="text-gray-600 text-sm">{garmentToDelete.name}</div>
               </div>
+              {deleteError && (
+                <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{deleteError}</div>
+              )}
             </div>
             <div className="flex gap-3">
               <button
