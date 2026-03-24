@@ -27,7 +27,7 @@ export const rolePermissions: Record<UserRole, {
     canAuthorizeStatus: true,
     canViewReports: true,
     canDownloadReport: true,
-    canManageUsers: true,
+    canManageUsers: false,
     canViewAllGarments: true,
     canViewAssignedOnly: false
   },
@@ -56,6 +56,19 @@ export const rolePermissions: Record<UserRole, {
     canManageUsers: false,
     canViewAllGarments: true,
     canViewAssignedOnly: false
+  },
+  administrador: {
+    canViewInventory: true,
+    canCreateGarment: true,
+    canEditGarment: true,
+    canDeleteGarment: true,
+    canRecordAction: true,
+    canAuthorizeStatus: true,
+    canViewReports: true,
+    canDownloadReport: true,
+    canManageUsers: true,
+    canViewAllGarments: true,
+    canViewAssignedOnly: false
   }
 }
 
@@ -71,7 +84,8 @@ export const canUserAction = (role: UserRole | null, action: keyof typeof rolePe
 export const roleDescriptions: Record<UserRole, string> = {
   jefe: 'Acceso total al sistema. Puede crear, editar, eliminar prendas, autorizar estados, ver reportes y gestionar usuarios.',
   supervisor: 'Puede ver todo, crear y editar prendas, autorizar cambios de estado y generar reportes. No puede eliminar prendas ni gestionar usuarios.',
-  operador: 'Puede registrar acciones (lavado, esterilización, reparación, inspección) en prendas. Acceso de solo lectura a inventario.'
+  operador: 'Puede registrar acciones (lavado, esterilización, reparación, inspección) en prendas. Acceso de solo lectura a inventario.',
+  administrador: 'Acceso administrativo completo. Crea prendas y gestiona qué usuarios tienen acceso a cada una.'
 }
 
 /**
@@ -80,5 +94,6 @@ export const roleDescriptions: Record<UserRole, string> = {
 export const roleBadges: Record<UserRole, { label: string; color: string }> = {
   jefe: { label: 'Jefe', color: 'bg-red-100 text-red-800' },
   supervisor: { label: 'Supervisor', color: 'bg-blue-100 text-blue-800' },
-  operador: { label: 'Operador', color: 'bg-green-100 text-green-800' }
+  operador: { label: 'Operador', color: 'bg-green-100 text-green-800' },
+  administrador: { label: 'Administrador', color: 'bg-purple-100 text-purple-800' }
 }

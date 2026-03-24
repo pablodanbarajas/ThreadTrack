@@ -112,7 +112,7 @@ const Home = () => {
           </button>
         )}
 
-        {role === 'jefe' && (
+        {role === 'administrador' && (
           <Link
             to="/admin/usuarios"
             className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm"

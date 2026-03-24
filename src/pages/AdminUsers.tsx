@@ -9,7 +9,7 @@ import type { UserProfile } from '../services/userService'
 
 const AdminUsers = () => {
   const navigate = useNavigate()
-  const { isJefe } = useRole()
+  const { isAdministrador } = useRole()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
@@ -17,12 +17,12 @@ const AdminUsers = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
-  // Redirigir si no es jefe
+  // Redirigir si no es administrador
   useEffect(() => {
-    if (!isJefe) {
-      navigate('/home')
+    if (!isAdministrador) {
+      navigate('/')
     }
-  }, [isJefe, navigate])
+  }, [isAdministrador, navigate])
 
   useEffect(() => {
     loadUsers()
@@ -144,6 +144,7 @@ const AdminUsers = () => {
                           <option value="operador">Operador</option>
                           <option value="supervisor">Supervisor</option>
                           <option value="jefe">Jefe</option>
+                          <option value="administrador">Administrador</option>
                         </select>
                         <button
                           onClick={() => handleUpdateRole(user.id, newRole)}

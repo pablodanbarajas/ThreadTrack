@@ -1,7 +1,10 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import QRCode from 'qrcode.react'
-import { Plus, Download, Copy, RefreshCw, Loader } from 'lucide-react'
+import { Plus, Download, Copy, RefreshCw, Loader, Users, Check } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
+import { userService } from '../services/userService'
+import type { UserProfile } from '../services/userService'
+import { useRole } from '../contexts/AuthContext'
 import { generateQRUrl } from '../lib/qrGenerator'
 import type { Garment, GarmentInsert } from '../types'
 
@@ -18,7 +21,20 @@ const CreateGarment = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const { isAdministrador } = useRole()
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([])
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
+  const [savingAssign, setSavingAssign] = useState(false)
+  const [assignSaved, setAssignSaved] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (isAdministrador) {
+      userService.getAllUsers()
+        .then(users => setAllUsers(users.filter(u => u.role !== 'administrador')))
+        .catch(console.error)
+    }
+  }, [isAdministrador])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -37,6 +53,8 @@ const CreateGarment = () => {
 
       const garment = await garmentService.create(formData)
       setCreatedGarment(garment)
+      setAssignedUserIds([])
+      setAssignSaved(false)
       setFormData({
         code: '',
         name: '',
@@ -49,6 +67,19 @@ const CreateGarment = () => {
       setError(err.message || 'Error al crear la prenda')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAssign = async () => {
+    if (!createdGarment) return
+    setSavingAssign(true)
+    try {
+      await userService.setGarmentAssignments(createdGarment.id, assignedUserIds)
+      setAssignSaved(true)
+    } catch (err) {
+      console.error('Error asignando usuarios:', err)
+    } finally {
+      setSavingAssign(false)
     }
   }
 
@@ -262,6 +293,50 @@ const CreateGarment = () => {
                   <p><strong>Estado:</strong> <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">{createdGarment.status}</span></p>
                 </div>
               </div>
+
+              {isAdministrador && (
+                <div className="mt-6 pt-6 border-t">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-green-600" />
+                    Asignar acceso a usuarios
+                  </h3>
+                  {allUsers.length === 0 ? (
+                    <p className="text-xs text-gray-400">Cargando usuarios...</p>
+                  ) : (
+                    <div className="space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 mb-3">
+                      {allUsers.map(user => (
+                        <label key={user.id} className="flex items-center gap-3 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={assignedUserIds.includes(user.id)}
+                            onChange={e => setAssignedUserIds(prev =>
+                              e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
+                            )}
+                            className="rounded"
+                          />
+                          <span className="flex-1 text-sm truncate">{user.email}</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {assignSaved ? (
+                    <div className="flex items-center gap-2 text-green-700 text-sm py-2">
+                      <Check className="w-4 h-4" />
+                      Acceso asignado a {assignedUserIds.length} usuario{assignedUserIds.length !== 1 ? 's' : ''}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleAssign}
+                      disabled={savingAssign || assignedUserIds.length === 0}
+                      className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
+                    >
+                      {savingAssign ? <Loader className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                      {savingAssign ? 'Asignando...' : `Asignar a ${assignedUserIds.length} usuario${assignedUserIds.length !== 1 ? 's' : ''}`}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <button
                 onClick={() => setCreatedGarment(null)}

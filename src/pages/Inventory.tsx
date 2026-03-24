@@ -1,18 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
-import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive } from 'lucide-react'
+import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive, Users } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { useRole } from '../contexts/AuthContext'
 import { garmentService } from '../services/garmentService'
 import { generateReportPDF } from '../services/reportService'
+import { userService } from '../services/userService'
+import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
-  const { canCreateGarment, canDeleteGarment, canRecordAction } = useRole()
+  const { canCreateGarment, canDeleteGarment, canRecordAction, isAdministrador } = useRole()
   const [garments, setGarments] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -51,6 +53,14 @@ const Inventory = () => {
   // Descarga masiva de QR
   const [downloadingQRs, setDownloadingQRs] = useState(false)
   const [downloadingReport, setDownloadingReport] = useState(false)
+  // Asignación de usuarios a prendas
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [assignTargetGarment, setAssignTargetGarment] = useState<Garment | null>(null)
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
+  const [allUsersForAssign, setAllUsersForAssign] = useState<UserProfile[]>([])
+  const [loadingAssign, setLoadingAssign] = useState(false)
+  const [savingAssign, setSavingAssign] = useState(false)
+  const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
 
   const statusLabels: Record<GarmentStatus, { label: string; color: string; icon: any }> = {
     disponible: { label: 'Disponible', color: 'bg-green-100 text-green-800', icon: PackageCheck },
@@ -357,6 +367,37 @@ const Inventory = () => {
     setShowDeleteModal(true)
   }
 
+  const openAssignModal = async (garment: Garment) => {
+    setAssignTargetGarment(garment)
+    setShowAssignModal(true)
+    setLoadingAssign(true)
+    try {
+      const [users, assignments] = await Promise.all([
+        userService.getAllUsers(),
+        userService.getGarmentAssignments(garment.id)
+      ])
+      setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
+      setAssignedUserIds(assignments)
+    } catch (err) {
+      console.error('Error cargando asignaciones:', err)
+    } finally {
+      setLoadingAssign(false)
+    }
+  }
+
+  const saveAssignments = async () => {
+    if (!assignTargetGarment) return
+    setSavingAssign(true)
+    try {
+      await userService.setGarmentAssignments(assignTargetGarment.id, assignedUserIds)
+      setShowAssignModal(false)
+    } catch (err) {
+      console.error('Error guardando asignaciones:', err)
+    } finally {
+      setSavingAssign(false)
+    }
+  }
+
   const processBulkCodes = (input: string) => {
     const codes = input
       .split('\n')
@@ -408,11 +449,14 @@ const Inventory = () => {
 
       for (const garment of validGarments) {
         try {
-          await garmentService.create({
+          const created = await garmentService.create({
             code: garment.code,
             name: garment.name,
             client_name: garment.client_name || undefined,
           })
+          if (isAdministrador && bulkAssignUserIds.length > 0) {
+            await userService.setGarmentAssignments(created.id, bulkAssignUserIds)
+          }
           successCount++
         } catch (error: any) {
           console.error(`Error creando ${garment.code}:`, error)
@@ -465,6 +509,63 @@ const Inventory = () => {
                 Eliminar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Asignación de Usuarios */}
+      {showAssignModal && assignTargetGarment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-800 flex items-center gap-2 min-w-0">
+                <Users className="w-5 h-5 shrink-0 text-green-600" />
+                <span className="truncate">Asignar: {assignTargetGarment.code}</span>
+              </h3>
+              <button onClick={() => setShowAssignModal(false)} className="p-1 hover:bg-gray-100 rounded ml-2 shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {loadingAssign ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 mb-3">Usuarios que podrán ver y operar esta prenda:</p>
+                <div className="space-y-1 max-h-64 overflow-y-auto border rounded-lg p-2 mb-4">
+                  {allUsersForAssign.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-4">No hay usuarios disponibles</p>
+                  ) : (
+                    allUsersForAssign.map(user => (
+                      <label key={user.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={assignedUserIds.includes(user.id)}
+                          onChange={e => setAssignedUserIds(prev =>
+                            e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
+                          )}
+                          className="rounded"
+                        />
+                        <span className="flex-1 text-sm truncate">{user.email}</span>
+                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowAssignModal(false)} className="btn-secondary flex-1">Cancelar</button>
+                  <button
+                    onClick={saveAssignments}
+                    disabled={savingAssign}
+                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                  >
+                    {savingAssign && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Guardar ({assignedUserIds.length})
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -631,46 +732,57 @@ const Inventory = () => {
         </div>
         {/* Fila 2: acciones de inventario */}
         <div className="flex flex-wrap gap-2">
+          {isAdministrador && (
+            <button
+              onClick={async () => {
+                setShowBulkModal(true)
+                setBulkInput('')
+                setBulkClientName('')
+                setBulkGarments([])
+                setBulkAssignUserIds([])
+                if (allUsersForAssign.length === 0) {
+                  try {
+                    const users = await userService.getAllUsers()
+                    setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
+                  } catch {}
+                }
+              }}
+              className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm bg-green-100 text-green-700 hover:bg-green-200"
+            >
+              <Upload className="w-4 h-4" />
+              Ingreso Masivo
+            </button>
+          )}
+
           <button
-            onClick={() => {
-              setShowBulkModal(true)
-              setBulkInput('')
-              setBulkClientName('')
-              setBulkGarments([])
-            }}
-            className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm bg-green-100 text-green-700 hover:bg-green-200"
+            onClick={downloadFilteredReport}
+            disabled={downloadingReport || filteredGarments.length === 0}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+              downloadingReport || filteredGarments.length === 0
+                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+            }`}
           >
-            <Upload className="w-4 h-4" />
-            Ingreso Masivo
+            {downloadingReport && <Loader2 className="w-4 h-4 animate-spin" />}
+            {!downloadingReport && <Download className="w-4 h-4" />}
+            {downloadingReport ? 'Generando...' : `Reporte PDF (${filteredGarments.length})`}
           </button>
 
-        <button
-          onClick={downloadFilteredReport}
-          disabled={downloadingReport || filteredGarments.length === 0}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-            downloadingReport || filteredGarments.length === 0
-              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-          }`}
-        >
-          {downloadingReport && <Loader2 className="w-4 h-4 animate-spin" />}
-          {!downloadingReport && <Download className="w-4 h-4" />}
-          {downloadingReport ? 'Generando...' : `Reporte PDF (${filteredGarments.length})`}
-        </button>
-
-        <button
-          onClick={downloadFilteredQRs}
-          disabled={downloadingQRs || filteredGarments.length === 0}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-            downloadingQRs || filteredGarments.length === 0
-              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-          }`}
-        >
-          {downloadingQRs && <Loader2 className="w-4 h-4 animate-spin" />}
-          {!downloadingQRs && <FileArchive className="w-4 h-4" />}
-          {downloadingQRs ? 'Generando...' : `Descargar QR (${filteredGarments.length})`}
-          </button>
+          {isAdministrador && (
+            <button
+              onClick={downloadFilteredQRs}
+              disabled={downloadingQRs || filteredGarments.length === 0}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
+                downloadingQRs || filteredGarments.length === 0
+                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+            >
+              {downloadingQRs && <Loader2 className="w-4 h-4 animate-spin" />}
+              {!downloadingQRs && <FileArchive className="w-4 h-4" />}
+              {downloadingQRs ? 'Generando...' : `Descargar QR (${filteredGarments.length})`}
+            </button>
+          )}
         </div>
       </div>
 
@@ -836,6 +948,39 @@ const Inventory = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* Asignación de usuarios — solo administrador */}
+              {isAdministrador && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-green-600" />
+                    Asignar acceso a usuarios
+                  </label>
+                  {allUsersForAssign.length === 0 ? (
+                    <p className="text-xs text-gray-400">Cargando usuarios...</p>
+                  ) : (
+                    <div className="space-y-1 max-h-40 overflow-y-auto border rounded-lg p-2">
+                      {allUsersForAssign.map(user => (
+                        <label key={user.id} className="flex items-center gap-3 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={bulkAssignUserIds.includes(user.id)}
+                            onChange={e => setBulkAssignUserIds(prev =>
+                              e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
+                            )}
+                            className="rounded"
+                          />
+                          <span className="flex-1 text-sm truncate">{user.email}</span>
+                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {bulkAssignUserIds.length > 0 && (
+                    <p className="text-xs text-green-700 mt-1">Se asignarán a {bulkAssignUserIds.length} usuario{bulkAssignUserIds.length !== 1 ? 's' : ''}</p>
+                  )}
                 </div>
               )}
 
@@ -1114,6 +1259,15 @@ const Inventory = () => {
                   >
                     <History className="w-4 h-4" />
                   </button>
+                  {isAdministrador && (
+                    <button
+                      onClick={() => openAssignModal(garment)}
+                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      title="Asignar usuarios"
+                    >
+                      <Users className="w-4 h-4" />
+                    </button>
+                  )}
                   {canDeleteGarment && (
                     <button
                       onClick={() => openDeleteModal(garment)}

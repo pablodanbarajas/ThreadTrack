@@ -68,5 +68,29 @@ export const userService = {
       console.error('Error eliminando usuario:', error)
       throw error
     }
-  }
+  },
+
+  // Obtener IDs de usuarios asignados a una prenda
+  async getGarmentAssignments(garmentId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('garment_assignments')
+      .select('user_id')
+      .eq('garment_id', garmentId)
+    if (error) throw error
+    return (data || []).map((row: any) => row.user_id)
+  },
+
+  // Reemplazar el set completo de asignaciones de una prenda
+  async setGarmentAssignments(garmentId: string, userIds: string[]): Promise<void> {
+    const { error: delError } = await supabase
+      .from('garment_assignments')
+      .delete()
+      .eq('garment_id', garmentId)
+    if (delError) throw delError
+    if (userIds.length === 0) return
+    const { error: insError } = await supabase
+      .from('garment_assignments')
+      .insert(userIds.map(user_id => ({ garment_id: garmentId, user_id })))
+    if (insError) throw insError
+  },
 }

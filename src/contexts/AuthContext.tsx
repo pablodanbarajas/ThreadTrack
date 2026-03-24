@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
-export type UserRole = 'jefe' | 'supervisor' | 'operador'
+export type UserRole = 'jefe' | 'supervisor' | 'operador' | 'administrador'
 
 interface AuthContextType {
   user: User | null
@@ -33,14 +33,16 @@ export const useRole = () => {
     isJefe: role === 'jefe',
     isSupervisor: role === 'supervisor',
     isOperador: role === 'operador',
-    canViewReports: role === 'jefe' || role === 'supervisor',
-    canCreateGarment: role === 'jefe' || role === 'supervisor',
-    canEditGarment: role === 'jefe' || role === 'supervisor',
-    canDeleteGarment: role === 'jefe',
+    isAdministrador: role === 'administrador',
+    canViewReports: role === 'jefe' || role === 'supervisor' || role === 'administrador',
+    canCreateGarment: role === 'jefe' || role === 'supervisor' || role === 'administrador',
+    canEditGarment: role === 'jefe' || role === 'supervisor' || role === 'administrador',
+    canDeleteGarment: role === 'jefe' || role === 'administrador',
     canRecordAction: role !== null,
-    canAuthorizeStatus: role === 'jefe' || role === 'supervisor',
-    canManageUsers: role === 'jefe',
-    canDownloadReport: role === 'jefe' || role === 'supervisor'
+    canAuthorizeStatus: role === 'jefe' || role === 'supervisor' || role === 'administrador',
+    canManageUsers: role === 'administrador',
+    canManageAssignments: role === 'administrador',
+    canDownloadReport: role === 'jefe' || role === 'supervisor' || role === 'administrador'
   }
 }
 

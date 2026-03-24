@@ -33,7 +33,7 @@ function App() {
             <Route path="crear-prenda" element={<CreateGarment />} />
             <Route path="lote" element={<BatchActions />} />
             <Route path="prenda/:id" element={<GarmentDetail />} />
-            <Route path="admin/usuarios" element={<ProtectedRoute requiredRole="jefe"><AdminUsers /></ProtectedRoute>} />
+            <Route path="admin/usuarios" element={<ProtectedRoute requiredRole="administrador"><AdminUsers /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
