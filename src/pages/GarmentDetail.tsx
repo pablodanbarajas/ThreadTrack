@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X, Pencil } from 'lucide-react'
+import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X, Pencil, AlertTriangle } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
@@ -271,20 +271,51 @@ const GarmentDetail = () => {
             })()}
 
             {/* Acciones rápidas */}
-            {garment.status !== 'baja' && (
+            {garment.status !== 'baja' && (() => {
+              const lavadoCount = actions.filter(a => a.action_type === 'lavado').length
+              const esterilizacionCount = actions.filter(a => a.action_type === 'esterilizacion').length
+              const reparacionCount = actions.filter(a => a.action_type === 'reparacion' || (a.action_type === 'inspeccion' && a.result === 'reparacion')).length
+              const LIFE_LIMIT = 100
+              const LIFE_WARN = 80
+              const lifeExpired = lavadoCount >= LIFE_LIMIT || esterilizacionCount >= LIFE_LIMIT
+              const lifeNearEnd = !lifeExpired && (lavadoCount >= LIFE_WARN || esterilizacionCount >= LIFE_WARN)
+              return (
               <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+                {/* Banner advertencia fin de vida */}
+                {lifeExpired && (
+                  <div className="flex items-start gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-red-700">⚠ Fin de vida útil alcanzado</p>
+                      <p className="text-xs text-red-600">
+                        {lavadoCount >= LIFE_LIMIT && `${lavadoCount} lavados`}{lavadoCount >= LIFE_LIMIT && esterilizacionCount >= LIFE_LIMIT && ' · '}{esterilizacionCount >= LIFE_LIMIT && `${esterilizacionCount} esterilizaciones`}. Se recomienda dar de baja.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {lifeNearEnd && (
+                  <div className="flex items-start gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-orange-700">Próximo a fin de vida útil</p>
+                      <p className="text-xs text-orange-600">
+                        {lavadoCount >= LIFE_WARN && `${lavadoCount}/100 lavados`}{lavadoCount >= LIFE_WARN && esterilizacionCount >= LIFE_WARN && ' · '}{esterilizacionCount >= LIFE_WARN && `${esterilizacionCount}/100 esterilizaciones`}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="font-semibold text-gray-800 text-sm md:text-base">Registrar Acción</h2>
                   {/* Contadores inline — solo mobile */}
                   <div className="flex items-center gap-2 md:hidden">
-                    <span className="flex items-center gap-0.5 text-xs text-blue-600 font-semibold">
-                      <Droplets className="w-3.5 h-3.5" />{actions.filter(a => a.action_type === 'lavado').length}
+                    <span className={`flex items-center gap-0.5 text-xs font-semibold ${lavadoCount >= LIFE_LIMIT ? 'text-red-600' : lavadoCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`}>
+                      <Droplets className="w-3.5 h-3.5" />{lavadoCount}
                     </span>
-                    <span className="flex items-center gap-0.5 text-xs text-purple-600 font-semibold">
-                      <Sparkles className="w-3.5 h-3.5" />{actions.filter(a => a.action_type === 'esterilizacion').length}
+                    <span className={`flex items-center gap-0.5 text-xs font-semibold ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-600' : esterilizacionCount >= LIFE_WARN ? 'text-orange-500' : 'text-purple-600'}`}>
+                      <Sparkles className="w-3.5 h-3.5" />{esterilizacionCount}
                     </span>
                     <span className="flex items-center gap-0.5 text-xs text-orange-600 font-semibold">
-                      <Scissors className="w-3.5 h-3.5" />{actions.filter(a => a.action_type === 'reparacion' || (a.action_type === 'inspeccion' && a.result === 'reparacion')).length}
+                      <Scissors className="w-3.5 h-3.5" />{reparacionCount}
                     </span>
                   </div>
                 </div>
@@ -328,7 +359,7 @@ const GarmentDetail = () => {
                   </button>
                 </div>
               </div>
-            )}
+            )})()}
 
             {/* Descripción y Notas */}
             {(garment.description || garment.notes) && (
@@ -356,36 +387,37 @@ const GarmentDetail = () => {
             <div className="hidden md:block bg-white rounded-xl shadow-lg p-5">
               <h2 className="font-semibold text-gray-800 mb-3">Resumen de Ciclos</h2>
               <div className="grid grid-cols-3 gap-3">
-                <div className="p-4 bg-blue-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Droplets className="w-5 h-5 text-blue-600" />
-                    <span className="text-2xl font-bold text-blue-600">
-                      {actions.filter(a => a.action_type === 'lavado').length}
-                    </span>
-                  </div>
-                  <p className="text-xs text-blue-700 font-medium">Lavados</p>
-                </div>
-                <div className="p-4 bg-purple-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Sparkles className="w-5 h-5 text-purple-600" />
-                    <span className="text-2xl font-bold text-purple-600">
-                      {actions.filter(a => a.action_type === 'esterilizacion').length}
-                    </span>
-                  </div>
-                  <p className="text-xs text-purple-700 font-medium">Esterilizaciones</p>
-                </div>
-                <div className="p-4 bg-orange-50 rounded-lg text-center">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Scissors className="w-5 h-5 text-orange-600" />
-                    <span className="text-2xl font-bold text-orange-600">
-                      {actions.filter(a =>
-                        a.action_type === 'reparacion' ||
-                        (a.action_type === 'inspeccion' && a.result === 'reparacion')
-                      ).length}
-                    </span>
-                  </div>
-                  <p className="text-xs text-orange-700 font-medium">Reparaciones</p>
-                </div>
+                {(() => {
+                  const lc = actions.filter(a => a.action_type === 'lavado').length
+                  const ec = actions.filter(a => a.action_type === 'esterilizacion').length
+                  const rc = actions.filter(a => a.action_type === 'reparacion' || (a.action_type === 'inspeccion' && a.result === 'reparacion')).length
+                  const L = 100, W = 80
+                  return (
+                    <>
+                      <div className={`p-4 rounded-lg text-center ${lc >= L ? 'bg-red-100' : lc >= W ? 'bg-orange-100' : 'bg-blue-50'}`}>
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <Droplets className={`w-5 h-5 ${lc >= L ? 'text-red-600' : lc >= W ? 'text-orange-500' : 'text-blue-600'}`} />
+                          <span className={`text-2xl font-bold ${lc >= L ? 'text-red-600' : lc >= W ? 'text-orange-600' : 'text-blue-600'}`}>{lc}</span>
+                        </div>
+                        <p className={`text-xs font-medium ${lc >= L ? 'text-red-700' : lc >= W ? 'text-orange-700' : 'text-blue-700'}`}>Lavados{lc >= L ? ' ⚠' : ''}</p>
+                      </div>
+                      <div className={`p-4 rounded-lg text-center ${ec >= L ? 'bg-red-100' : ec >= W ? 'bg-orange-100' : 'bg-purple-50'}`}>
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <Sparkles className={`w-5 h-5 ${ec >= L ? 'text-red-600' : ec >= W ? 'text-orange-500' : 'text-purple-600'}`} />
+                          <span className={`text-2xl font-bold ${ec >= L ? 'text-red-600' : ec >= W ? 'text-orange-600' : 'text-purple-600'}`}>{ec}</span>
+                        </div>
+                        <p className={`text-xs font-medium ${ec >= L ? 'text-red-700' : ec >= W ? 'text-orange-700' : 'text-purple-700'}`}>Esterilizaciones{ec >= L ? ' ⚠' : ''}</p>
+                      </div>
+                      <div className="p-4 bg-orange-50 rounded-lg text-center">
+                        <div className="flex items-center justify-center gap-1 mb-1">
+                          <Scissors className="w-5 h-5 text-orange-600" />
+                          <span className="text-2xl font-bold text-orange-600">{rc}</span>
+                        </div>
+                        <p className="text-xs text-orange-700 font-medium">Reparaciones</p>
+                      </div>
+                    </>
+                  )
+                })()}
               </div>
             </div>
 
@@ -567,6 +599,33 @@ const GarmentDetail = () => {
               <div className="font-mono text-lg">{garment.code}</div>
               <div className="text-gray-600">{garment.name}</div>
             </div>
+
+            {/* Advertencia fin de vida útil */}
+            {(() => {
+              const lavadoCount = actions.filter(a => a.action_type === 'lavado').length
+              const esterilizacionCount = actions.filter(a => a.action_type === 'esterilizacion').length
+              const newLavado = actionType === 'lavado' ? lavadoCount + 1 : lavadoCount
+              const newEsteril = actionType === 'esterilizacion' ? esterilizacionCount + 1 : esterilizacionCount
+              const alreadyExpired = lavadoCount >= 100 || esterilizacionCount >= 100
+              const willExpire = !alreadyExpired && (newLavado >= 100 || newEsteril >= 100)
+              if (!willExpire && !alreadyExpired) return null
+              return (
+                <div className={`mb-4 p-3 rounded-lg border flex gap-3 ${alreadyExpired ? 'bg-red-50 border-red-300' : 'bg-orange-50 border-orange-300'}`}>
+                  <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-500'}`} />
+                  <div>
+                    <p className={`text-sm font-bold ${alreadyExpired ? 'text-red-700' : 'text-orange-700'}`}>
+                      {alreadyExpired ? '⚠ Esta prenda ya superó su vida útil' : '⚠ Esta acción alcanzará el límite de vida útil'}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
+                      {alreadyExpired
+                        ? `Tiene ${lavadoCount >= 100 ? lavadoCount + ' lavados' : ''}${lavadoCount >= 100 && esterilizacionCount >= 100 ? ' y ' : ''}${esterilizacionCount >= 100 ? esterilizacionCount + ' esterilizaciones' : ''}. Se recomienda darla de baja.`
+                        : `Alcanzará ${newLavado >= 100 ? newLavado + ' lavados' : ''}${newLavado >= 100 && newEsteril >= 100 ? ' y ' : ''}${newEsteril >= 100 ? newEsteril + ' esterilizaciones' : ''}. Considera darla de baja.`
+                      }
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
 
             {actionType === 'inspeccion' && (
               <div className="mb-4">

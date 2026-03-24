@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive, Users, Pencil } from 'lucide-react'
+import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive, Users, Pencil, AlertTriangle } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -1121,6 +1121,34 @@ const Inventory = () => {
               <div className="text-gray-600">{selectedGarment.name}</div>
             </div>
 
+            {/* Advertencia fin de vida útil en el modal */}
+            {(() => {
+              const selActions = (selectedGarment as any).actions ?? []
+              const selLavado = selActions.filter((a: any) => a.action_type === 'lavado').length
+              const selEsteril = selActions.filter((a: any) => a.action_type === 'esterilizacion').length
+              const newLavado = actionType === 'lavado' ? selLavado + 1 : selLavado
+              const newEsteril = actionType === 'esterilizacion' ? selEsteril + 1 : selEsteril
+              const alreadyExpired = selLavado >= 100 || selEsteril >= 100
+              const willExpire = !alreadyExpired && (newLavado >= 100 || newEsteril >= 100)
+              if (!willExpire && !alreadyExpired) return null
+              return (
+                <div className={`mb-4 p-3 rounded-lg border flex gap-3 ${alreadyExpired ? 'bg-red-50 border-red-300' : 'bg-orange-50 border-orange-300'}`}>
+                  <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-500'}`} />
+                  <div>
+                    <p className={`text-sm font-bold ${alreadyExpired ? 'text-red-700' : 'text-orange-700'}`}>
+                      {alreadyExpired ? '⚠ Esta prenda ya superó su vida útil' : '⚠ Esta acción alcanzará el límite de vida útil'}
+                    </p>
+                    <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
+                      {alreadyExpired
+                        ? `Tiene ${selLavado >= 100 ? selLavado + ' lavados' : ''}${selLavado >= 100 && selEsteril >= 100 ? ' y ' : ''}${selEsteril >= 100 ? selEsteril + ' esterilizaciones' : ''}. Se recomienda darla de baja.`
+                        : `Alcanzará ${newLavado >= 100 ? newLavado + ' lavados' : ''}${newLavado >= 100 && newEsteril >= 100 ? ' y ' : ''}${newEsteril >= 100 ? newEsteril + ' esterilizaciones' : ''}. Considera darla de baja.`
+                      }
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
+
             {actionType === 'inspeccion' && (
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Resultado</label>
@@ -1268,8 +1296,35 @@ const Inventory = () => {
               a.action_type === 'reparacion' ||
               (a.action_type === 'inspeccion' && a.result === 'reparacion')
             ).length
+            const LIFE_LIMIT = 100
+            const LIFE_WARN = 80
+            const lifeExpired = lavadoCount >= LIFE_LIMIT || esterilizacionCount >= LIFE_LIMIT
+            const lifeNearEnd = !lifeExpired && (lavadoCount >= LIFE_WARN || esterilizacionCount >= LIFE_WARN)
             return (
-              <div key={garment.id} className="card p-4">
+              <div key={garment.id} className={`card p-4 ${lifeExpired ? 'border-2 border-red-400' : lifeNearEnd ? 'border-2 border-orange-300' : ''}`}>
+                {/* Banner fin de vida útil */}
+                {lifeExpired && (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-red-700">⚠ Fin de vida útil alcanzado</p>
+                      <p className="text-xs text-red-600">
+                        {lavadoCount >= LIFE_LIMIT && `${lavadoCount} lavados`}{lavadoCount >= LIFE_LIMIT && esterilizacionCount >= LIFE_LIMIT && ' · '}{esterilizacionCount >= LIFE_LIMIT && `${esterilizacionCount} esterilizaciones`}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {lifeNearEnd && (
+                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-orange-700">Próximo a fin de vida útil</p>
+                      <p className="text-xs text-orange-600">
+                        {lavadoCount >= LIFE_WARN && `${lavadoCount}/100 lavados`}{lavadoCount >= LIFE_WARN && esterilizacionCount >= LIFE_WARN && ' · '}{esterilizacionCount >= LIFE_WARN && `${esterilizacionCount}/100 esterilizaciones`}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {/* Botones de acción */}
                 <div className="flex justify-end gap-1 mb-3 pb-3 border-b">
                   <button
@@ -1355,19 +1410,19 @@ const Inventory = () => {
                 {/* Contadores - Grid 3 columnas */}
                 {actions.length > 0 && (
                   <div className="grid grid-cols-3 gap-2 mb-3">
-                    <div className="p-2 bg-blue-50 rounded text-center">
+                    <div className={`p-2 rounded text-center ${lavadoCount >= LIFE_LIMIT ? 'bg-red-100' : lavadoCount >= LIFE_WARN ? 'bg-orange-100' : 'bg-blue-50'}`}>
                       <div className="flex justify-center mb-0.5">
-                        <Droplets className="w-3 h-3 text-blue-600" />
+                        <Droplets className={`w-3 h-3 ${lavadoCount >= LIFE_LIMIT ? 'text-red-600' : lavadoCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`} />
                       </div>
-                      <p className="text-sm font-bold text-blue-600">{lavadoCount}</p>
-                      <p className="text-xs text-blue-700">Lavados</p>
+                      <p className={`text-sm font-bold ${lavadoCount >= LIFE_LIMIT ? 'text-red-600' : lavadoCount >= LIFE_WARN ? 'text-orange-600' : 'text-blue-600'}`}>{lavadoCount}</p>
+                      <p className={`text-xs ${lavadoCount >= LIFE_LIMIT ? 'text-red-700' : lavadoCount >= LIFE_WARN ? 'text-orange-700' : 'text-blue-700'}`}>Lavados</p>
                     </div>
-                    <div className="p-2 bg-purple-50 rounded text-center">
+                    <div className={`p-2 rounded text-center ${esterilizacionCount >= LIFE_LIMIT ? 'bg-red-100' : esterilizacionCount >= LIFE_WARN ? 'bg-orange-100' : 'bg-purple-50'}`}>
                       <div className="flex justify-center mb-0.5">
-                        <Sparkles className="w-3 h-3 text-purple-600" />
+                        <Sparkles className={`w-3 h-3 ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-600' : esterilizacionCount >= LIFE_WARN ? 'text-orange-500' : 'text-purple-600'}`} />
                       </div>
-                      <p className="text-sm font-bold text-purple-600">{esterilizacionCount}</p>
-                      <p className="text-xs text-purple-700">Esterilizaciones</p>
+                      <p className={`text-sm font-bold ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-600' : esterilizacionCount >= LIFE_WARN ? 'text-orange-600' : 'text-purple-600'}`}>{esterilizacionCount}</p>
+                      <p className={`text-xs ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-700' : esterilizacionCount >= LIFE_WARN ? 'text-orange-700' : 'text-purple-700'}`}>Esterilizaciones</p>
                     </div>
                     <div className="p-2 bg-orange-50 rounded text-center">
                       <div className="flex justify-center mb-0.5">
