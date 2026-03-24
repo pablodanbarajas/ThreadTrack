@@ -9,7 +9,7 @@ import type { Garment, Document, GarmentAction, ActionType, InspectionResult } f
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
-  const { isAdministrador, canEditGarment } = useRole()
+  const { canEditGarment } = useRole()
   const [garment, setGarment] = useState<Garment | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [actions, setActions] = useState<GarmentAction[]>([])
