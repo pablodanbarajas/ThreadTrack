@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus, ScanBarcode, Users } from 'lucide-react'
+import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus, ScanBarcode, Users, UserCircle } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
@@ -49,10 +49,18 @@ const Layout = () => {
                   {item.label}
                 </Link>
               ))}
+              {/* Usuario logueado */}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-700 rounded-lg text-sm ml-2">
+                <UserCircle className="w-4 h-4 flex-shrink-0 text-blue-200" />
+                <div className="flex flex-col leading-tight">
+                  <span className="font-medium truncate max-w-[150px] text-white text-xs">{user?.email}</span>
+                  <span className="text-blue-300 text-xs capitalize">{role}</span>
+                </div>
+              </div>
               <button
                 onClick={signOut}
-                className="flex items-center px-4 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-4"
-                title={user?.email}
+                className="flex items-center px-4 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
+                title="Cerrar sesión"
               >
                 <LogOut className="w-5 h-5 mr-2" />
                 Salir

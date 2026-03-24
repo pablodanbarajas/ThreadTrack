@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X } from 'lucide-react'
+import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X, Pencil } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
+import { useRole } from '../contexts/AuthContext'
 import type { Garment, Document, GarmentAction, ActionType, InspectionResult } from '../types'
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
+  const { isAdministrador } = useRole()
   const [garment, setGarment] = useState<Garment | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [actions, setActions] = useState<GarmentAction[]>([])
@@ -18,6 +20,12 @@ const GarmentDetail = () => {
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+
+  // Edit modal state
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editForm, setEditForm] = useState({ name: '', description: '', client_name: '', client_phone: '', notes: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   useEffect(() => {
     loadGarmentData()
@@ -76,6 +84,41 @@ const GarmentDetail = () => {
     setActionNotes('')
     setInspectionResult('aprobado')
     setShowActionModal(true)
+  }
+
+  const openEditModal = () => {
+    if (!garment) return
+    setEditForm({
+      name: garment.name,
+      description: garment.description ?? '',
+      client_name: garment.client_name ?? '',
+      client_phone: garment.client_phone ?? '',
+      notes: garment.notes ?? '',
+    })
+    setEditError(null)
+    setShowEditModal(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!garment) return
+    if (!editForm.name.trim()) { setEditError('El nombre es obligatorio'); return }
+    setEditLoading(true)
+    setEditError(null)
+    try {
+      await garmentService.update(garment.id, {
+        name: editForm.name.trim(),
+        description: editForm.description.trim() || undefined,
+        client_name: editForm.client_name.trim() || undefined,
+        client_phone: editForm.client_phone.trim() || undefined,
+        notes: editForm.notes.trim() || undefined,
+      })
+      setShowEditModal(false)
+      await loadGarmentData()
+    } catch (err: any) {
+      setEditError(err.message || 'Error al guardar los cambios')
+    } finally {
+      setEditLoading(false)
+    }
   }
 
   const handleAction = async () => {
@@ -146,9 +189,21 @@ const GarmentDetail = () => {
                 <h1 className="text-lg md:text-3xl font-bold leading-tight break-words">{garment.name}</h1>
                 <p className="text-blue-100 text-xs md:text-sm mt-0.5">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
               </div>
-              <span className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
-                {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
+                  {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
+                </span>
+                {isAdministrador && (
+                  <button
+                    onClick={openEditModal}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-xs font-medium"
+                    title="Editar prenda"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Editar
+                  </button>
+                )}
+              </div>
             </div>
             {garment.client_name && (
               <div className="mt-2 pt-2 border-t border-blue-400 flex flex-wrap gap-x-6 gap-y-1">
@@ -403,6 +458,95 @@ const GarmentDetail = () => {
           <p>ThreadTrack - Sistema de Rastreo de Prendas</p>
         </div>
       </div>
+
+      {/* Modal de Edición */}
+      {showEditModal && garment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-blue-600" />
+                Editar Prenda
+              </h2>
+              <button onClick={() => setShowEditModal(false)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-3 px-3 py-2 bg-gray-50 rounded-lg">
+              <span className="text-xs text-gray-500">Código: </span>
+              <span className="font-mono text-sm font-semibold text-gray-800">{garment.code}</span>
+            </div>
+
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  className="input-field"
+                  placeholder="Nombre de la prenda"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+                <input
+                  type="text"
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="input-field"
+                  placeholder="Descripción (opcional)"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                  <input
+                    type="text"
+                    value={editForm.client_name}
+                    onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
+                    className="input-field"
+                    placeholder="Nombre del cliente"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <input
+                    type="text"
+                    value={editForm.client_phone}
+                    onChange={e => setEditForm(f => ({ ...f, client_phone: e.target.value }))}
+                    className="input-field"
+                    placeholder="Teléfono (opcional)"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea
+                  value={editForm.notes}
+                  onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                  className="input-field min-h-[70px]"
+                  placeholder="Notas adicionales (opcional)"
+                />
+              </div>
+            </div>
+
+            {editError && (
+              <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{editError}</div>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={() => setShowEditModal(false)} className="btn-secondary flex-1" disabled={editLoading}>
+                Cancelar
+              </button>
+              <button onClick={handleEditSave} className="btn-primary flex-1" disabled={editLoading}>
+                {editLoading ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Acción */}
       {showActionModal && garment && (
