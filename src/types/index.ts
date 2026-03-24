@@ -1,3 +1,10 @@
+export interface Team {
+  id: string
+  name: string
+  description?: string
+  created_at: string
+}
+
 export type GarmentStatus = 'disponible' | 'lavado' | 'esterilizacion' | 'inspeccion' | 'reparacion' | 'baja'
 export type ActionType = 'lavado' | 'esterilizacion' | 'inspeccion' | 'reparacion' | 'baja'
 export type InspectionResult = 'aprobado' | 'reparacion' | 'baja'
@@ -15,6 +22,7 @@ export interface Garment {
   baja_reason?: string
   baja_date?: string
   qr_code?: string // URL del QR generada dinámicamente
+  team_id?: string
   created_at: string
   updated_at: string
 }

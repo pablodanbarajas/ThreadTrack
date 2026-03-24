@@ -1,10 +1,12 @@
 import { supabase } from '../lib/supabase'
 import type { UserRole } from '../contexts/AuthContext'
+import type { Team } from '../types'
 
 export interface UserProfile {
   id: string
   email: string
   role: UserRole
+  team_id: string | null
   created_at: string
   updated_at: string
 }
@@ -92,5 +94,37 @@ export const userService = {
       .from('garment_assignments')
       .insert(userIds.map(user_id => ({ garment_id: garmentId, user_id })))
     if (insError) throw insError
+  },
+
+  // ============================================================
+  // Gestión de equipos
+  // ============================================================
+
+  async getTeams(): Promise<Team[]> {
+    const { data, error } = await supabase
+      .from('teams')
+      .select('*')
+      .order('name')
+    if (error) throw error
+    return data || []
+  },
+
+  async createTeam(name: string, description?: string): Promise<Team> {
+    const { data, error } = await supabase
+      .rpc('create_team', { p_name: name, p_description: description ?? null })
+    if (error) throw error
+    return data as Team
+  },
+
+  async deleteTeam(teamId: string): Promise<void> {
+    const { error } = await supabase
+      .rpc('delete_team', { p_team_id: teamId })
+    if (error) throw error
+  },
+
+  async assignUserToTeam(userId: string, teamId: string | null): Promise<void> {
+    const { error } = await supabase
+      .rpc('assign_user_to_team', { p_user_id: userId, p_team_id: teamId })
+    if (error) throw error
   },
 }

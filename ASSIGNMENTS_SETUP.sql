@@ -27,76 +27,111 @@ CREATE TABLE IF NOT EXISTS public.garment_assignments (
 
 ALTER TABLE public.garment_assignments ENABLE ROW LEVEL SECURITY;
 
--- El administrador gestiona TODAS las asignaciones
-DROP POLICY IF EXISTS "Administrador manages assignments" ON public.garment_assignments;
-CREATE POLICY "Administrador manages assignments"
-  ON public.garment_assignments FOR ALL
-  USING    ((SELECT role FROM public.user_profiles WHERE id = auth.uid()) = 'administrador')
-  WITH CHECK ((SELECT role FROM public.user_profiles WHERE id = auth.uid()) = 'administrador');
-
--- Cada usuario puede ver sus propias asignaciones
-DROP POLICY IF EXISTS "Users view own assignments" ON public.garment_assignments;
-CREATE POLICY "Users view own assignments"
-  ON public.garment_assignments FOR SELECT
-  USING (user_id = auth.uid());
+-- (Las políticas de garment_assignments se crean en la sección 6, más abajo)
 
 -- ============================================================
--- 3. RLS en tabla garments — filtrar por asignación
+-- 3. Función auxiliar para obtener el rol del usuario actual
+-- SECURITY DEFINER evita problemas de RLS recursivo en user_profiles
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT
+LANGUAGE SQL
+SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT role FROM public.user_profiles WHERE id = auth.uid();
+$$;
+
+-- Permitir que cualquier usuario autenticado lea user_profiles
+-- (necesario para que los subqueries en políticas de otras tablas funcionen)
+DROP POLICY IF EXISTS "Users can view their own profile"       ON public.user_profiles;
+DROP POLICY IF EXISTS "Authenticated users read profiles"      ON public.user_profiles;
+DROP POLICY IF EXISTS "Authenticated users read all profiles"  ON public.user_profiles;
+CREATE POLICY "Authenticated users read profiles"
+  ON public.user_profiles FOR SELECT
+  USING (auth.uid() IS NOT NULL);
+
+-- ============================================================
+-- 4. RLS en tabla garments — acceso por rol
 -- ============================================================
 ALTER TABLE public.garments ENABLE ROW LEVEL SECURITY;
 
--- Limpiar políticas previas genéricas (si existen)
-DROP POLICY IF EXISTS "Allow all access to garments"          ON public.garments;
-DROP POLICY IF EXISTS "Enable all for authenticated users"    ON public.garments;
-DROP POLICY IF EXISTS "Users see assigned garments only"      ON public.garments;
-DROP POLICY IF EXISTS "Administrador full access to garments" ON public.garments;
-DROP POLICY IF EXISTS "Users update assigned garments"        ON public.garments;
-DROP POLICY IF EXISTS "Administrador garment full access"     ON public.garments;
-DROP POLICY IF EXISTS "Assigned users garment select"         ON public.garments;
-DROP POLICY IF EXISTS "Assigned users garment update"         ON public.garments;
-DROP POLICY IF EXISTS "Assigned users garment insert"         ON public.garments;
+-- Limpiar políticas previas (cualquier nombre)
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN
+    SELECT policyname FROM pg_policies
+    WHERE tablename = 'garments' AND schemaname = 'public'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.garments', pol.policyname);
+  END LOOP;
+END $$;
 
--- Administrador: acceso total a prendas
-CREATE POLICY "Administrador garment full access"
-  ON public.garments FOR ALL
-  USING    ((SELECT role FROM public.user_profiles WHERE id = auth.uid()) = 'administrador')
-  WITH CHECK ((SELECT role FROM public.user_profiles WHERE id = auth.uid()) = 'administrador');
+-- Solo administrador ve TODAS las prendas
+CREATE POLICY "Administrador garment select all"
+  ON public.garments FOR SELECT
+  USING (public.get_my_role() = 'administrador');
 
--- Usuarios asignados: pueden SELECT
-CREATE POLICY "Assigned users garment select"
+-- jefe, supervisor y operador solo ven las prendas que el administrador les asignó
+CREATE POLICY "Users garment select assigned"
   ON public.garments FOR SELECT
   USING (
-    id IN (
+    public.get_my_role() != 'administrador'
+    AND id IN (
       SELECT garment_id FROM public.garment_assignments WHERE user_id = auth.uid()
     )
   );
 
--- Usuarios asignados: pueden UPDATE (registrar acciones, cambiar estado)
-CREATE POLICY "Assigned users garment update"
+-- jefe y supervisor pueden crear nuevas prendas (patrón EXISTS recomendado por Supabase)
+CREATE POLICY "Staff garment insert"
+  ON public.garments FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.user_profiles
+      WHERE id = auth.uid()
+        AND role IN ('jefe', 'supervisor', 'administrador')
+    )
+  );
+
+-- jefe y supervisor solo editan sus prendas asignadas; administrador edita todas
+CREATE POLICY "Staff garment update"
   ON public.garments FOR UPDATE
   USING (
-    id IN (
+    public.get_my_role() = 'administrador'
+    OR id IN (
       SELECT garment_id FROM public.garment_assignments WHERE user_id = auth.uid()
     )
   );
 
+-- Solo administrador puede eliminar prendas
+CREATE POLICY "Administrador garment delete"
+  ON public.garments FOR DELETE
+  USING (public.get_my_role() = 'administrador');
+
 -- ============================================================
--- 4. RLS en tabla garment_actions
+-- 5. RLS en tabla garment_actions
 -- ============================================================
 ALTER TABLE public.garment_actions ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Allow all access to garment_actions"     ON public.garment_actions;
-DROP POLICY IF EXISTS "Administrador garment_actions access"    ON public.garment_actions;
-DROP POLICY IF EXISTS "Assigned users actions"                  ON public.garment_actions;
+DO $$
+DECLARE pol record;
+BEGIN
+  FOR pol IN
+    SELECT policyname FROM pg_policies
+    WHERE tablename = 'garment_actions' AND schemaname = 'public'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.garment_actions', pol.policyname);
+  END LOOP;
+END $$;
 
 -- Administrador: acceso total a acciones
 CREATE POLICY "Administrador garment_actions access"
   ON public.garment_actions FOR ALL
-  USING    ((SELECT role FROM public.user_profiles WHERE id = auth.uid()) = 'administrador')
-  WITH CHECK ((SELECT role FROM public.user_profiles WHERE id = auth.uid()) = 'administrador');
+  USING    (public.get_my_role() = 'administrador')
+  WITH CHECK (public.get_my_role() = 'administrador');
 
--- Usuarios asignados: pueden insertar y ver acciones de sus prendas
-CREATE POLICY "Assigned users actions"
+-- Los demás roles solo pueden ver/insertar acciones de sus prendas asignadas
+CREATE POLICY "Users garment_actions assigned"
   ON public.garment_actions FOR ALL
   USING (
     garment_id IN (
@@ -110,7 +145,54 @@ CREATE POLICY "Assigned users actions"
   );
 
 -- ============================================================
--- 5. Actualizar función update_user_role para administrador
+-- 6. RLS en tabla garment_assignments
+-- ============================================================
+ALTER TABLE public.garment_assignments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Administrador manages assignments" ON public.garment_assignments;
+DROP POLICY IF EXISTS "Users view own assignments"        ON public.garment_assignments;
+
+-- El administrador gestiona TODAS las asignaciones
+CREATE POLICY "Administrador manages assignments"
+  ON public.garment_assignments FOR ALL
+  USING    (public.get_my_role() = 'administrador')
+  WITH CHECK (public.get_my_role() = 'administrador');
+
+-- Cada usuario puede ver sus propias asignaciones
+CREATE POLICY "Users view own assignments"
+  ON public.garment_assignments FOR SELECT
+  USING (user_id = auth.uid());
+
+-- ============================================================
+-- 7. Trigger: auto-asignar prenda al creador (jefe/supervisor)
+-- Permite que el creador vea su prenda tras el INSERT (.select())
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.auto_assign_garment_to_creator()
+RETURNS TRIGGER
+SECURITY DEFINER SET search_path = public
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_role TEXT;
+BEGIN
+  SELECT role INTO v_role FROM public.user_profiles WHERE id = auth.uid();
+  IF v_role IS NOT NULL AND v_role != 'administrador' THEN
+    INSERT INTO public.garment_assignments (garment_id, user_id)
+    VALUES (NEW.id, auth.uid())
+    ON CONFLICT DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_garment_created ON public.garments;
+CREATE TRIGGER on_garment_created
+  AFTER INSERT ON public.garments
+  FOR EACH ROW
+  EXECUTE FUNCTION public.auto_assign_garment_to_creator();
+
+-- ============================================================
+-- 8. Actualizar función update_user_role para administrador
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.update_user_role(
   user_id UUID,

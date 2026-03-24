@@ -52,13 +52,17 @@ export const garmentService = {
   // Crear nueva prenda
   async create(garment: GarmentInsert): Promise<Garment> {
     const { data, error } = await supabase
-      .from('garments')
-      .insert({ ...garment, status: 'disponible' })
-      .select()
-      .single()
+      .rpc('create_garment', {
+        p_code: garment.code,
+        p_name: garment.name,
+        p_description: garment.description ?? null,
+        p_client_name: garment.client_name ?? null,
+        p_client_phone: garment.client_phone ?? null,
+        p_notes: garment.notes ?? null,
+      })
 
     if (error) throw error
-    return data
+    return data as Garment
   },
 
   // Actualizar prenda
