@@ -7,13 +7,15 @@ interface BarcodeScannerProps {
   onClose: () => void
   mode?: 'auto' | 'barcode' | 'qr'
   continuous?: boolean
+  scanCount?: number  // controlled externally; if provided, overrides internal counter
 }
 
-const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: BarcodeScannerProps) => {
+const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, scanCount: externalScanCount }: BarcodeScannerProps) => {
   const [error, setError] = useState<string | null>(null)
   const [useBackCamera, setUseBackCamera] = useState(true)
   const [lastCode, setLastCode] = useState<string | null>(null)
-  const [scanCount, setScanCount] = useState(0)
+  const [internalScanCount, setInternalScanCount] = useState(0)
+  const scanCount = externalScanCount !== undefined ? externalScanCount : internalScanCount
   const [hasTorch, setHasTorch] = useState(false)
   const [torchOn, setTorchOn] = useState(false)
   const [hasZoom, setHasZoom] = useState(false)
@@ -105,7 +107,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
             setTimeout(() => { lastScannedRef.current = null }, 800)
             playBeep()
             setLastCode(decodedText)
-            setScanCount(prev => prev + 1)
+            if (externalScanCount === undefined) setInternalScanCount(prev => prev + 1)
             onScan(decodedText)
           } else {
             setLastCode(decodedText)

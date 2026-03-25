@@ -41,6 +41,8 @@ const BatchActions = () => {
   const [applying, setApplying] = useState(false)
   const [done, setDone] = useState(false)
 
+  const [cameraScanCount, setCameraScanCount] = useState(0)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const scanLockRef = useRef(false)  // prevents duplicate rapid-fire scans
 
@@ -88,6 +90,7 @@ const BatchActions = () => {
           setTimeout(() => setLastAdded(null), 1200)
           return prev
         }
+        setCameraScanCount(c => c + 1)
         const newItem: ScannedItem = {
           uid: `${Date.now()}-${garment.id}`,
           garmentId: garment.id,
@@ -138,6 +141,7 @@ const BatchActions = () => {
     setNotes('')
     setDone(false)
     setInputValue('')
+    setCameraScanCount(0)
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
@@ -415,6 +419,7 @@ const BatchActions = () => {
           onClose={() => setShowScanner(false)}
           mode="auto"
           continuous
+          scanCount={cameraScanCount}
         />
       )}
     </div>
