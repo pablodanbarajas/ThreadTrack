@@ -70,6 +70,7 @@ export interface GarmentInsert {
   client_name?: string
   client_phone?: string
   notes?: string
+  team_id?: string
 }
 
 export interface GarmentUpdate {

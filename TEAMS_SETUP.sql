@@ -152,7 +152,8 @@ CREATE OR REPLACE FUNCTION public.create_garment(
   p_description TEXT DEFAULT NULL,
   p_client_name TEXT DEFAULT NULL,
   p_client_phone TEXT DEFAULT NULL,
-  p_notes       TEXT DEFAULT NULL
+  p_notes       TEXT DEFAULT NULL,
+  p_team_id     UUID DEFAULT NULL
 )
 RETURNS json
 LANGUAGE plpgsql
@@ -168,6 +169,12 @@ BEGIN
 
   IF v_role IS NULL OR v_role NOT IN ('jefe', 'supervisor', 'administrador') THEN
     RAISE EXCEPTION 'Sin permisos para crear prendas';
+  END IF;
+
+  -- Si se pasa p_team_id explícito (solo admin puede hacerlo), usarlo;
+  -- de lo contrario usar el team_id del creador
+  IF p_team_id IS NOT NULL AND v_role = 'administrador' THEN
+    v_team_id := p_team_id;
   END IF;
 
   INSERT INTO public.garments (code, name, description, client_name, client_phone, notes, status, team_id)

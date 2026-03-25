@@ -59,6 +59,7 @@ export const garmentService = {
         p_client_name: garment.client_name ?? null,
         p_client_phone: garment.client_phone ?? null,
         p_notes: garment.notes ?? null,
+        p_team_id: garment.team_id ?? null,
       })
 
     if (error) throw error

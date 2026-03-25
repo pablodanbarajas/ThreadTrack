@@ -35,6 +35,7 @@ const Inventory = () => {
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
   const [newGarment, setNewGarment] = useState({ code: '', name: '', client_name: '' })
+  const [newGarmentTeamId, setNewGarmentTeamId] = useState<string>('')
   const [showQRModal, setShowQRModal] = useState(false)
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
@@ -48,6 +49,7 @@ const Inventory = () => {
   const [showBulkModal, setShowBulkModal] = useState(false)
   const [bulkInput, setBulkInput] = useState('')
   const [bulkClientName, setBulkClientName] = useState('')
+  const [bulkTeamId, setBulkTeamId] = useState<string>('')
   const [bulkGarments, setBulkGarments] = useState<any[]>([])
   const [bulkLoading, setBulkLoading] = useState(false)
   // Descarga masiva de QR
@@ -193,9 +195,11 @@ const Inventory = () => {
       await garmentService.create({
         code: newGarment.code,
         name: newGarment.name,
-        client_name: newGarment.client_name || undefined
+        client_name: newGarment.client_name || undefined,
+        team_id: (isAdministrador && newGarmentTeamId) ? newGarmentTeamId : undefined,
       })
       setNewGarment({ code: '', name: '', client_name: '' })
+      setNewGarmentTeamId('')
       setShowModal(false)
       loadGarments()
     } catch (error: any) {
@@ -505,6 +509,7 @@ const Inventory = () => {
             code: garment.code,
             name: garment.name,
             client_name: garment.client_name || undefined,
+            team_id: (isAdministrador && bulkTeamId) ? bulkTeamId : undefined,
           })
           if (isAdministrador && bulkAssignUserIds.length > 0) {
             await userService.setGarmentAssignments(created.id, bulkAssignUserIds)
@@ -519,6 +524,7 @@ const Inventory = () => {
       alert(`Creadas ${successCount} prendas. Errores: ${errorCount}`)
       setBulkInput('')
       setBulkClientName('')
+      setBulkTeamId('')
       setBulkGarments([])
       setShowBulkModal(false)
       loadGarments()
@@ -915,6 +921,24 @@ const Inventory = () => {
                 <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
               </div>
 
+              {/* Equipo (solo admin) */}
+              {isAdministrador && teams.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Equipo / Empresa</label>
+                  <select
+                    value={bulkTeamId}
+                    onChange={(e) => setBulkTeamId(e.target.value)}
+                    className="input-field w-full"
+                  >
+                    <option value="">Sin equipo asignado</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
+                </div>
+              )}
+
               {/* Textarea */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1089,6 +1113,21 @@ const Inventory = () => {
                   placeholder="Nombre del cliente"
                 />
               </div>
+              {isAdministrador && teams.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Equipo / Empresa</label>
+                  <select
+                    value={newGarmentTeamId}
+                    onChange={(e) => setNewGarmentTeamId(e.target.value)}
+                    className="input-field"
+                  >
+                    <option value="">Sin equipo asignado</option>
+                    {teams.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
