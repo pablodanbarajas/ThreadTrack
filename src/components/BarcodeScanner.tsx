@@ -67,14 +67,10 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
         scannerRef.current = null
       }
 
-      // Solicitar permiso con restricciones de alta calidad para mejor lectura
+      // Solicitar permiso de cámara explícitamente primero
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: useBackCamera ? 'environment' : 'user',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          }
+          video: { facingMode: useBackCamera ? 'environment' : 'user' }
         })
         stream.getTracks().forEach(track => track.stop())
       } catch (permissionError: any) {
@@ -98,13 +94,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
       scannerRef.current = html5QrCode
 
       await html5QrCode.start(
-        // MediaTrackConstraints: facingMode + alta resolución + autofocus continuo
-        {
-          facingMode: useBackCamera ? 'environment' : 'user',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          advanced: [{ focusMode: 'continuous' }],
-        } as any,
+        { facingMode: useBackCamera ? 'environment' : 'user' },
         {
           fps: 30,
           qrbox: { width: 320, height: 320 },
@@ -133,12 +123,17 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
       )
 
       // Detectar capacidades de linterna y zoom despuÃ©s de arrancar
+      // y aplicar autofocus continuo de forma silenciosa si se soporta
       try {
         const caps = html5QrCode.getRunningTrackCapabilities() as any
         if (caps?.torch) setHasTorch(true)
         if (caps?.zoom) {
           setHasZoom(true)
           setMaxZoom(caps.zoom.max ?? 5)
+        }
+        // Autofocus continuo: solo si la cámara lo soporta (silencioso si no)
+        if (caps?.focusMode?.includes?.('continuous')) {
+          await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' } as any] })
         }
       } catch {}
 
