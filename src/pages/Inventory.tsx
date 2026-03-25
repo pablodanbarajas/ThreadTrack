@@ -66,6 +66,9 @@ const Inventory = () => {
   const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
   const [filterTeamId, setFilterTeamId] = useState<string>('all')
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
+  // Paginación
+  const ITEMS_PER_PAGE = 12
+  const [currentPage, setCurrentPage] = useState(1)
   // Edit garment modal
   const [showEditModal, setShowEditModal] = useState(false)
   const [editTargetGarment, setEditTargetGarment] = useState<Garment | null>(null)
@@ -184,6 +187,15 @@ const Inventory = () => {
 
     return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters && matchesTeam
   })
+
+  const totalPages = Math.ceil(filteredGarments.length / ITEMS_PER_PAGE)
+  const paginatedGarments = filteredGarments.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  )
+
+  // Resetear página al cambiar filtros
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -1331,7 +1343,7 @@ const Inventory = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredGarments.map((garment) => {
+          {paginatedGarments.map((garment) => {
             const StatusIcon = statusLabels[garment.status as GarmentStatus]?.icon || Package
             const availableActions = getAvailableActions(garment.status as GarmentStatus)
             // Contadores de acciones
@@ -1521,6 +1533,69 @@ const Inventory = () => {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Paginación */}
+      {!loading && filteredGarments.length > 0 && totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <p className="text-sm text-gray-500">
+            Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredGarments.length)} de {filteredGarments.length} prendas
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="px-2 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              «
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              ‹
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...')
+                acc.push(p)
+                return acc
+              }, [])
+              .map((p, idx) =>
+                p === '...' ? (
+                  <span key={`ellipsis-${idx}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p as number)}
+                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                      currentPage === p
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              ›
+            </button>
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+              className="px-2 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
+            >
+              »
+            </button>
+          </div>
         </div>
       )}
 
