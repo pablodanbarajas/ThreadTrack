@@ -67,7 +67,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
         scannerRef.current = null
       }
 
-      // Solicitar permiso de cámara explícitamente primero
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: useBackCamera ? 'environment' : 'user' }
@@ -75,11 +74,11 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
         stream.getTracks().forEach(track => track.stop())
       } catch (permissionError: any) {
         if (permissionError.name === 'NotAllowedError') {
-          setError('Permiso denegado: Necesitas autorizar el acceso a la cÃ¡mara en los ajustes del navegador.')
+          setError('Permiso denegado: Necesitas autorizar el acceso a la camara en los ajustes del navegador.')
         } else if (permissionError.name === 'NotFoundError') {
-          setError('No se encontrÃ³ cÃ¡mara en tu dispositivo.')
+          setError('No se encontro camara en tu dispositivo.')
         } else {
-          setError(`No se puede acceder a la cÃ¡mara: ${permissionError.message || 'Verifica los permisos'}`)
+          setError(`No se puede acceder a la camara: ${permissionError.message || 'Verifica los permisos'}`)
         }
         return
       }
@@ -87,8 +86,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
       const html5QrCode = new Html5Qrcode(containerRef.current, {
         formatsToSupport,
         verbose: false,
-        // Usa la API nativa BarcodeDetector del navegador si estÃ¡ disponible (Chrome/Edge)
-        // Es 3-5x mÃ¡s rÃ¡pida que el decodificador WASM
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       } as any)
       scannerRef.current = html5QrCode
@@ -122,8 +119,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
         () => {}
       )
 
-      // Detectar capacidades de linterna y zoom despuÃ©s de arrancar
-      // y aplicar autofocus continuo de forma silenciosa si se soporta
       try {
         const caps = html5QrCode.getRunningTrackCapabilities() as any
         if (caps?.torch) setHasTorch(true)
@@ -131,14 +126,13 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
           setHasZoom(true)
           setMaxZoom(caps.zoom.max ?? 5)
         }
-        // Autofocus continuo: solo si la cámara lo soporta (silencioso si no)
         if (caps?.focusMode?.includes?.('continuous')) {
           await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' } as any] })
         }
       } catch {}
 
     } catch (err: any) {
-      setError(`No se pudo acceder a la cÃ¡mara: ${err.message || 'Verifica los permisos'}`)
+      setError(`No se pudo acceder a la camara: ${err.message || 'Verifica los permisos'}`)
     }
   }
 
@@ -180,14 +174,13 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl w-full max-w-md overflow-hidden flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">
             <Camera className="w-5 h-5" />
-            Escanear CÃ³digo
+            Escanear Codigo
             {continuous && scanCount > 0 && (
               <span className="ml-1 bg-green-600 text-white text-xs px-2 py-0.5 rounded-full">
-                {scanCount} leÃ­dos
+                {scanCount} leidos
               </span>
             )}
           </h3>
@@ -204,25 +197,24 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
             <button
               onClick={switchCamera}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Cambiar cÃ¡mara"
+              title="Cambiar camara"
             >
               <FlipHorizontal className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Camera / error area */}
         <div className="p-4 shrink-0">
           {error ? (
             <div className="text-center py-8 space-y-3">
-              <div className="text-4xl">ðŸ“·</div>
+              <div className="text-4xl">📷</div>
               <p className="text-red-600 font-medium text-sm">{error}</p>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-left text-xs text-gray-700 space-y-1">
                 <p className="font-semibold text-blue-900">Soluciones:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Verifica que hayas permitido el acceso a la cÃ¡mara en el navegador</li>
-                  <li>En Chrome/Edge: Click en el icono del candado en la URL y habilita la cÃ¡mara</li>
-                  <li>Cierra otras aplicaciones que usen la cÃ¡mara</li>
+                  <li>Verifica que hayas permitido el acceso a la camara en el navegador</li>
+                  <li>En Chrome/Edge: Click en el candado de la URL y habilita la camara</li>
+                  <li>Cierra otras aplicaciones que usen la camara</li>
                 </ul>
               </div>
               <button onClick={startScanner} className="btn-primary">
@@ -236,7 +228,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
                 className="w-full bg-gray-900 rounded-lg overflow-hidden min-h-[280px]"
               />
 
-              {/* Zoom slider */}
               {hasZoom && (
                 <div className="mt-3 flex items-center gap-2">
                   <ZoomIn className="w-4 h-4 text-gray-400 shrink-0" />
@@ -249,22 +240,21 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
                     onChange={e => handleZoomChange(parseFloat(e.target.value))}
                     className="flex-1 accent-blue-600"
                   />
-                  <span className="text-xs text-gray-500 w-8 text-right">{zoom.toFixed(1)}Ã—</span>
+                  <span className="text-xs text-gray-500 w-8 text-right">{zoom.toFixed(1)}x</span>
                 </div>
               )}
 
-              {/* Status bar */}
               <div className="h-14 mt-2 flex items-center justify-center">
                 {lastCode ? (
                   <div className="w-full text-center px-2 py-1.5 bg-green-100 rounded-lg">
-                    <p className="text-green-700 text-xs font-semibold truncate">âœ“ {lastCode}</p>
+                    <p className="text-green-700 text-xs font-semibold truncate">✓ {lastCode}</p>
                     <p className="text-green-500 text-xs">
-                      {mode === 'qr' ? 'QR detectado' : 'CÃ³digo detectado'}
+                      {mode === 'qr' ? 'QR detectado' : 'Codigo detectado'}
                     </p>
                   </div>
                 ) : (
                   <p className="text-center text-sm text-gray-400">
-                    ðŸ“· {mode === 'qr' ? 'Apunta el QR al cuadro' : mode === 'barcode' ? 'Apunta el cÃ³digo de barras' : 'Apunta el QR o cÃ³digo de barras'}
+                    📷 {mode === 'qr' ? 'Apunta el QR al cuadro' : mode === 'barcode' ? 'Apunta el codigo de barras' : 'Apunta el QR o codigo de barras'}
                   </p>
                 )}
               </div>
@@ -272,14 +262,13 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false }: 
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-4 pb-4 shrink-0">
           <button
             onClick={handleClose}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white"
           >
             {continuous ? (
-              <><CheckCircle2 className="w-5 h-5" /> Listo â€” cerrar cÃ¡mara</>
+              <><CheckCircle2 className="w-5 h-5" /> Listo - cerrar camara</>
             ) : (
               <><X className="w-5 h-5" /> Cancelar</>
             )}
