@@ -130,10 +130,13 @@ const Inventory = () => {
 
   useEffect(() => {
     loadGarments()
+  }, [])
+
+  useEffect(() => {
     if (isAdministrador) {
       userService.getTeams().then(setTeams).catch(() => {})
     }
-  }, [])
+  }, [isAdministrador])
 
   // Cargar prendas y sus acciones
   const loadGarments = async () => {
