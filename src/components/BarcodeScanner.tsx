@@ -88,16 +88,14 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
       const html5QrCode = new Html5Qrcode(containerRef.current, {
         formatsToSupport,
         verbose: false,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true },
       } as any)
       scannerRef.current = html5QrCode
 
       await html5QrCode.start(
         { facingMode: useBackCamera ? 'environment' : 'user' },
         {
-          fps: 30,
-          qrbox: { width: 320, height: 320 },
-          aspectRatio: 1.0,
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
           disableFlip: false,
         },
         (decodedText) => {
@@ -128,9 +126,11 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
           setHasZoom(true)
           setMaxZoom(caps.zoom.max ?? 5)
         }
-        if (caps?.focusMode?.includes?.('continuous')) {
-          await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' } as any] })
-        }
+        try {
+          if (caps?.focusMode?.includes?.('continuous')) {
+            await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' } as any] })
+          }
+        } catch {}
       } catch {}
 
     } catch (err: any) {
