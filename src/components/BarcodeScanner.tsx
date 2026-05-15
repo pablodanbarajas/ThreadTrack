@@ -54,7 +54,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
     if (continuous) {
       if (lastScannedRef.current === decodedText) return
       lastScannedRef.current = decodedText
-      setTimeout(() => { lastScannedRef.current = null }, 800)
+      setTimeout(() => { lastScannedRef.current = null }, 2000)
       playBeep()
       setLastCode(decodedText)
       if (externalScanCount === undefined) setInternalScanCount(prev => prev + 1)
@@ -128,13 +128,16 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
 
   useEffect(() => {
     startScanner()
-    // Lock scroll - compatible con iOS y Android
+    // Lock scroll compatible con iOS y Android (sin forzar scrollbar)
     const scrollY = window.scrollY
-    const prev = document.body.style.cssText
-    document.body.style.cssText = `position: fixed; width: 100%; top: -${scrollY}px; overflow-y: scroll;`
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
     return () => {
       stopScanner()
-      document.body.style.cssText = prev
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
       window.scrollTo(0, scrollY)
     }
   }, [])
