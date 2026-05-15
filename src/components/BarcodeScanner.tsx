@@ -305,7 +305,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
             <>
               <div
                 id={containerRef.current}
-                className="w-full bg-gray-900 rounded-lg overflow-hidden min-h-[280px]"
+                className="w-full bg-gray-900 rounded-lg overflow-hidden aspect-square"
               />
 
               {hasZoom && (
