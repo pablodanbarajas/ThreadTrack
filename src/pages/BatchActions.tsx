@@ -277,8 +277,8 @@ const BatchActions = () => {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-800 truncate">{item.name}</p>
-                      <p className="text-xs text-gray-400 font-mono truncate">{item.code}</p>
-                      {item.errorMsg && <p className="text-xs text-red-500">{item.errorMsg}</p>}
+                      {item.garmentId && <p className="text-xs text-gray-400 font-mono truncate">{item.code}</p>}
+                      {item.errorMsg && <p className="text-xs text-red-500 truncate">{item.errorMsg}</p>}
                     </div>
 
                     {/* Remove */}
