@@ -230,8 +230,8 @@ const BatchActions = () => {
           </div>
 
           {/* Scanned list */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-3">
+          <div className="card flex flex-col" style={{ height: '380px' }}>
+            <div className="flex items-center justify-between mb-3 shrink-0">
               <span className="text-sm font-semibold text-gray-700">
                 Lista ({items.length} prendas{pendingCount > 0 ? `, ${pendingCount} pendientes` : ''})
               </span>
@@ -242,13 +242,14 @@ const BatchActions = () => {
               )}
             </div>
 
+            <div className="flex-1 overflow-y-auto">
             {items.length === 0 ? (
-              <div className="text-center py-10 text-gray-300">
+              <div className="h-full flex flex-col items-center justify-center text-gray-300">
                 <ScanBarcode className="w-12 h-12 mx-auto mb-2 opacity-40" />
                 <p className="text-sm">Empieza a escanear prendas</p>
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-[420px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 pr-1">
                 {items.map(item => (
                   <div
                     key={item.uid}
@@ -295,6 +296,7 @@ const BatchActions = () => {
                 ))}
               </div>
             )}
+            </div>
           </div>
         </div>
 
