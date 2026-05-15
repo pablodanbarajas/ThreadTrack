@@ -128,11 +128,14 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
 
   useEffect(() => {
     startScanner()
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    // Lock scroll - compatible con iOS y Android
+    const scrollY = window.scrollY
+    const prev = document.body.style.cssText
+    document.body.style.cssText = `position: fixed; width: 100%; top: -${scrollY}px; overflow-y: scroll;`
     return () => {
       stopScanner()
-      document.body.style.overflow = prev
+      document.body.style.cssText = prev
+      window.scrollTo(0, scrollY)
     }
   }, [])
 
@@ -252,7 +255,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl w-full max-w-md overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b shrink-0">
           <h3 className="font-semibold text-gray-800 flex items-center gap-2">

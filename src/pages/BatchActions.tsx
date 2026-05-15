@@ -222,11 +222,9 @@ const BatchActions = () => {
                 <Camera className="w-5 h-5" />
               </button>
             </div>
-            {loadingCode && (
-              <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                <Loader2 className="w-3 h-3 animate-spin" /> Buscando...
-              </p>
-            )}
+            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1 h-4">
+              {loadingCode && <><Loader2 className="w-3 h-3 animate-spin" /> Buscando...</>}
+            </p>
           </div>
 
           {/* Scanned list */}
