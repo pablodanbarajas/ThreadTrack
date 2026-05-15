@@ -172,11 +172,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
       scannerRef.current = html5QrCode
 
       await html5QrCode.start(
-        {
-          facingMode: useBackCamera ? 'environment' : 'user',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
+        { facingMode: useBackCamera ? 'environment' : 'user' },
         {
           fps: 10,
           disableFlip: false,
@@ -204,6 +200,12 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
           setHasZoom(true)
           setMaxZoom(caps.zoom.max ?? 5)
         }
+        try {
+          await html5QrCode.applyVideoConstraints({
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          })
+        } catch {}
         try {
           if (caps?.focusMode?.includes?.('continuous')) {
             await html5QrCode.applyVideoConstraints({ advanced: [{ focusMode: 'continuous' } as any] })
