@@ -54,7 +54,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
     if (continuous) {
       if (lastScannedRef.current === decodedText) return
       lastScannedRef.current = decodedText
-      setTimeout(() => { lastScannedRef.current = null }, 2000)
+      setTimeout(() => { lastScannedRef.current = null }, 800)
       playBeep()
       setLastCode(decodedText)
       if (externalScanCount === undefined) setInternalScanCount(prev => prev + 1)
