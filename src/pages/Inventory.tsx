@@ -159,11 +159,12 @@ const Inventory = () => {
   }
 
   const filteredGarments = garments.filter((garment) => {
+    const resolvedSearch = extractGarmentIdFromUrl(searchTerm) || searchTerm
     const matchesSearch =
-      garment.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      garment.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      garment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (garment.client_name?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
+      garment.id.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
+      garment.code.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
+      garment.name.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
+      (garment.client_name?.toLowerCase().includes(resolvedSearch.toLowerCase()) ?? false)
     const matchesFilter = filterStatus === 'all' || garment.status === filterStatus
     
     // Filtro por fecha
