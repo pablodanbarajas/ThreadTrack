@@ -27,6 +27,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
   const nativeDetectorRef = useRef<any>(null)
   const nativeScanLoopRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const nativeActiveRef = useRef(false)
+  const nativeCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   const playBeep = () => {
     try {
@@ -73,11 +74,45 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
     const video = container?.querySelector('video') as HTMLVideoElement | null
     if (!video || !nativeDetectorRef.current || !nativeActiveRef.current) return
 
+    if (!nativeCanvasRef.current) {
+      nativeCanvasRef.current = document.createElement('canvas')
+    }
+    const canvas = nativeCanvasRef.current
+
     const loop = async () => {
       if (!nativeActiveRef.current || !nativeDetectorRef.current) return
-      if (video.readyState >= 2) {
+      if (video.readyState >= 2 && video.videoWidth > 0) {
         try {
-          const results = await nativeDetectorRef.current.detect(video)
+          // Pase 1: frame completo (maximo detalle, maxima area)
+          let results = await nativeDetectorRef.current.detect(video)
+
+          if (results.length === 0) {
+            // Pase 2: recortar y ampliar el centro al 60% del frame
+            // Esto duplica efectivamente los pixeles de QRs pequeños centrados
+            const ctx = canvas.getContext('2d')!
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            const cropW = video.videoWidth * 0.6
+            const cropH = video.videoHeight * 0.6
+            const cropX = (video.videoWidth - cropW) / 2
+            const cropY = (video.videoHeight - cropH) / 2
+            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
+            results = await nativeDetectorRef.current.detect(canvas)
+          }
+
+          if (results.length === 0) {
+            // Pase 3: zoom aun mas agresivo al 35% central (QRs muy pequeños)
+            const ctx = canvas.getContext('2d')!
+            canvas.width = video.videoWidth
+            canvas.height = video.videoHeight
+            const cropW = video.videoWidth * 0.35
+            const cropH = video.videoHeight * 0.35
+            const cropX = (video.videoWidth - cropW) / 2
+            const cropY = (video.videoHeight - cropH) / 2
+            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
+            results = await nativeDetectorRef.current.detect(canvas)
+          }
+
           if (results.length > 0 && nativeActiveRef.current) {
             handleDecodedText(results[0].rawValue)
             if (!continuous) return
@@ -85,7 +120,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
         } catch {}
       }
       if (nativeActiveRef.current) {
-        nativeScanLoopRef.current = setTimeout(loop, 150)
+        nativeScanLoopRef.current = setTimeout(loop, 100)
       }
     }
     loop()
@@ -137,10 +172,13 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
       scannerRef.current = html5QrCode
 
       await html5QrCode.start(
-        { facingMode: useBackCamera ? 'environment' : 'user' },
+        {
+          facingMode: useBackCamera ? 'environment' : 'user',
+          width: { min: 640, ideal: 1920 },
+          height: { min: 480, ideal: 1080 },
+        },
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
           disableFlip: false,
         },
         (decodedText) => handleDecodedText(decodedText),
@@ -155,7 +193,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
           const nativeFormats = mode === 'barcode' ? ['code_128'] : mode === 'qr' ? ['qr_code'] : ['qr_code', 'code_128']
           nativeDetectorRef.current = new (window as any).BarcodeDetector({ formats: nativeFormats })
           nativeActiveRef.current = true
-          setTimeout(() => startNativeScanLoop(), 600)
+          setTimeout(() => startNativeScanLoop(), 300)
         } catch {}
       }
 
@@ -204,6 +242,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
   const stopScanner = async () => {
     nativeActiveRef.current = false
     nativeDetectorRef.current = null
+    nativeCanvasRef.current = null
     if (nativeScanLoopRef.current) {
       clearTimeout(nativeScanLoopRef.current)
       nativeScanLoopRef.current = null
