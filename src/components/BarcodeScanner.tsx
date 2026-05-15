@@ -174,8 +174,8 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
       await html5QrCode.start(
         {
           facingMode: useBackCamera ? 'environment' : 'user',
-          width: { min: 640, ideal: 1920 },
-          height: { min: 480, ideal: 1080 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
         {
           fps: 10,
