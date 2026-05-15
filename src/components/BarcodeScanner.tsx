@@ -149,22 +149,6 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
         scannerRef.current = null
       }
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: useBackCamera ? 'environment' : 'user' }
-        })
-        stream.getTracks().forEach(track => track.stop())
-      } catch (permissionError: any) {
-        if (permissionError.name === 'NotAllowedError') {
-          setError('Permiso denegado: Necesitas autorizar el acceso a la camara en los ajustes del navegador.')
-        } else if (permissionError.name === 'NotFoundError') {
-          setError('No se encontro camara en tu dispositivo.')
-        } else {
-          setError(`No se puede acceder a la camara: ${permissionError.message || 'Verifica los permisos'}`)
-        }
-        return
-      }
-
       const html5QrCode = new Html5Qrcode(containerRef.current, {
         formatsToSupport,
         verbose: false,
@@ -214,7 +198,14 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
       } catch {}
 
     } catch (err: any) {
-      setError(`No se pudo acceder a la camara: ${err.message || 'Verifica los permisos'}`)
+      const msg: string = err?.message || err?.toString() || ''
+      if (err?.name === 'NotAllowedError' || /not allowed|permission|denied/i.test(msg)) {
+        setError('Permiso denegado: Necesitas autorizar el acceso a la camara en los ajustes del navegador.')
+      } else if (err?.name === 'NotFoundError' || /not found|no.*camera|device/i.test(msg)) {
+        setError('No se encontro camara en tu dispositivo.')
+      } else {
+        setError('No se pudo acceder a la camara. Verifica los permisos.')
+      }
     }
   }
 
