@@ -30,7 +30,7 @@ const Layout = () => {
             <Link to="/" className="flex items-center space-x-2">
               <img src={Logo} alt="ThreadTrack Logo" className="h-8 w-auto" />
               <span className="text-xl font-bold">ThreadTrack</span>
-              <span className="ml-2 text-xs font-semibold bg-blue-800 text-blue-100 px-2 py-1 rounded-lg">v{APP_VERSION}</span>
+              <span className="hidden xl:inline ml-2 text-xs font-semibold bg-blue-800 text-blue-100 px-2 py-1 rounded-lg">v{APP_VERSION}</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -39,31 +39,32 @@ const Layout = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center px-2 lg:px-4 py-2 rounded-lg transition-colors duration-200 text-sm ${
+                  className={`flex items-center px-2 py-2 rounded-lg transition-colors duration-200 text-sm ${
                     isActive(item.path)
                       ? 'bg-blue-700 text-white'
                       : 'hover:bg-blue-500'
                   }`}
                 >
-                  <item.icon className="w-5 h-5 mr-2" />
-                  {item.label}
+                  <item.icon className="w-5 h-5 mr-1.5" />
+                  <span className="xl:hidden">{item.shortLabel}</span>
+                  <span className="hidden xl:inline">{item.label}</span>
                 </Link>
               ))}
               {/* Usuario logueado */}
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-700 rounded-lg text-sm ml-2">
+              <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-700 rounded-lg text-sm ml-1">
                 <UserCircle className="w-4 h-4 flex-shrink-0 text-blue-200" />
                 <div className="flex flex-col leading-tight">
-                  <span className="font-medium truncate max-w-[150px] text-white text-xs">{user?.email}</span>
+                  <span className="hidden xl:block font-medium truncate max-w-[130px] text-white text-xs">{user?.email}</span>
                   <span className="text-blue-300 text-xs capitalize">{role}</span>
                 </div>
               </div>
               <button
                 onClick={signOut}
-                className="flex items-center px-4 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
+                className="flex items-center px-2 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
                 title="Cerrar sesión"
               >
-                <LogOut className="w-5 h-5 mr-2" />
-                Salir
+                <LogOut className="w-5 h-5" />
+                <span className="hidden xl:inline ml-2">Salir</span>
               </button>
             </nav>
 
