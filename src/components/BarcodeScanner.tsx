@@ -24,6 +24,9 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const containerRef = useRef<string>(`qr-reader-${Date.now()}`)
   const lastScannedRef = useRef<string | null>(null)
+  const nativeDetectorRef = useRef<any>(null)
+  const nativeScanLoopRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const nativeActiveRef = useRef(false)
 
   const playBeep = () => {
     try {
@@ -45,6 +48,48 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
     mode === 'barcode' ? [Html5QrcodeSupportedFormats.CODE_128] :
     mode === 'qr' ? [Html5QrcodeSupportedFormats.QR_CODE] :
     [Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.QR_CODE]
+
+  const handleDecodedText = (decodedText: string) => {
+    if (continuous) {
+      if (lastScannedRef.current === decodedText) return
+      lastScannedRef.current = decodedText
+      setTimeout(() => { lastScannedRef.current = null }, 800)
+      playBeep()
+      setLastCode(decodedText)
+      if (externalScanCount === undefined) setInternalScanCount(prev => prev + 1)
+      onScan(decodedText)
+    } else {
+      setLastCode(decodedText)
+      setTimeout(() => {
+        onScan(decodedText)
+        stopScanner()
+        onClose()
+      }, 400)
+    }
+  }
+
+  const startNativeScanLoop = () => {
+    const container = document.getElementById(containerRef.current)
+    const video = container?.querySelector('video') as HTMLVideoElement | null
+    if (!video || !nativeDetectorRef.current || !nativeActiveRef.current) return
+
+    const loop = async () => {
+      if (!nativeActiveRef.current || !nativeDetectorRef.current) return
+      if (video.readyState >= 2) {
+        try {
+          const results = await nativeDetectorRef.current.detect(video)
+          if (results.length > 0 && nativeActiveRef.current) {
+            handleDecodedText(results[0].rawValue)
+            if (!continuous) return
+          }
+        } catch {}
+      }
+      if (nativeActiveRef.current) {
+        nativeScanLoopRef.current = setTimeout(loop, 150)
+      }
+    }
+    loop()
+  }
 
   useEffect(() => {
     startScanner()
@@ -98,26 +143,21 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
           qrbox: { width: 250, height: 250 },
           disableFlip: false,
         },
-        (decodedText) => {
-          if (continuous) {
-            if (lastScannedRef.current === decodedText) return
-            lastScannedRef.current = decodedText
-            setTimeout(() => { lastScannedRef.current = null }, 800)
-            playBeep()
-            setLastCode(decodedText)
-            if (externalScanCount === undefined) setInternalScanCount(prev => prev + 1)
-            onScan(decodedText)
-          } else {
-            setLastCode(decodedText)
-            setTimeout(() => {
-              onScan(decodedText)
-              stopScanner()
-              onClose()
-            }, 400)
-          }
-        },
+        (decodedText) => handleDecodedText(decodedText),
         () => {}
       )
+
+      // Si el browser soporta BarcodeDetector nativo (iOS 17+ usa Apple Vision,
+      // igual que la camara nativa del iPhone) lo arrancamos en paralelo.
+      // Esto permite leer QRs en tela con la misma calidad que la camara nativa.
+      if ('BarcodeDetector' in window) {
+        try {
+          const nativeFormats = mode === 'barcode' ? ['code_128'] : mode === 'qr' ? ['qr_code'] : ['qr_code', 'code_128']
+          nativeDetectorRef.current = new (window as any).BarcodeDetector({ formats: nativeFormats })
+          nativeActiveRef.current = true
+          setTimeout(() => startNativeScanLoop(), 600)
+        } catch {}
+      }
 
       try {
         const caps = html5QrCode.getRunningTrackCapabilities() as any
@@ -162,6 +202,12 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
   }
 
   const stopScanner = async () => {
+    nativeActiveRef.current = false
+    nativeDetectorRef.current = null
+    if (nativeScanLoopRef.current) {
+      clearTimeout(nativeScanLoopRef.current)
+      nativeScanLoopRef.current = null
+    }
     if (scannerRef.current) {
       try { await scannerRef.current.stop() } catch {}
       scannerRef.current = null
