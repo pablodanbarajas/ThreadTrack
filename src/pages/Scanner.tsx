@@ -48,8 +48,12 @@ const Scanner = () => {
         // Es un QR válido, buscar por ID
         garment = await garmentService.getById(garmentId)
       } else {
-        // Es un código de barras, buscar por código
-        garment = await garmentService.getByCode(code)
+        // Intentar código corto de respaldo (S1, G12, V3...)
+        garment = await garmentService.getByShortCode(code)
+        // Si no, buscar por código completo de prenda
+        if (!garment) {
+          garment = await garmentService.getByCode(code)
+        }
       }
 
       if (!garment) {
@@ -108,11 +112,32 @@ const Scanner = () => {
   const downloadQR = () => {
     if (!selectedGarment || !qrRef.current) return
 
-    const element = qrRef.current.querySelector('canvas')
-    if (!element) return
+    const qrCanvas = qrRef.current.querySelector('canvas')
+    if (!qrCanvas) return
+
+    const shortCode = selectedGarment.short_code
+    const pad = 16
+    const textH = shortCode ? 56 : 0
+
+    const out = document.createElement('canvas')
+    out.width  = qrCanvas.width  + pad * 2
+    out.height = qrCanvas.height + pad * 2 + textH
+    const ctx = out.getContext('2d')!
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, out.width, out.height)
+    ctx.drawImage(qrCanvas, pad, pad)
+
+    if (shortCode) {
+      ctx.fillStyle = '#000000'
+      ctx.font = 'bold 32px monospace'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(shortCode, out.width / 2, qrCanvas.height + pad + textH / 2)
+    }
 
     const link = document.createElement('a')
-    link.href = element.toDataURL('image/png')
+    link.href = out.toDataURL('image/png')
     link.download = `qr-${selectedGarment.code}.png`
     document.body.appendChild(link)
     link.click()
@@ -146,7 +171,7 @@ const Scanner = () => {
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Escanea un QR o código de barras..."
+            placeholder="Escanea QR, escribe código corto (S1, G3, V12)..."
             className="input-field flex-1"
             autoFocus
             disabled={loading}
@@ -160,7 +185,7 @@ const Scanner = () => {
           </button>
         </form>
         <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
-          <Lightbulb className="w-4 h-4" /> La pistola escáner enviará el código automáticamente
+          <Lightbulb className="w-4 h-4" /> Pistola escáner, QR, o teclea el <strong>código corto</strong> (S1, G3, V12...)
         </p>
       </div>
 
@@ -233,6 +258,12 @@ const Scanner = () => {
                 <p className="text-sm text-gray-600 font-medium">Código</p>
                 <p className="text-gray-800 font-mono">{selectedGarment.code}</p>
               </div>
+              {selectedGarment.short_code && (
+                <div>
+                  <p className="text-sm text-gray-600 font-medium">Código Corto</p>
+                  <p className="text-2xl font-bold font-mono tracking-wider text-indigo-700">{selectedGarment.short_code}</p>
+                </div>
+              )}
               {selectedGarment.client_name && (
                 <div>
                   <p className="text-sm text-gray-600 font-medium">Cliente</p>
@@ -370,7 +401,7 @@ const Scanner = () => {
             <div className="p-6 flex flex-col items-center">
               <div
                 ref={qrRef}
-                className="bg-gray-50 p-4 rounded-lg mb-4"
+                className="bg-white border border-gray-200 p-4 rounded-lg mb-4 flex flex-col items-center"
               >
                 <QRCode
                   value={generateQRUrl(selectedGarment.id)}
@@ -378,8 +409,13 @@ const Scanner = () => {
                   level="H"
                   includeMargin={true}
                 />
+                {selectedGarment.short_code && (
+                  <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                    {selectedGarment.short_code}
+                  </p>
+                )}
               </div>
-              <p className="text-sm text-gray-600 text-center font-mono break-all mb-4">
+              <p className="text-xs text-gray-400 text-center font-mono break-all mb-4">
                 {generateQRUrl(selectedGarment.id)}
               </p>
             </div>

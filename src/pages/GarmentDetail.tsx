@@ -188,6 +188,11 @@ const GarmentDetail = () => {
               <div className="min-w-0">
                 <h1 className="text-lg md:text-3xl font-bold leading-tight break-words">{garment.name}</h1>
                 <p className="text-blue-100 text-xs md:text-sm mt-0.5">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
+                {garment.short_code && (
+                  <p className="text-blue-100 text-xs mt-1">
+                    Código corto: <span className="font-mono font-bold text-white bg-white/20 px-2 py-0.5 rounded-md tracking-wider">{garment.short_code}</span>
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>

@@ -66,9 +66,13 @@ const BatchActions = () => {
     try {
       // Try to extract garment ID from QR URL
       const id = extractGarmentIdFromUrl(trimmed)
-      const garment = id
+      let garment = id
         ? await garmentService.getById(id)
-        : await garmentService.getByCode(trimmed)
+        : await garmentService.getByShortCode(trimmed)
+
+      if (!garment && !id) {
+        garment = await garmentService.getByCode(trimmed)
+      }
 
       if (!garment) {
         setItems(prev => [{

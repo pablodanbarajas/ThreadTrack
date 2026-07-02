@@ -164,6 +164,7 @@ const Inventory = () => {
       garment.id.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
       garment.code.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
       garment.name.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
+      (garment.short_code?.toLowerCase().includes(resolvedSearch.toLowerCase()) ?? false) ||
       (garment.client_name?.toLowerCase().includes(resolvedSearch.toLowerCase()) ?? false)
     const matchesFilter = filterStatus === 'all' || garment.status === filterStatus
     
@@ -230,11 +231,36 @@ const Inventory = () => {
   const downloadQR = () => {
     if (!selectedGarment || !qrRef.current) return
 
-    const element = qrRef.current.querySelector('canvas')
-    if (!element) return
+    const qrCanvas = qrRef.current.querySelector('canvas')
+    if (!qrCanvas) return
+
+    const shortCode = selectedGarment.short_code
+    const pad = 16
+    const textH = shortCode ? 56 : 0
+
+    const out = document.createElement('canvas')
+    out.width  = qrCanvas.width  + pad * 2
+    out.height = qrCanvas.height + pad * 2 + textH
+    const ctx = out.getContext('2d')!
+
+    // Fondo blanco
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, out.width, out.height)
+
+    // QR
+    ctx.drawImage(qrCanvas, pad, pad)
+
+    // Código corto centrado abajo del QR
+    if (shortCode) {
+      ctx.fillStyle = '#000000'
+      ctx.font = 'bold 32px monospace'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(shortCode, out.width / 2, qrCanvas.height + pad + textH / 2)
+    }
 
     const link = document.createElement('a')
-    link.href = element.toDataURL('image/png')
+    link.href = out.toDataURL('image/png')
     link.download = `qr-${selectedGarment.code}.png`
     document.body.appendChild(link)
     link.click()
@@ -1432,8 +1458,15 @@ const Inventory = () => {
                   )}
                 </div>
 
-                {/* Código */}
-                <div className="font-mono text-sm font-semibold text-gray-800 mb-2">{garment.code}</div>
+                {/* Código + Código corto */}
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="font-mono text-sm font-semibold text-gray-800 truncate">{garment.code}</div>
+                  {garment.short_code && (
+                    <span className="shrink-0 font-mono font-bold text-base tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">
+                      {garment.short_code}
+                    </span>
+                  )}
+                </div>
 
                 {/* Información extraída del código */}
                 {(() => {
@@ -1711,7 +1744,7 @@ const Inventory = () => {
             <div className="p-6 flex flex-col items-center">
               <div
                 ref={qrRef}
-                className="bg-gray-50 p-4 rounded-lg mb-4"
+                className="bg-white border border-gray-200 p-4 rounded-lg mb-4 flex flex-col items-center"
               >
                 <QRCode
                   value={generateQRUrl(selectedGarment.id)}
@@ -1719,8 +1752,13 @@ const Inventory = () => {
                   level="H"
                   includeMargin={true}
                 />
+                {selectedGarment.short_code && (
+                  <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                    {selectedGarment.short_code}
+                  </p>
+                )}
               </div>
-              <p className="text-sm text-gray-600 text-center font-mono break-all mb-4">
+              <p className="text-xs text-gray-400 text-center font-mono break-all mb-4">
                 {generateQRUrl(selectedGarment.id)}
               </p>
             </div>

@@ -37,6 +37,20 @@ export const garmentService = {
     return data
   },
 
+  // Obtener prenda por código corto de respaldo (ej: S1, G12, V3)
+  async getByShortCode(shortCode: string): Promise<Garment | null> {
+    const normalized = shortCode.trim().toUpperCase()
+    if (!normalized) return null
+    const { data, error } = await supabase
+      .from('garments')
+      .select('*')
+      .eq('short_code', normalized)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error
+    return data
+  },
+
   // Obtener prenda por ID
   async getById(id: string): Promise<Garment | null> {
     const { data, error } = await supabase

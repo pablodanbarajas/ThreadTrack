@@ -22,6 +22,7 @@ export interface Garment {
   baja_reason?: string
   baja_date?: string
   qr_code?: string // URL del QR generada dinámicamente
+  short_code?: string // Código corto de respaldo (ej: S1, G12, V3)
   team_id?: string
   created_at: string
   updated_at: string

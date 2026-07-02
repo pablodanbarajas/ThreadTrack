@@ -86,11 +86,32 @@ const CreateGarment = () => {
   const downloadQR = () => {
     if (!createdGarment || !qrRef.current) return
 
-    const element = qrRef.current.querySelector('canvas')
-    if (!element) return
+    const qrCanvas = qrRef.current.querySelector('canvas')
+    if (!qrCanvas) return
+
+    const shortCode = createdGarment.short_code
+    const pad = 16
+    const textH = shortCode ? 56 : 0
+
+    const out = document.createElement('canvas')
+    out.width  = qrCanvas.width  + pad * 2
+    out.height = qrCanvas.height + pad * 2 + textH
+    const ctx = out.getContext('2d')!
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(0, 0, out.width, out.height)
+    ctx.drawImage(qrCanvas, pad, pad)
+
+    if (shortCode) {
+      ctx.fillStyle = '#000000'
+      ctx.font = 'bold 32px monospace'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(shortCode, out.width / 2, qrCanvas.height + pad + textH / 2)
+    }
 
     const link = document.createElement('a')
-    link.href = element.toDataURL('image/png')
+    link.href = out.toDataURL('image/png')
     link.download = `qr-${createdGarment.code}.png`
     document.body.appendChild(link)
     link.click()
@@ -253,15 +274,20 @@ const CreateGarment = () => {
               </h2>
 
               <div className="bg-gray-50 p-6 rounded-lg flex flex-col items-center justify-center">
-                <div ref={qrRef} className="mb-4">
+                <div ref={qrRef} className="bg-white border border-gray-200 p-4 rounded-lg flex flex-col items-center">
                   <QRCode
                     value={qrUrl}
                     size={128}
                     level="H"
                     includeMargin={true}
                   />
+                  {createdGarment.short_code && (
+                    <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                      {createdGarment.short_code}
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm text-gray-600 text-center font-mono break-all mb-4">
+                <p className="text-xs text-gray-400 text-center font-mono break-all mt-3">
                   {qrUrl}
                 </p>
               </div>
