@@ -11,6 +11,7 @@ import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
+import { STERILIZATION_LIFE_LIMIT, getSterilizationLifePercent, getSterilizationLifeStatus } from '../lib/lifeStatus'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
 const Inventory = () => {
@@ -127,6 +128,36 @@ const Inventory = () => {
     inspeccion: { label: 'Enviar a Inspección', icon: ClipboardCheck },
     reparacion: { label: 'Enviar a Reparación', icon: Scissors },
     baja: { label: 'Dar de Baja', icon: Trash2 },
+  }
+
+  const lifeStatusStyles: Record<
+    ReturnType<typeof getSterilizationLifeStatus>,
+    { label: string; dot: string; text: string; badge: string }
+  > = {
+    verde: {
+      label: 'Verde',
+      dot: 'bg-green-500',
+      text: 'text-green-700',
+      badge: 'bg-green-50 border-green-200',
+    },
+    amarillo: {
+      label: 'Amarillo',
+      dot: 'bg-yellow-400',
+      text: 'text-yellow-700',
+      badge: 'bg-yellow-50 border-yellow-200',
+    },
+    naranja: {
+      label: 'Naranja',
+      dot: 'bg-orange-500',
+      text: 'text-orange-700',
+      badge: 'bg-orange-50 border-orange-200',
+    },
+    rojo: {
+      label: 'Rojo',
+      dot: 'bg-red-500',
+      text: 'text-red-700',
+      badge: 'bg-red-50 border-red-200',
+    },
   }
 
   useEffect(() => {
@@ -1405,6 +1436,9 @@ const Inventory = () => {
             const LIFE_WARN = 80
             const lifeExpired = lavadoCount >= LIFE_LIMIT || esterilizacionCount >= LIFE_LIMIT
             const lifeNearEnd = !lifeExpired && (lavadoCount >= LIFE_WARN || esterilizacionCount >= LIFE_WARN)
+            const sterilizationLifeStatus = getSterilizationLifeStatus(esterilizacionCount)
+            const sterilizationLifePercent = getSterilizationLifePercent(esterilizacionCount)
+            const sterilizationLifeStyle = lifeStatusStyles[sterilizationLifeStatus]
             return (
               <div key={garment.id} className={`card p-4 ${lifeExpired ? 'border-2 border-red-400' : lifeNearEnd ? 'border-2 border-orange-300' : ''}`}>
                 {/* Banner fin de vida útil */}
@@ -1517,6 +1551,19 @@ const Inventory = () => {
                     <StatusIcon className="w-3 h-3" />
                     {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
                   </span>
+                </div>
+
+                {/* Semáforo de vida útil por esterilizaciones */}
+                <div className={`mb-3 flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 ${sterilizationLifeStyle.badge}`}>
+                  <div className="inline-flex items-center gap-1.5 min-w-0">
+                    <span className={`h-2.5 w-2.5 rounded-full ${sterilizationLifeStyle.dot}`} />
+                    <p className={`text-xs font-semibold ${sterilizationLifeStyle.text}`}>
+                      Vida útil: {sterilizationLifeStyle.label}
+                    </p>
+                  </div>
+                  <p className={`text-xs font-semibold whitespace-nowrap ${sterilizationLifeStyle.text}`}>
+                    {esterilizacionCount}/{STERILIZATION_LIFE_LIMIT} ({sterilizationLifePercent}%)
+                  </p>
                 </div>
 
                 {/* Contadores - Grid 3 columnas */}

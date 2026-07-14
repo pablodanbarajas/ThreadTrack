@@ -5,6 +5,7 @@ import { useRole } from '../contexts/AuthContext'
 import { roleBadges } from '../lib/rbac'
 import { garmentService } from '../services/garmentService'
 import { generateReportPDF } from '../services/reportService'
+import { STERILIZATION_LIFE_LIMIT, getSterilizationLifeStatus } from '../lib/lifeStatus'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 const Home = () => {
@@ -60,6 +61,20 @@ const Home = () => {
 
   const badgeColor = role ? roleBadges[role].color : ''
   const badgeLabel = role ? roleBadges[role].label : 'Sin rol'
+
+  const activeGarments = garments.filter((g) => g.status !== 'baja')
+  const lifeStatusCounts = activeGarments.reduce(
+    (acc, garment) => {
+      const sterilizationCount = (garment.actions || []).filter((a: any) => a.action_type === 'esterilizacion').length
+      const status = getSterilizationLifeStatus(sterilizationCount)
+      acc[status] += 1
+      return acc
+    },
+    { verde: 0, amarillo: 0, naranja: 0, rojo: 0 }
+  )
+
+  const lifeTotal = activeGarments.length
+  const lifePct = (count: number) => (lifeTotal > 0 ? Math.round((count / lifeTotal) * 100) : 0)
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -174,6 +189,68 @@ const Home = () => {
             </div>
             <div className="text-gray-600 text-xs">Bajas</div>
           </Link>
+        </div>
+      </div>
+
+      {/* Semáforo de vida útil por esterilizaciones */}
+      <div className="card mb-6">
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Semáforo de Vida Útil</h3>
+            <p className="text-sm text-gray-500">Basado en esterilizaciones por prenda (límite: {STERILIZATION_LIFE_LIMIT})</p>
+          </div>
+          <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+            {lifeTotal} prendas activas
+          </div>
+        </div>
+
+        <div className="w-full h-3 rounded-full overflow-hidden bg-gray-100 mb-4 flex">
+          <div className="bg-green-500" style={{ width: `${lifePct(lifeStatusCounts.verde)}%` }} />
+          <div className="bg-yellow-400" style={{ width: `${lifePct(lifeStatusCounts.amarillo)}%` }} />
+          <div className="bg-orange-500" style={{ width: `${lifePct(lifeStatusCounts.naranja)}%` }} />
+          <div className="bg-red-500" style={{ width: `${lifePct(lifeStatusCounts.rojo)}%` }} />
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+              <p className="text-sm font-semibold text-green-800">Verde</p>
+            </div>
+            <p className="text-2xl font-bold text-green-700">{loading ? '...' : lifeStatusCounts.verde}</p>
+            <p className="text-xs text-green-700">{loading ? '...' : `${lifePct(lifeStatusCounts.verde)}%`} del total</p>
+            <p className="text-[11px] text-green-700/80 mt-1">0-24 esterilizaciones</p>
+          </div>
+
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+              <p className="text-sm font-semibold text-yellow-800">Amarillo</p>
+            </div>
+            <p className="text-2xl font-bold text-yellow-700">{loading ? '...' : lifeStatusCounts.amarillo}</p>
+            <p className="text-xs text-yellow-700">{loading ? '...' : `${lifePct(lifeStatusCounts.amarillo)}%`} del total</p>
+            <p className="text-[11px] text-yellow-700/80 mt-1">25-49 esterilizaciones</p>
+          </div>
+
+          <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+              <p className="text-sm font-semibold text-orange-800">Naranja</p>
+            </div>
+            <p className="text-2xl font-bold text-orange-700">{loading ? '...' : lifeStatusCounts.naranja}</p>
+            <p className="text-xs text-orange-700">{loading ? '...' : `${lifePct(lifeStatusCounts.naranja)}%`} del total</p>
+            <p className="text-[11px] text-orange-700/80 mt-1">50-74 esterilizaciones</p>
+          </div>
+
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+              <p className="text-sm font-semibold text-red-800">Rojo</p>
+            </div>
+            <p className="text-2xl font-bold text-red-700">{loading ? '...' : lifeStatusCounts.rojo}</p>
+            <p className="text-xs text-red-700">{loading ? '...' : `${lifePct(lifeStatusCounts.rojo)}%`} del total</p>
+            <p className="text-[11px] text-red-700/80 mt-1">75+ esterilizaciones</p>
+          </div>
         </div>
       </div>
     </div>
