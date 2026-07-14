@@ -200,7 +200,7 @@ const BatchActions = () => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-4 items-start">
+      <div className="grid gap-4 items-start lg:grid-cols-3">
 
         {/* ── LEFT: scanner + list ── */}
         <div className="space-y-3">
@@ -305,7 +305,7 @@ const BatchActions = () => {
           </div>
         </div>
 
-        {/* ── RIGHT: action config + apply ── */}
+        {/* ── CENTER: action config ── */}
         <div className="space-y-3">
 
           {/* Action selector */}
@@ -365,7 +365,11 @@ const BatchActions = () => {
             </div>
           )}
 
-          {/* Notes */}
+        </div>
+
+        {/* ── RIGHT: responsible + notes + apply ── */}
+        <div className="space-y-3">
+          {/* Responsable */}
           <div className="card">
             <label className="block text-sm font-semibold text-gray-700 mb-1">Responsable *</label>
             <input
