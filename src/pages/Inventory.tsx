@@ -9,7 +9,7 @@ import { generateReportPDF } from '../services/reportService'
 import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
-import { generateQRUrl, extractGarmentIdFromUrl } from '../lib/qrGenerator'
+import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
@@ -159,7 +159,7 @@ const Inventory = () => {
   }
 
   const filteredGarments = garments.filter((garment) => {
-    const resolvedSearch = extractGarmentIdFromUrl(searchTerm) || searchTerm
+    const resolvedSearch = extractGarmentId(searchTerm) || searchTerm
     const matchesSearch =
       garment.id.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
       garment.code.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
@@ -362,7 +362,7 @@ const Inventory = () => {
   const handleScanResult = (code: string) => {
     if (scannerTarget === 'search') {
       // Extrae el ID de la URL del QR, si es una URL válida
-      const extractedId = extractGarmentIdFromUrl(code)
+      const extractedId = extractGarmentId(code)
       // Si es una URL con ID, usa el ID; si no, busca el código como antes
       setSearchTerm(extractedId || code)
     } else {
