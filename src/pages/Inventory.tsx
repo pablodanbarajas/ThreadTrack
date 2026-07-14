@@ -190,14 +190,43 @@ const Inventory = () => {
     }
   }
 
+  const resolvedSearch = (extractGarmentId(searchTerm) || searchTerm).trim().toLowerCase()
+
+  const getSearchRelevance = (garment: any): number => {
+    if (!resolvedSearch) return 999
+
+    const shortCode = (garment.short_code || '').toLowerCase()
+    const code = (garment.code || '').toLowerCase()
+    const name = (garment.name || '').toLowerCase()
+    const clientName = (garment.client_name || '').toLowerCase()
+    const id = (garment.id || '').toLowerCase()
+
+    if (shortCode === resolvedSearch) return 0
+    if (code === resolvedSearch) return 1
+    if (id === resolvedSearch) return 2
+
+    if (shortCode.startsWith(resolvedSearch)) return 10 + shortCode.length
+    if (code.startsWith(resolvedSearch)) return 30 + code.length
+    if (name.startsWith(resolvedSearch)) return 50 + name.length
+    if (clientName.startsWith(resolvedSearch)) return 60 + clientName.length
+
+    if (shortCode.includes(resolvedSearch)) return 70 + shortCode.indexOf(resolvedSearch)
+    if (code.includes(resolvedSearch)) return 80 + code.indexOf(resolvedSearch)
+    if (name.includes(resolvedSearch)) return 90 + name.indexOf(resolvedSearch)
+    if (clientName.includes(resolvedSearch)) return 100 + clientName.indexOf(resolvedSearch)
+    if (id.includes(resolvedSearch)) return 110 + id.indexOf(resolvedSearch)
+
+    return 999
+  }
+
   const filteredGarments = garments.filter((garment) => {
-    const resolvedSearch = extractGarmentId(searchTerm) || searchTerm
     const matchesSearch =
-      garment.id.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
-      garment.code.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
-      garment.name.toLowerCase().includes(resolvedSearch.toLowerCase()) ||
-      (garment.short_code?.toLowerCase().includes(resolvedSearch.toLowerCase()) ?? false) ||
-      (garment.client_name?.toLowerCase().includes(resolvedSearch.toLowerCase()) ?? false)
+      !resolvedSearch ||
+      garment.id.toLowerCase().includes(resolvedSearch) ||
+      garment.code.toLowerCase().includes(resolvedSearch) ||
+      garment.name.toLowerCase().includes(resolvedSearch) ||
+      (garment.short_code?.toLowerCase().includes(resolvedSearch) ?? false) ||
+      (garment.client_name?.toLowerCase().includes(resolvedSearch) ?? false)
     const matchesFilter = filterStatus === 'all' || garment.status === filterStatus
     
     // Filtro por fecha
@@ -223,6 +252,20 @@ const Inventory = () => {
     const matchesTeam = !isAdministrador || filterTeamId === 'all' || garment.team_id === filterTeamId
 
     return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters && matchesTeam
+  }).sort((a, b) => {
+    if (!resolvedSearch) return 0
+
+    const scoreA = getSearchRelevance(a)
+    const scoreB = getSearchRelevance(b)
+
+    if (scoreA !== scoreB) return scoreA - scoreB
+
+    // Desempate para short codes parecidos: primero el más corto (X1 antes que X199)
+    const shortA = (a.short_code || '').toString()
+    const shortB = (b.short_code || '').toString()
+    if (shortA.length !== shortB.length) return shortA.length - shortB.length
+
+    return 0
   })
 
   const totalPages = Math.ceil(filteredGarments.length / ITEMS_PER_PAGE)
