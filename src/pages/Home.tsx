@@ -2,11 +2,9 @@ import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle, FileDown, Users } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
-import { roleBadges } from '../lib/rbac'
 import { garmentService } from '../services/garmentService'
 import { generateReportPDF } from '../services/reportService'
 import { STERILIZATION_LIFE_LIMIT, getSterilizationLifeStatus } from '../lib/lifeStatus'
-import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 const Home = () => {
   const { role, canDownloadReport } = useRole()
@@ -59,9 +57,6 @@ const Home = () => {
     }
   }
 
-  const badgeColor = role ? roleBadges[role].color : ''
-  const badgeLabel = role ? roleBadges[role].label : 'Sin rol'
-
   const activeGarments = garments.filter((g) => g.status !== 'baja')
   const lifeStatusCounts = activeGarments.reduce(
     (acc, garment) => {
@@ -77,25 +72,10 @@ const Home = () => {
   const lifePct = (count: number) => (lifeTotal > 0 ? Math.round((count / lifeTotal) * 100) : 0)
 
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Hero Section */}
-      <div className="text-center py-8">
-        <div className="flex items-center justify-center gap-3 mb-4">
-          <img src={Logo} alt="ThreadTrack Logo" className="h-12 w-auto" />
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-800">
-            ThreadTrack
-          </h1>
-        </div>
-        <p className="text-xl text-gray-600 mb-4">
-          Sistema de Rastreo de Prendas
-        </p>
-        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${badgeColor}`}>
-          {badgeLabel}
-        </span>
-      </div>
+    <div className="max-w-6xl mx-auto pt-2">
 
       {/* Quick Actions */}
-      <div className="flex flex-col md:flex-row gap-4 justify-center mb-8">
+      <div className="flex flex-col md:flex-row gap-3 justify-center mb-4">
         <Link
           to="/inventory"
           className="card hover:shadow-lg transition-shadow duration-200 flex items-center space-x-4 w-full max-w-sm"
@@ -144,7 +124,7 @@ const Home = () => {
       </div>
 
       {/* Stats Preview */}
-      <div className="card mb-6">
+      <div className="card mb-4">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumen de Inventario</h3>
         <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
           <div className="text-center p-2 bg-gray-50 rounded-lg">
@@ -193,7 +173,7 @@ const Home = () => {
       </div>
 
       {/* Semáforo de vida útil por esterilizaciones */}
-      <div className="card mb-6">
+      <div className="card mb-4">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-800">Semáforo de Vida Útil</h3>
