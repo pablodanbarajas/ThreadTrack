@@ -19,6 +19,7 @@ const GarmentDetail = () => {
   const [actionType, setActionType] = useState<ActionType>('lavado')
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
+  const [actionResponsible, setActionResponsible] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
 
   // Edit modal state
@@ -82,6 +83,7 @@ const GarmentDetail = () => {
   const openActionModal = (type: ActionType) => {
     setActionType(type)
     setActionNotes('')
+    setActionResponsible('')
     setInspectionResult('aprobado')
     setShowActionModal(true)
   }
@@ -128,6 +130,7 @@ const GarmentDetail = () => {
       await garmentService.registerAction(garment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
+        responsible: actionResponsible,
       })
       setShowActionModal(false)
       await loadGarmentData()
@@ -451,6 +454,9 @@ const GarmentDetail = () => {
                       {action.notes && (
                         <p className="text-xs text-gray-500">Notas: {action.notes}</p>
                       )}
+                      {action.performed_by && (
+                        <p className="text-xs text-gray-500">Responsable: {action.performed_by}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -656,6 +662,17 @@ const GarmentDetail = () => {
             )}
 
             <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
+              <input
+                type="text"
+                value={actionResponsible}
+                onChange={(e) => setActionResponsible(e.target.value)}
+                className="input-field"
+                placeholder="Nombre de quien ejecuta la acción"
+              />
+            </div>
+
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {actionType === 'inspeccion' && inspectionResult === 'baja' ? 'Motivo de Baja *' : 'Notas (opcional)'}
               </label>
@@ -674,7 +691,7 @@ const GarmentDetail = () => {
               <button
                 onClick={handleAction}
                 className="btn-primary flex-1"
-                disabled={actionLoading || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes)}
+                disabled={actionLoading || !actionResponsible.trim() || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes)}
               >
                 {actionLoading ? 'Guardando...' : 'Confirmar'}
               </button>

@@ -37,6 +37,7 @@ const BatchActions = () => {
   const [selectedAction, setSelectedAction] = useState<ActionType>('lavado')
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [notes, setNotes] = useState('')
+  const [responsible, setResponsible] = useState('')
 
   const [applying, setApplying] = useState(false)
   const [done, setDone] = useState(false)
@@ -143,6 +144,7 @@ const BatchActions = () => {
   const reset = () => {
     setItems([])
     setNotes('')
+    setResponsible('')
     setDone(false)
     setInputValue('')
     setCameraScanCount(0)
@@ -152,7 +154,7 @@ const BatchActions = () => {
   const pendingCount = items.filter(i => i.applyStatus === 'pending').length
 
   const applyToAll = async () => {
-    if (pendingCount === 0) return
+    if (pendingCount === 0 || !responsible.trim()) return
     setApplying(true)
     setDone(false)
 
@@ -163,6 +165,7 @@ const BatchActions = () => {
         await garmentService.registerAction(item.garmentId, selectedAction, {
           result: selectedAction === 'inspeccion' ? inspectionResult : undefined,
           notes: notes || undefined,
+          responsible,
         })
         setItems(prev =>
           prev.map(i => i.uid === item.uid ? { ...i, applyStatus: 'success' } : i)
@@ -364,6 +367,19 @@ const BatchActions = () => {
 
           {/* Notes */}
           <div className="card">
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Responsable *</label>
+            <input
+              type="text"
+              value={responsible}
+              onChange={e => setResponsible(e.target.value)}
+              className="input-field text-sm"
+              placeholder="Nombre de quien ejecuta la acción"
+              disabled={applying}
+            />
+          </div>
+
+          {/* Notes */}
+          <div className="card">
             <label className="block text-sm font-semibold text-gray-700 mb-1">
               {selectedAction === 'inspeccion' && inspectionResult === 'baja'
                 ? 'Motivo de baja *'
@@ -381,7 +397,7 @@ const BatchActions = () => {
           {/* Apply button */}
           <button
             onClick={applyToAll}
-            disabled={applying || pendingCount === 0 || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes)}
+            disabled={applying || pendingCount === 0 || !responsible.trim() || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes)}
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base transition-all shadow-sm ${
               applying || pendingCount === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'

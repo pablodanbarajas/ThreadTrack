@@ -100,9 +100,15 @@ export const garmentService = {
     options?: { 
       result?: InspectionResult
       notes?: string
+      responsible?: string
       performedBy?: string 
     }
   ): Promise<GarmentAction> {
+    const responsible = options?.responsible?.trim() || options?.performedBy?.trim()
+    if (!responsible) {
+      throw new Error('El campo RESPONSABLE es obligatorio')
+    }
+
     // Obtener estado actual
     const current = await this.getById(garmentId)
     if (!current) throw new Error('Prenda no encontrada')
@@ -133,7 +139,7 @@ export const garmentService = {
         action_type: actionType,
         result: options?.result,
         notes: options?.notes,
-        performed_by: options?.performedBy
+        performed_by: responsible
       })
       .select()
       .single()

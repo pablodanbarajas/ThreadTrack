@@ -34,6 +34,7 @@ const Inventory = () => {
   const [actionType, setActionType] = useState<ActionType>('lavado')
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
+  const [actionResponsible, setActionResponsible] = useState('')
   const [newGarment, setNewGarment] = useState({ code: '', name: '', client_name: '' })
   const [newGarmentTeamId, setNewGarmentTeamId] = useState<string>('')
   const [showQRModal, setShowQRModal] = useState(false)
@@ -301,6 +302,7 @@ const Inventory = () => {
     setSelectedGarment(garment)
     setActionType(action)
     setActionNotes('')
+    setActionResponsible('')
     setInspectionResult('aprobado')
     setShowActionModal(true)
   }
@@ -310,7 +312,8 @@ const Inventory = () => {
     try {
       await garmentService.registerAction(selectedGarment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
-        notes: actionNotes || undefined
+        notes: actionNotes || undefined,
+        responsible: actionResponsible,
       })
       setShowActionModal(false)
       setSelectedGarment(null)
@@ -1279,6 +1282,17 @@ const Inventory = () => {
             )}
 
             <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
+              <input
+                type="text"
+                value={actionResponsible}
+                onChange={(e) => setActionResponsible(e.target.value)}
+                className="input-field"
+                placeholder="Nombre de quien ejecuta la acción"
+              />
+            </div>
+
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 {inspectionResult === 'baja' ? 'Motivo de Baja *' : 'Notas (opcional)'}
               </label>
@@ -1297,7 +1311,7 @@ const Inventory = () => {
               <button 
                 onClick={handleAction} 
                 className="btn-primary flex-1"
-                disabled={inspectionResult === 'baja' && !actionNotes}
+                disabled={!actionResponsible.trim() || (inspectionResult === 'baja' && !actionNotes)}
               >
                 Confirmar
               </button>
@@ -1345,6 +1359,9 @@ const Inventory = () => {
                       </div>
                       {action.notes && (
                         <p className="text-sm text-gray-600 mt-1">{action.notes}</p>
+                      )}
+                      {action.performed_by && (
+                        <p className="text-sm text-gray-600 mt-1">Responsable: {action.performed_by}</p>
                       )}
                       <p className="text-xs text-gray-400 mt-2">{formatDate(action.created_at)}</p>
                     </div>
