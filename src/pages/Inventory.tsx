@@ -14,6 +14,67 @@ import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type 
 import { STERILIZATION_LIFE_LIMIT, getSterilizationLifePercent, getSterilizationLifeStatus } from '../lib/lifeStatus'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
 
+const compactHex = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, '')
+
+const isOneEditAway = (a: string, b: string): boolean => {
+  const aLen = a.length
+  const bLen = b.length
+
+  if (Math.abs(aLen - bLen) > 1) return false
+  if (a === b) return true
+
+  if (aLen === bLen) {
+    let diffs = 0
+    for (let i = 0; i < aLen; i++) {
+      if (a[i] !== b[i]) {
+        diffs++
+        if (diffs > 1) return false
+      }
+    }
+    return diffs === 1
+  }
+
+  const shorter = aLen < bLen ? a : b
+  const longer = aLen < bLen ? b : a
+  let i = 0
+  let j = 0
+  let skipped = false
+
+  while (i < shorter.length && j < longer.length) {
+    if (shorter[i] === longer[j]) {
+      i++
+      j++
+      continue
+    }
+    if (skipped) return false
+    skipped = true
+    j++
+  }
+
+  return true
+}
+
+const isUuidLikeMatch = (garmentId: string, candidate: string): boolean => {
+  const id = compactHex(garmentId)
+  const query = compactHex(candidate)
+
+  if (!query || query.length < 24) return false
+  if (id.includes(query) || query.includes(id)) return true
+  return isOneEditAway(id, query)
+}
+
+const buildUuidCandidate = (rawSearch: string): string => {
+  const direct = extractGarmentId(rawSearch)
+  if (direct) return direct.toLowerCase()
+
+  const lower = rawSearch.toLowerCase()
+  const marker = 'prenda'
+  const base = lower.includes(marker) ? lower.slice(lower.lastIndexOf(marker) + marker.length) : lower
+  const compact = compactHex(base)
+
+  return compact.length >= 24 ? compact : ''
+}
+
 const Inventory = () => {
   const { canCreateGarment, canDeleteGarment, canRecordAction, canEditGarment, isAdministrador } = useRole()
   const [garments, setGarments] = useState<any[]>([])
@@ -191,6 +252,7 @@ const Inventory = () => {
   }
 
   const resolvedSearch = (extractGarmentId(searchTerm) || searchTerm).trim().toLowerCase()
+  const resolvedUuidCandidate = buildUuidCandidate(searchTerm)
 
   const getSearchRelevance = (garment: any): number => {
     if (!resolvedSearch) return 999
@@ -204,6 +266,7 @@ const Inventory = () => {
     if (shortCode === resolvedSearch) return 0
     if (code === resolvedSearch) return 1
     if (id === resolvedSearch) return 2
+    if (resolvedUuidCandidate && isUuidLikeMatch(id, resolvedUuidCandidate)) return 3
 
     if (shortCode.startsWith(resolvedSearch)) return 10 + shortCode.length
     if (code.startsWith(resolvedSearch)) return 30 + code.length
@@ -223,6 +286,7 @@ const Inventory = () => {
     const matchesSearch =
       !resolvedSearch ||
       garment.id.toLowerCase().includes(resolvedSearch) ||
+      (resolvedUuidCandidate ? isUuidLikeMatch(garment.id, resolvedUuidCandidate) : false) ||
       garment.code.toLowerCase().includes(resolvedSearch) ||
       garment.name.toLowerCase().includes(resolvedSearch) ||
       (garment.short_code?.toLowerCase().includes(resolvedSearch) ?? false) ||
