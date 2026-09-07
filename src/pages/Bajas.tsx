@@ -1,28 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Trash2, Loader2, AlertTriangle, Calendar, FileText } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
+import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { Garment } from '../types'
 
 const Bajas = () => {
-  const [garments, setGarments] = useState<Garment[]>([])
-  const [loading, setLoading] = useState(true)
+  const { garments: cachedGarments, loading, loadGarments, refreshGarments } = useGarmentCache()
   const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
-    loadBajas()
-  }, [])
+    loadGarments().catch((error) => console.error('Error cargando bajas:', error))
+  }, [loadGarments])
 
-  const loadBajas = async () => {
-    try {
-      setLoading(true)
-      const data = await garmentService.getBajas()
-      setGarments(data)
-    } catch (error) {
-      console.error('Error cargando bajas:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const garments = cachedGarments.filter((garment): garment is Garment => garment.status === 'baja')
 
   const filteredGarments = garments.filter((garment) =>
     garment.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -34,7 +24,7 @@ const Bajas = () => {
     if (!confirm('¿Eliminar permanentemente esta prenda? Esta acción no se puede deshacer.')) return
     try {
       await garmentService.delete(id)
-      loadBajas()
+      await refreshGarments()
     } catch (error) {
       console.error('Error eliminando prenda:', error)
     }

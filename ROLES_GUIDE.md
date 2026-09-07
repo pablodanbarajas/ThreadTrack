@@ -36,7 +36,7 @@ ThreadTrack implementa un sistema de control de acceso basado en roles (RBAC) co
   - Ver todo el inventario (solo lectura)
   - ❌ NO puede crear prendas
   - ❌ NO puede editar prendas
-  - Registrar acciones (lavado, esterilización, reparación, inspección)
+  - Registrar acciones (lavado y esterilización, reparación, inspección)
   - ❌ NO puede autorizar cambios de estado críticos
   - ❌ NO puede descargar reportes
   - ❌ NO puede gestionar usuarios
@@ -104,7 +104,7 @@ Reemplaza `{USER_ID_AQUI}` con el UUID del usuario.
   - JEFE/SUPERVISOR: Botón habilitado ✅
   - OPERADOR: Botón deshabilitado ❌
   
-- **Registrar Acciones** (Lavado, Esterilización, etc.):
+- **Registrar Acciones** (Lavado y esterilización, etc.):
   - JEFE/SUPERVISOR/OPERADOR: Botones habilitados ✅
   
 - **Eliminar Prenda**:

@@ -5,8 +5,9 @@ export interface Team {
   created_at: string
 }
 
-export type GarmentStatus = 'disponible' | 'lavado' | 'esterilizacion' | 'inspeccion' | 'reparacion' | 'baja'
-export type ActionType = 'lavado' | 'esterilizacion' | 'inspeccion' | 'reparacion' | 'baja'
+export type GarmentStatus = 'disponible' | 'lavado' | 'inspeccion' | 'reparacion' | 'baja'
+export type LegacyActionType = 'esterilizacion'
+export type ActionType = 'lavado' | 'inspeccion' | 'reparacion' | 'baja'
 export type InspectionResult = 'aprobado' | 'reparacion' | 'baja'
 export type DocumentType = 'etiqueta' | 'certificado' | 'factura' | 'otro'
 
@@ -47,7 +48,7 @@ export interface GarmentWithDetails extends Garment {
 export interface GarmentAction {
   id: string
   garment_id: string
-  action_type: ActionType
+  action_type: ActionType | LegacyActionType
   result?: InspectionResult
   notes?: string
   performed_by?: string
@@ -91,4 +92,69 @@ export interface DocumentInsert {
   url: string
   file_name?: string
   uploaded_by?: string
+}
+
+// ============================================================
+// Trazabilidad de mangueras
+// ============================================================
+
+export type HoseStatus = 'activa' | 'danada' | 'reemplazada' | 'baja'
+export type HoseActionType = 'uso' | 'inspeccion' | 'reemplazo' | 'baja'
+
+export interface Equipment {
+  id: string
+  code: string
+  name: string
+  team_id?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HosePosition {
+  id: string
+  equipment_id: string
+  caliber: string
+  length?: string
+  label?: string
+  created_at: string
+}
+
+export interface Hose {
+  id: string
+  position_id: string
+  short_code?: string
+  status: HoseStatus
+  current_cycle: number
+  installed_at: string
+  baja_reason?: string
+  baja_date?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface HoseAction {
+  id: string
+  hose_id: string
+  action_type: HoseActionType
+  cycle_after?: number
+  notes?: string
+  performed_by: string
+  created_at: string
+}
+
+export interface HosePositionWithDetails extends HosePosition {
+  activeHose?: Hose
+  history?: Hose[]
+}
+
+export interface EquipmentWithDetails extends Equipment {
+  positions?: HosePositionWithDetails[]
+}
+
+export interface EquipmentInsert {
+  code: string
+  name: string
+  calibers?: string[]
+  lengths?: string[]
+  team_id?: string
 }

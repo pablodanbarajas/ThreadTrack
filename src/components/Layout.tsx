@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus, ScanBarcode, Users, UserCircle } from 'lucide-react'
-import { useAuth } from '../contexts/AuthContext'
+import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus, ScanBarcode, Users, UserCircle, Waves } from 'lucide-react'
+import { useAuth, useRole } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
@@ -9,13 +9,17 @@ const Layout = () => {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const { user, signOut, role } = useAuth()
+  const { canViewPrendas, canViewMangueras } = useRole()
 
   const navItems = [
-    { path: '/', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
-    { path: '/inventory', label: 'Inventario', shortLabel: 'Inventario', icon: Package },
-    { path: '/bajas', label: 'Bajas', shortLabel: 'Bajas', icon: AlertTriangle },
-    { path: '/lote', label: 'Acciones en Lote', shortLabel: 'En Lote', icon: ScanBarcode },
-    { path: '/crear-prenda', label: 'Crear Prenda', shortLabel: 'Crear', icon: Plus },
+    ...(canViewPrendas ? [
+      { path: '/', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
+      { path: '/inventory', label: 'Inventario', shortLabel: 'Inventario', icon: Package },
+      { path: '/bajas', label: 'Bajas', shortLabel: 'Bajas', icon: AlertTriangle },
+      { path: '/lote', label: 'Acciones en Lote', shortLabel: 'En Lote', icon: ScanBarcode },
+      { path: '/crear-prenda', label: 'Crear Prenda', shortLabel: 'Crear', icon: Plus },
+    ] : []),
+    ...(canViewMangueras ? [{ path: '/mangueras', label: 'Mangueras', shortLabel: 'Mangueras', icon: Waves }] : []),
     ...(role === 'administrador' ? [{ path: '/admin/usuarios', label: 'Gestionar Usuarios', shortLabel: 'Usuarios', icon: Users }] : []),
   ]
 

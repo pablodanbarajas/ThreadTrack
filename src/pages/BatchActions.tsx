@@ -1,48 +1,101 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  ScanBarcode, Camera, Droplets, Sparkles, ClipboardCheck, Scissors,
+  ScanBarcode, Camera, Droplets, ClipboardCheck, Scissors,
   Trash2, X, CheckCircle2, AlertCircle, Loader2, Play, RotateCcw,
   PackageCheck,
 } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
 import { extractGarmentIdFromUrl } from '../lib/qrGenerator'
+import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { ActionType, InspectionResult, GarmentStatus } from '../types'
 
 interface ScannedItem {
   uid: string          // unique per-scan key
   garmentId: string
   code: string
+  shortCode?: string
   name: string
   status: GarmentStatus
   applyStatus: 'pending' | 'success' | 'error' | 'duplicate' | 'skipped'
   errorMsg?: string
 }
 
+interface PersistedBatchState {
+  items: ScannedItem[]
+  selectedAction: ActionType
+  inspectionResult: InspectionResult
+  notes: string
+  responsible: string
+  cameraScanCount: number
+  done: boolean
+}
+
+const BATCH_ACTIONS_STORAGE_KEY = 'threadtrack.batchActions'
+
+const defaultBatchState: PersistedBatchState = {
+  items: [],
+  selectedAction: 'lavado',
+  inspectionResult: 'aprobado',
+  notes: '',
+  responsible: '',
+  cameraScanCount: 0,
+  done: false,
+}
+
+const isActionType = (value: unknown): value is ActionType => (
+  value === 'lavado' || value === 'inspeccion' || value === 'reparacion' || value === 'baja'
+)
+
+const isInspectionResult = (value: unknown): value is InspectionResult => (
+  value === 'aprobado' || value === 'reparacion' || value === 'baja'
+)
+
+const getStoredBatchState = (): PersistedBatchState => {
+  try {
+    const stored = sessionStorage.getItem(BATCH_ACTIONS_STORAGE_KEY)
+    if (!stored) return defaultBatchState
+
+    const parsed = JSON.parse(stored)
+    return {
+      items: Array.isArray(parsed.items) ? parsed.items : [],
+      selectedAction: isActionType(parsed.selectedAction) ? parsed.selectedAction : defaultBatchState.selectedAction,
+      inspectionResult: isInspectionResult(parsed.inspectionResult) ? parsed.inspectionResult : defaultBatchState.inspectionResult,
+      notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+      responsible: typeof parsed.responsible === 'string' ? parsed.responsible : '',
+      cameraScanCount: typeof parsed.cameraScanCount === 'number' ? parsed.cameraScanCount : 0,
+      done: typeof parsed.done === 'boolean' ? parsed.done : false,
+    }
+  } catch {
+    return defaultBatchState
+  }
+}
+
 const ACTION_CONFIG: Record<ActionType, { label: string; color: string; icon: any; bg: string; border: string }> = {
-  lavado:        { label: 'Enviar a Lavado',         color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-300',   icon: Droplets },
-  esterilizacion:{ label: 'Enviar a Esterilización', color: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-300', icon: Sparkles },
+  lavado:        { label: 'Enviar a Lavado y Esterilización', color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-300',   icon: Droplets },
   inspeccion:    { label: 'Enviar a Inspección',     color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-300', icon: ClipboardCheck },
   reparacion:    { label: 'Enviar a Reparación',     color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-300', icon: Scissors },
   baja:          { label: 'Dar de Baja',             color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-300',    icon: Trash2 },
 }
 
 const BatchActions = () => {
-  const [items, setItems] = useState<ScannedItem[]>([])
+  const storedBatchState = useRef(getStoredBatchState()).current
+  const [items, setItems] = useState<ScannedItem[]>(storedBatchState.items)
   const [inputValue, setInputValue] = useState('')
   const [showScanner, setShowScanner] = useState(false)
   const [loadingCode, setLoadingCode] = useState(false)
   const [lastAdded, setLastAdded] = useState<string | null>(null)
 
-  const [selectedAction, setSelectedAction] = useState<ActionType>('lavado')
-  const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
-  const [notes, setNotes] = useState('')
-  const [responsible, setResponsible] = useState('')
+  const [selectedAction, setSelectedAction] = useState<ActionType>(storedBatchState.selectedAction)
+  const [inspectionResult, setInspectionResult] = useState<InspectionResult>(storedBatchState.inspectionResult)
+  const [notes, setNotes] = useState(storedBatchState.notes)
+  const [responsible, setResponsible] = useState(storedBatchState.responsible)
 
   const [applying, setApplying] = useState(false)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState(storedBatchState.done)
 
-  const [cameraScanCount, setCameraScanCount] = useState(0)
+  const [cameraScanCount, setCameraScanCount] = useState(storedBatchState.cameraScanCount)
+  const { invalidateGarments } = useGarmentCache()
 
   const inputRef = useRef<HTMLInputElement>(null)
   const scanLockRef = useRef(false)  // prevents duplicate rapid-fire scans
@@ -53,6 +106,19 @@ const BatchActions = () => {
       inputRef.current?.focus()
     }
   }, [showScanner, applying, items.length])
+
+  useEffect(() => {
+    const state: PersistedBatchState = {
+      items,
+      selectedAction,
+      inspectionResult,
+      notes,
+      responsible,
+      cameraScanCount,
+      done,
+    }
+    sessionStorage.setItem(BATCH_ACTIONS_STORAGE_KEY, JSON.stringify(state))
+  }, [items, selectedAction, inspectionResult, notes, responsible, cameraScanCount, done])
 
   const resolveGarmentFromCode = useCallback(async (raw: string) => {
     const trimmed = raw.trim()
@@ -80,6 +146,7 @@ const BatchActions = () => {
           uid: `${Date.now()}-${trimmed}`,
           garmentId: '',
           code: trimmed,
+          shortCode: undefined,
           name: 'No encontrada',
           status: 'disponible',
           applyStatus: 'error',
@@ -100,6 +167,7 @@ const BatchActions = () => {
           uid: `${Date.now()}-${garment.id}`,
           garmentId: garment.id,
           code: garment.code,
+          shortCode: garment.short_code,
           name: garment.name,
           status: garment.status,
           applyStatus: garment.status === 'baja' ? 'skipped' : 'pending',
@@ -114,6 +182,7 @@ const BatchActions = () => {
         uid: `${Date.now()}-err`,
         garmentId: '',
         code: trimmed,
+        shortCode: undefined,
         name: 'Error',
         status: 'disponible',
         applyStatus: 'error',
@@ -148,6 +217,7 @@ const BatchActions = () => {
     setDone(false)
     setInputValue('')
     setCameraScanCount(0)
+    sessionStorage.removeItem(BATCH_ACTIONS_STORAGE_KEY)
     setTimeout(() => inputRef.current?.focus(), 100)
   }
 
@@ -182,6 +252,7 @@ const BatchActions = () => {
 
     setApplying(false)
     setDone(true)
+    invalidateGarments()
   }
 
   const successCount = items.filter(i => i.applyStatus === 'success').length
@@ -284,7 +355,16 @@ const BatchActions = () => {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-semibold text-gray-800 truncate">{item.name}</p>
-                      {item.garmentId && <p className="text-xs text-gray-400 font-mono truncate">{item.code}</p>}
+                      {item.garmentId && (
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {item.shortCode && (
+                            <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-700 border border-indigo-100">
+                              {item.shortCode}
+                            </span>
+                          )}
+                          <p className="text-xs text-gray-400 font-mono truncate">{item.code}</p>
+                        </div>
+                      )}
                       {item.errorMsg && <p className="text-xs text-red-500 truncate">{item.errorMsg}</p>}
                     </div>
 

@@ -5,6 +5,7 @@ import { garmentService } from '../services/garmentService'
 import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
 import { useRole } from '../contexts/AuthContext'
+import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { generateQRUrl } from '../lib/qrGenerator'
 import type { Garment, GarmentInsert } from '../types'
 
@@ -26,6 +27,7 @@ const CreateGarment = () => {
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
   const [savingAssign, setSavingAssign] = useState(false)
   const [assignSaved, setAssignSaved] = useState(false)
+  const { invalidateGarments } = useGarmentCache()
   const qrRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -52,6 +54,7 @@ const CreateGarment = () => {
       }
 
       const garment = await garmentService.create(formData)
+      invalidateGarments()
       setCreatedGarment(garment)
       setAssignedUserIds([])
       setAssignSaved(false)
@@ -75,6 +78,7 @@ const CreateGarment = () => {
     setSavingAssign(true)
     try {
       await userService.setGarmentAssignments(createdGarment.id, assignedUserIds)
+      invalidateGarments()
       setAssignSaved(true)
     } catch (err) {
       console.error('Error asignando usuarios:', err)
@@ -216,7 +220,7 @@ const CreateGarment = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono
+                    Teléfono del cliente
                   </label>
                   <input
                     type="text"

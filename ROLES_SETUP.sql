@@ -100,7 +100,7 @@ CREATE TRIGGER on_auth_user_created
 --   - Ver inventario completo
 --   - NO crear prendas
 --   - NO editar prendas
---   - Registrar acciones (lavado, esterilización, reparación, inspección)
+--   - Registrar acciones (lavado y esterilización, reparación, inspección)
 --   - NO ver reportes
 --   - NO autorizar cambios de estado críticos
 --

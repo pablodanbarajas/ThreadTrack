@@ -1,18 +1,19 @@
-import { useState, useEffect, useRef } from 'react'
-import { Package, PackageCheck, Droplets, Sparkles, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive, Users, Pencil, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive, Users, Pencil, AlertTriangle } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { useRole } from '../contexts/AuthContext'
+import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { garmentService } from '../services/garmentService'
-import { generateReportPDF } from '../services/reportService'
+import { generateReportExcel } from '../services/reportService'
 import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
-import { STERILIZATION_LIFE_LIMIT, getSterilizationLifePercent, getSterilizationLifeStatus } from '../lib/lifeStatus'
-import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus } from '../types'
+import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
+import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
 
 const compactHex = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, '')
 
@@ -75,15 +76,59 @@ const buildUuidCandidate = (rawSearch: string): string => {
   return compact.length >= 24 ? compact : ''
 }
 
+const INVENTORY_FILTERS_STORAGE_KEY = 'threadtrack.inventoryFilters'
+
+interface InventoryFilters {
+  searchTerm: string
+  filterStatus: string
+  filterDateFrom: string
+  filterDateTo: string
+  showDateFilters: boolean
+  filterGarmentType: GarmentType | ''
+  filterColor: Color | ''
+  filterSize: Size | ''
+  filterBatch: string
+  showCodeFilters: boolean
+  filterTeamId: string
+}
+
+const defaultInventoryFilters: InventoryFilters = {
+  searchTerm: '',
+  filterStatus: 'all',
+  filterDateFrom: '',
+  filterDateTo: '',
+  showDateFilters: false,
+  filterGarmentType: '',
+  filterColor: '',
+  filterSize: '',
+  filterBatch: '',
+  showCodeFilters: false,
+  filterTeamId: 'all',
+}
+
+const getStoredInventoryFilters = (): InventoryFilters => {
+  try {
+    const stored = sessionStorage.getItem(INVENTORY_FILTERS_STORAGE_KEY)
+    if (!stored) return defaultInventoryFilters
+    const filters = { ...defaultInventoryFilters, ...JSON.parse(stored) }
+    return {
+      ...filters,
+      filterStatus: filters.filterStatus === 'esterilizacion' ? 'lavado' : filters.filterStatus,
+    }
+  } catch {
+    return defaultInventoryFilters
+  }
+}
+
 const Inventory = () => {
   const { canCreateGarment, canDeleteGarment, canRecordAction, canEditGarment, isAdministrador } = useRole()
-  const [garments, setGarments] = useState<any[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [filterDateFrom, setFilterDateFrom] = useState('')
-  const [filterDateTo, setFilterDateTo] = useState('')
-  const [showDateFilters, setShowDateFilters] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const { garments, loading, loadGarments: loadCachedGarments, refreshGarments } = useGarmentCache()
+  const storedFilters = useRef(getStoredInventoryFilters()).current
+  const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm)
+  const [filterStatus, setFilterStatus] = useState<string>(storedFilters.filterStatus)
+  const [filterDateFrom, setFilterDateFrom] = useState(storedFilters.filterDateFrom)
+  const [filterDateTo, setFilterDateTo] = useState(storedFilters.filterDateTo)
+  const [showDateFilters, setShowDateFilters] = useState(storedFilters.showDateFilters)
   const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
@@ -103,11 +148,11 @@ const Inventory = () => {
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
   // Filtros para códigos de prenda
-  const [filterGarmentType, setFilterGarmentType] = useState<GarmentType | ''>('')
-  const [filterColor, setFilterColor] = useState<Color | ''>('')
-  const [filterSize, setFilterSize] = useState<Size | ''>('')
-  const [filterBatch, setFilterBatch] = useState('')
-  const [showCodeFilters, setShowCodeFilters] = useState(false)
+  const [filterGarmentType, setFilterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
+  const [filterColor, setFilterColor] = useState<Color | ''>(storedFilters.filterColor)
+  const [filterSize, setFilterSize] = useState<Size | ''>(storedFilters.filterSize)
+  const [filterBatch, setFilterBatch] = useState(storedFilters.filterBatch)
+  const [showCodeFilters, setShowCodeFilters] = useState(storedFilters.showCodeFilters)
   // Ingreso masivo de prendas
   const [showBulkModal, setShowBulkModal] = useState(false)
   const [bulkInput, setBulkInput] = useState('')
@@ -127,7 +172,7 @@ const Inventory = () => {
   const [loadingAssign, setLoadingAssign] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
   const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
-  const [filterTeamId, setFilterTeamId] = useState<string>('all')
+  const [filterTeamId, setFilterTeamId] = useState<string>(storedFilters.filterTeamId)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   // Paginación
   const ITEMS_PER_PAGE = 12
@@ -166,7 +211,7 @@ const Inventory = () => {
         notes: editForm.notes.trim() || undefined,
       })
       setShowEditModal(false)
-      await loadGarments()
+      await loadGarments(true)
     } catch (err: any) {
       setEditError(err.message || 'Error al guardar los cambios')
     } finally {
@@ -176,23 +221,22 @@ const Inventory = () => {
 
   const statusLabels: Record<GarmentStatus, { label: string; color: string; icon: any }> = {
     disponible: { label: 'Disponible', color: 'bg-green-100 text-green-800', icon: PackageCheck },
-    lavado: { label: 'En Lavado', color: 'bg-blue-100 text-blue-800', icon: Droplets },
-    esterilizacion: { label: 'En Esterilización', color: 'bg-purple-100 text-purple-800', icon: Sparkles },
+    lavado: { label: 'En Lavado y Esterilización', color: 'bg-blue-100 text-blue-800', icon: Droplets },
     inspeccion: { label: 'En Inspección', color: 'bg-yellow-100 text-yellow-800', icon: ClipboardCheck },
     reparacion: { label: 'En Reparación', color: 'bg-orange-100 text-orange-800', icon: Scissors },
     baja: { label: 'Baja', color: 'bg-red-100 text-red-800', icon: Trash2 },
   }
 
-  const actionLabels: Record<ActionType, { label: string; icon: any }> = {
-    lavado: { label: 'Enviar a Lavado', icon: Droplets },
-    esterilizacion: { label: 'Enviar a Esterilización', icon: Sparkles },
+  const actionLabels: Record<ActionType | LegacyActionType, { label: string; icon: any }> = {
+    lavado: { label: 'Enviar a Lavado y Esterilización', icon: Droplets },
+    esterilizacion: { label: 'Lavado y Esterilización', icon: Droplets },
     inspeccion: { label: 'Enviar a Inspección', icon: ClipboardCheck },
     reparacion: { label: 'Enviar a Reparación', icon: Scissors },
     baja: { label: 'Dar de Baja', icon: Trash2 },
   }
 
   const lifeStatusStyles: Record<
-    ReturnType<typeof getSterilizationLifeStatus>,
+    ReturnType<typeof getCycleLifeStatus>,
     { label: string; dot: string; text: string; badge: string }
   > = {
     verde: {
@@ -221,35 +265,44 @@ const Inventory = () => {
     },
   }
 
+  const loadGarments = useCallback(async (force = false) => {
+    try {
+      if (force) {
+        await refreshGarments()
+      } else {
+        await loadCachedGarments()
+      }
+    } catch (error) {
+      console.error('Error cargando prendas:', error)
+    }
+  }, [loadCachedGarments, refreshGarments])
+
   useEffect(() => {
     loadGarments()
-  }, [])
+  }, [loadGarments])
+
+  useEffect(() => {
+    const filters: InventoryFilters = {
+      searchTerm,
+      filterStatus,
+      filterDateFrom,
+      filterDateTo,
+      showDateFilters,
+      filterGarmentType,
+      filterColor,
+      filterSize,
+      filterBatch,
+      showCodeFilters,
+      filterTeamId,
+    }
+    sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters))
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, showDateFilters, filterGarmentType, filterColor, filterSize, filterBatch, showCodeFilters, filterTeamId])
 
   useEffect(() => {
     if (isAdministrador) {
       userService.getTeams().then(setTeams).catch(() => {})
     }
   }, [isAdministrador])
-
-  // Cargar prendas y sus acciones
-  const loadGarments = async () => {
-    try {
-      setLoading(true)
-      const data = await garmentService.getAll()
-      // Para cada prenda, cargar sus acciones
-      const garmentsWithActions = await Promise.all(
-        data.map(async (g) => {
-          const actions = await garmentService.getActions(g.id)
-          return { ...g, actions }
-        })
-      )
-      setGarments(garmentsWithActions)
-    } catch (error) {
-      console.error('Error cargando prendas:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const resolvedSearch = (extractGarmentId(searchTerm) || searchTerm).trim().toLowerCase()
   const resolvedUuidCandidate = buildUuidCandidate(searchTerm)
@@ -357,7 +410,7 @@ const Inventory = () => {
       setNewGarment({ code: '', name: '', client_name: '' })
       setNewGarmentTeamId('')
       setShowModal(false)
-      loadGarments()
+      loadGarments(true)
     } catch (error: any) {
       if (error.code === '23505') {
         alert('Ya existe una prenda con ese código')
@@ -429,7 +482,7 @@ const Inventory = () => {
       setShowDeleteModal(false)
       setGarmentToDelete(null)
       setDeleteError(null)
-      loadGarments()
+      loadGarments(true)
     } catch (error: any) {
       console.error('Error eliminando prenda:', error)
       setDeleteError(error.message || 'Error al eliminar la prenda')
@@ -455,7 +508,7 @@ const Inventory = () => {
       })
       setShowActionModal(false)
       setSelectedGarment(null)
-      loadGarments()
+      loadGarments(true)
     } catch (error) {
       console.error('Error registrando acción:', error)
     }
@@ -473,10 +526,10 @@ const Inventory = () => {
   }
 
   const getAvailableActions = (status: GarmentStatus): ActionType[] => {
-    // Desde cualquier estado activo se puede enviar a lavado, esterilización o inspección
+    // Desde cualquier estado activo se puede enviar a lavado y esterilización o inspección
     if (status === 'baja') return []
     if (status === 'inspeccion') return [] // En inspección se muestra el botón especial de resultado
-    return ['lavado', 'esterilizacion', 'inspeccion']
+    return ['lavado', 'inspeccion']
   }
 
   const formatDate = (dateString: string) => {
@@ -591,10 +644,10 @@ const Inventory = () => {
     }
     try {
       setDownloadingReport(true)
-      await generateReportPDF(filteredGarments)
+      await generateReportExcel(filteredGarments)
     } catch (error) {
       console.error('Error generando reporte:', error)
-      alert('Error al generar el reporte PDF')
+      alert('Error al generar el reporte Excel')
     } finally {
       setDownloadingReport(false)
     }
@@ -710,7 +763,7 @@ const Inventory = () => {
       setBulkTeamId('')
       setBulkGarments([])
       setShowBulkModal(false)
-      loadGarments()
+      loadGarments(true)
     } catch (error) {
       console.error('Error en ingreso masivo:', error)
       alert('Error al crear prendas')
@@ -914,8 +967,7 @@ const Inventory = () => {
         {[
           { key: 'all',           label: 'Total',          short: 'Total',    count: garments.length,                                          active: 'bg-blue-600 text-white' },
           { key: 'disponible',    label: 'Disponible',     short: 'Disp.',    count: garments.filter(g => g.status === 'disponible').length,    active: 'bg-green-600 text-white' },
-          { key: 'lavado',        label: 'Lavado',         short: 'Lavado',   count: garments.filter(g => g.status === 'lavado').length,        active: 'bg-blue-600 text-white' },
-          { key: 'esterilizacion',label: 'Esterilización', short: 'Esteril.', count: garments.filter(g => g.status === 'esterilizacion').length, active: 'bg-purple-600 text-white' },
+          { key: 'lavado',        label: 'Lavado y esterilización', short: 'Lav/Ester', count: garments.filter(g => g.status === 'lavado').length, active: 'bg-blue-600 text-white' },
           { key: 'inspeccion',    label: 'Inspección',     short: 'Insp.',    count: garments.filter(g => g.status === 'inspeccion').length,    active: 'bg-yellow-600 text-white' },
           { key: 'reparacion',    label: 'Reparación',     short: 'Repar.',   count: garments.filter(g => g.status === 'reparacion').length,    active: 'bg-orange-600 text-white' },
           { key: 'baja',          label: 'Bajas',          short: 'Bajas',    count: garments.filter(g => g.status === 'baja').length,          active: 'bg-red-600 text-white' },
@@ -989,7 +1041,7 @@ const Inventory = () => {
           }`}
         >
           {downloadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          {downloadingReport ? 'Generando...' : `Reporte PDF (${filteredGarments.length})`}
+          {downloadingReport ? 'Generando...' : `Reporte Excel (${filteredGarments.length})`}
         </button>
 
         {isAdministrador && (
@@ -1353,12 +1405,10 @@ const Inventory = () => {
             {/* Advertencia fin de vida útil en el modal */}
             {(() => {
               const selActions = (selectedGarment as any).actions ?? []
-              const selLavado = selActions.filter((a: any) => a.action_type === 'lavado').length
-              const selEsteril = selActions.filter((a: any) => a.action_type === 'esterilizacion').length
-              const newLavado = actionType === 'lavado' ? selLavado + 1 : selLavado
-              const newEsteril = actionType === 'esterilizacion' ? selEsteril + 1 : selEsteril
-              const alreadyExpired = selLavado >= 100 || selEsteril >= 100
-              const willExpire = !alreadyExpired && (newLavado >= 100 || newEsteril >= 100)
+              const cycleCount = getCycleCount(selActions)
+              const newCycleCount = actionType === 'lavado' ? cycleCount + 1 : cycleCount
+              const alreadyExpired = cycleCount >= 100
+              const willExpire = !alreadyExpired && newCycleCount >= 100
               if (!willExpire && !alreadyExpired) return null
               return (
                 <div className={`mb-4 p-3 rounded-lg border flex gap-3 ${alreadyExpired ? 'bg-red-50 border-red-300' : 'bg-orange-50 border-orange-300'}`}>
@@ -1369,8 +1419,8 @@ const Inventory = () => {
                     </p>
                     <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
                       {alreadyExpired
-                        ? `Tiene ${selLavado >= 100 ? selLavado + ' lavados' : ''}${selLavado >= 100 && selEsteril >= 100 ? ' y ' : ''}${selEsteril >= 100 ? selEsteril + ' esterilizaciones' : ''}. Se recomienda darla de baja.`
-                        : `Alcanzará ${newLavado >= 100 ? newLavado + ' lavados' : ''}${newLavado >= 100 && newEsteril >= 100 ? ' y ' : ''}${newEsteril >= 100 ? newEsteril + ' esterilizaciones' : ''}. Considera darla de baja.`
+                        ? `Tiene ${cycleCount} ciclos de lavado y esterilización. Se recomienda darla de baja.`
+                        : `Alcanzará ${newCycleCount} ciclos de lavado y esterilización. Considera darla de baja.`
                       }
                     </p>
                   </div>
@@ -1488,7 +1538,7 @@ const Inventory = () => {
                               const Icon = actionLabels[action.action_type].icon
                               return <Icon className="w-4 h-4" />
                             })()}
-                            <span className="font-medium capitalize">{action.action_type}</span>
+                            <span className="font-medium">{actionLabels[action.action_type].label}</span>
                           </>
                         )}
                         {action.result && (
@@ -1533,19 +1583,18 @@ const Inventory = () => {
             const availableActions = getAvailableActions(garment.status as GarmentStatus)
             // Contadores de acciones
             const actions = (garment.actions ?? []) as import('../types').GarmentAction[];
-            const lavadoCount = actions.filter((a) => a.action_type === 'lavado').length
-            const esterilizacionCount = actions.filter((a) => a.action_type === 'esterilizacion').length
+            const cycleCount = getCycleCount(actions)
             const reparacionCount = actions.filter((a) =>
               a.action_type === 'reparacion' ||
               (a.action_type === 'inspeccion' && a.result === 'reparacion')
             ).length
             const LIFE_LIMIT = 100
             const LIFE_WARN = 80
-            const lifeExpired = lavadoCount >= LIFE_LIMIT || esterilizacionCount >= LIFE_LIMIT
-            const lifeNearEnd = !lifeExpired && (lavadoCount >= LIFE_WARN || esterilizacionCount >= LIFE_WARN)
-            const sterilizationLifeStatus = getSterilizationLifeStatus(esterilizacionCount)
-            const sterilizationLifePercent = getSterilizationLifePercent(esterilizacionCount)
-            const sterilizationLifeStyle = lifeStatusStyles[sterilizationLifeStatus]
+            const lifeExpired = cycleCount >= LIFE_LIMIT
+            const lifeNearEnd = !lifeExpired && cycleCount >= LIFE_WARN
+            const cycleLifeStatus = getCycleLifeStatus(cycleCount)
+            const cycleLifePercent = getCycleLifePercent(cycleCount)
+            const cycleLifeStyle = lifeStatusStyles[cycleLifeStatus]
             return (
               <div key={garment.id} className={`card p-4 ${lifeExpired ? 'border-2 border-red-400' : lifeNearEnd ? 'border-2 border-orange-300' : ''}`}>
                 {/* Banner fin de vida útil */}
@@ -1555,7 +1604,7 @@ const Inventory = () => {
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-red-700">⚠ Fin de vida útil alcanzado</p>
                       <p className="text-xs text-red-600">
-                        {lavadoCount >= LIFE_LIMIT && `${lavadoCount} lavados`}{lavadoCount >= LIFE_LIMIT && esterilizacionCount >= LIFE_LIMIT && ' · '}{esterilizacionCount >= LIFE_LIMIT && `${esterilizacionCount} esterilizaciones`}
+                        {cycleCount} ciclos de lavado y esterilización
                       </p>
                     </div>
                   </div>
@@ -1566,7 +1615,7 @@ const Inventory = () => {
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-orange-700">Próximo a fin de vida útil</p>
                       <p className="text-xs text-orange-600">
-                        {lavadoCount >= LIFE_WARN && `${lavadoCount}/100 lavados`}{lavadoCount >= LIFE_WARN && esterilizacionCount >= LIFE_WARN && ' · '}{esterilizacionCount >= LIFE_WARN && `${esterilizacionCount}/100 esterilizaciones`}
+                        {cycleCount}/100 ciclos de lavado y esterilización
                       </p>
                     </div>
                   </div>
@@ -1660,35 +1709,28 @@ const Inventory = () => {
                   </span>
                 </div>
 
-                {/* Semáforo de vida útil por esterilizaciones */}
-                <div className={`mb-3 flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 ${sterilizationLifeStyle.badge}`}>
+                {/* Semáforo de vida útil por ciclos */}
+                <div className={`mb-3 flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 ${cycleLifeStyle.badge}`}>
                   <div className="inline-flex items-center gap-1.5 min-w-0">
-                    <span className={`h-2.5 w-2.5 rounded-full ${sterilizationLifeStyle.dot}`} />
-                    <p className={`text-xs font-semibold ${sterilizationLifeStyle.text}`}>
-                      Vida útil: {sterilizationLifeStyle.label}
+                    <span className={`h-2.5 w-2.5 rounded-full ${cycleLifeStyle.dot}`} />
+                    <p className={`text-xs font-semibold ${cycleLifeStyle.text}`}>
+                      Vida útil: {cycleLifeStyle.label}
                     </p>
                   </div>
-                  <p className={`text-xs font-semibold whitespace-nowrap ${sterilizationLifeStyle.text}`}>
-                    {esterilizacionCount}/{STERILIZATION_LIFE_LIMIT} ({sterilizationLifePercent}%)
+                  <p className={`text-xs font-semibold whitespace-nowrap ${cycleLifeStyle.text}`}>
+                    {cycleCount}/{WASH_STERILIZATION_CYCLE_LIMIT} ({cycleLifePercent}%)
                   </p>
                 </div>
 
-                {/* Contadores - Grid 3 columnas */}
+                {/* Contadores - Grid 2 columnas */}
                 {actions.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    <div className={`p-2 rounded text-center ${lavadoCount >= LIFE_LIMIT ? 'bg-red-100' : lavadoCount >= LIFE_WARN ? 'bg-orange-100' : 'bg-blue-50'}`}>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className={`p-2 rounded text-center ${cycleCount >= LIFE_LIMIT ? 'bg-red-100' : cycleCount >= LIFE_WARN ? 'bg-orange-100' : 'bg-blue-50'}`}>
                       <div className="flex justify-center mb-0.5">
-                        <Droplets className={`w-3 h-3 ${lavadoCount >= LIFE_LIMIT ? 'text-red-600' : lavadoCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`} />
+                        <Droplets className={`w-3 h-3 ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`} />
                       </div>
-                      <p className={`text-sm font-bold ${lavadoCount >= LIFE_LIMIT ? 'text-red-600' : lavadoCount >= LIFE_WARN ? 'text-orange-600' : 'text-blue-600'}`}>{lavadoCount}</p>
-                      <p className={`text-xs ${lavadoCount >= LIFE_LIMIT ? 'text-red-700' : lavadoCount >= LIFE_WARN ? 'text-orange-700' : 'text-blue-700'}`}>Lavados</p>
-                    </div>
-                    <div className={`p-2 rounded text-center ${esterilizacionCount >= LIFE_LIMIT ? 'bg-red-100' : esterilizacionCount >= LIFE_WARN ? 'bg-orange-100' : 'bg-purple-50'}`}>
-                      <div className="flex justify-center mb-0.5">
-                        <Sparkles className={`w-3 h-3 ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-600' : esterilizacionCount >= LIFE_WARN ? 'text-orange-500' : 'text-purple-600'}`} />
-                      </div>
-                      <p className={`text-sm font-bold ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-600' : esterilizacionCount >= LIFE_WARN ? 'text-orange-600' : 'text-purple-600'}`}>{esterilizacionCount}</p>
-                      <p className={`text-xs ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-700' : esterilizacionCount >= LIFE_WARN ? 'text-orange-700' : 'text-purple-700'}`}>Esterilizaciones</p>
+                      <p className={`text-sm font-bold ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-600' : 'text-blue-600'}`}>{cycleCount}</p>
+                      <p className={`text-xs ${cycleCount >= LIFE_LIMIT ? 'text-red-700' : cycleCount >= LIFE_WARN ? 'text-orange-700' : 'text-blue-700'}`}>Lav/Ester</p>
                     </div>
                     <div className="p-2 bg-orange-50 rounded text-center">
                       <div className="flex justify-center mb-0.5">
@@ -1703,7 +1745,7 @@ const Inventory = () => {
                 {/* Botones de acciones - Grid 2 columnas */}
                 <div className="grid grid-cols-2 gap-2">
                   {/* Todos los botones de acciones */}
-                  {availableActions.filter(a => a === 'lavado' || a === 'esterilizacion' || a === 'inspeccion' || a === 'reparacion').map((action) => {
+                  {availableActions.filter(a => a === 'lavado' || a === 'inspeccion' || a === 'reparacion').map((action) => {
                     const ActionIcon = actionLabels[action].icon
                     const isCurrentAction = garment.status === action
                     return (
@@ -1721,7 +1763,7 @@ const Inventory = () => {
                         <ActionIcon className="w-3 h-3" />
                         <span className="hidden md:inline">{actionLabels[action].label}</span>
                         <span className="md:hidden text-xs">
-                          {action === 'lavado' ? 'Lavado' : action === 'esterilizacion' ? 'Esteriliz.' : action === 'inspeccion' ? 'Inspección' : 'Reparación'}
+                          {action === 'lavado' ? 'Lav/Ester' : action === 'inspeccion' ? 'Inspección' : 'Reparación'}
                         </span>
                       </button>
                     )
@@ -1859,7 +1901,7 @@ const Inventory = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono del cliente</label>
                   <input
                     type="text"
                     value={editForm.client_phone}

@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Sparkles, Scissors, ClipboardCheck, PackageCheck, Trash2, X, Pencil, AlertTriangle } from 'lucide-react'
+import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageCheck, Trash2, X, Pencil, AlertTriangle } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
+import { getCycleCount } from '../lib/lifeStatus'
 import { useRole } from '../contexts/AuthContext'
+import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { Garment, Document, GarmentAction, ActionType, InspectionResult } from '../types'
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
   const { canEditGarment } = useRole()
+  const { invalidateGarments } = useGarmentCache()
   const [garment, setGarment] = useState<Garment | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [actions, setActions] = useState<GarmentAction[]>([])
@@ -72,7 +75,6 @@ const GarmentDetail = () => {
     const colors: Record<string, string> = {
       disponible: 'bg-green-100 text-green-800',
       lavado: 'bg-blue-100 text-blue-800',
-      esterilizacion: 'bg-purple-100 text-purple-800',
       inspeccion: 'bg-yellow-100 text-yellow-800',
       reparacion: 'bg-orange-100 text-orange-800',
       baja: 'bg-red-100 text-red-800',
@@ -114,6 +116,7 @@ const GarmentDetail = () => {
         client_phone: editForm.client_phone.trim() || undefined,
         notes: editForm.notes.trim() || undefined,
       })
+      invalidateGarments()
       setShowEditModal(false)
       await loadGarmentData()
     } catch (err: any) {
@@ -132,6 +135,7 @@ const GarmentDetail = () => {
         notes: actionNotes || undefined,
         responsible: actionResponsible,
       })
+      invalidateGarments()
       setShowActionModal(false)
       await loadGarmentData()
     } catch (err) {
@@ -221,7 +225,7 @@ const GarmentDetail = () => {
                 </div>
                 {garment.client_phone && (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-blue-200 text-xs">Tel:</span>
+                    <span className="text-blue-200 text-xs">Tel. cliente:</span>
                     <span className="text-white text-xs font-semibold">{garment.client_phone}</span>
                   </div>
                 )}
@@ -280,13 +284,12 @@ const GarmentDetail = () => {
 
             {/* Acciones rápidas */}
             {garment.status !== 'baja' && (() => {
-              const lavadoCount = actions.filter(a => a.action_type === 'lavado').length
-              const esterilizacionCount = actions.filter(a => a.action_type === 'esterilizacion').length
+              const cycleCount = getCycleCount(actions)
               const reparacionCount = actions.filter(a => a.action_type === 'reparacion' || (a.action_type === 'inspeccion' && a.result === 'reparacion')).length
               const LIFE_LIMIT = 100
               const LIFE_WARN = 80
-              const lifeExpired = lavadoCount >= LIFE_LIMIT || esterilizacionCount >= LIFE_LIMIT
-              const lifeNearEnd = !lifeExpired && (lavadoCount >= LIFE_WARN || esterilizacionCount >= LIFE_WARN)
+              const lifeExpired = cycleCount >= LIFE_LIMIT
+              const lifeNearEnd = !lifeExpired && cycleCount >= LIFE_WARN
               return (
               <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
                 {/* Banner advertencia fin de vida */}
@@ -296,7 +299,7 @@ const GarmentDetail = () => {
                     <div>
                       <p className="text-xs font-bold text-red-700">⚠ Fin de vida útil alcanzado</p>
                       <p className="text-xs text-red-600">
-                        {lavadoCount >= LIFE_LIMIT && `${lavadoCount} lavados`}{lavadoCount >= LIFE_LIMIT && esterilizacionCount >= LIFE_LIMIT && ' · '}{esterilizacionCount >= LIFE_LIMIT && `${esterilizacionCount} esterilizaciones`}. Se recomienda dar de baja.
+                        {cycleCount} ciclos de lavado y esterilización. Se recomienda dar de baja.
                       </p>
                     </div>
                   </div>
@@ -307,7 +310,7 @@ const GarmentDetail = () => {
                     <div>
                       <p className="text-xs font-bold text-orange-700">Próximo a fin de vida útil</p>
                       <p className="text-xs text-orange-600">
-                        {lavadoCount >= LIFE_WARN && `${lavadoCount}/100 lavados`}{lavadoCount >= LIFE_WARN && esterilizacionCount >= LIFE_WARN && ' · '}{esterilizacionCount >= LIFE_WARN && `${esterilizacionCount}/100 esterilizaciones`}
+                        {cycleCount}/100 ciclos de lavado y esterilización
                       </p>
                     </div>
                   </div>
@@ -316,18 +319,15 @@ const GarmentDetail = () => {
                   <h2 className="font-semibold text-gray-800 text-sm md:text-base">Registrar Acción</h2>
                   {/* Contadores inline — solo mobile */}
                   <div className="flex items-center gap-2 md:hidden">
-                    <span className={`flex items-center gap-0.5 text-xs font-semibold ${lavadoCount >= LIFE_LIMIT ? 'text-red-600' : lavadoCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`}>
-                      <Droplets className="w-3.5 h-3.5" />{lavadoCount}
-                    </span>
-                    <span className={`flex items-center gap-0.5 text-xs font-semibold ${esterilizacionCount >= LIFE_LIMIT ? 'text-red-600' : esterilizacionCount >= LIFE_WARN ? 'text-orange-500' : 'text-purple-600'}`}>
-                      <Sparkles className="w-3.5 h-3.5" />{esterilizacionCount}
+                    <span className={`flex items-center gap-0.5 text-xs font-semibold ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`}>
+                      <Droplets className="w-3.5 h-3.5" />{cycleCount}
                     </span>
                     <span className="flex items-center gap-0.5 text-xs text-orange-600 font-semibold">
                       <Scissors className="w-3.5 h-3.5" />{reparacionCount}
                     </span>
                   </div>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => openActionModal('lavado')}
                     disabled={garment.status === 'lavado'}
@@ -339,21 +339,7 @@ const GarmentDetail = () => {
                   >
                     <Droplets className={`w-6 h-6 ${garment.status === 'lavado' ? 'text-gray-400' : 'text-blue-600'}`} />
                     <span className={`text-xs font-medium text-center ${garment.status === 'lavado' ? 'text-gray-400' : 'text-blue-700'}`}>
-                      {garment.status === 'lavado' ? 'Ya en Lavado' : 'Enviar a Lavado'}
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => openActionModal('esterilizacion')}
-                    disabled={garment.status === 'esterilizacion'}
-                    className={`flex flex-col items-center gap-1.5 p-3 border rounded-lg transition-colors ${
-                      garment.status === 'esterilizacion'
-                        ? 'bg-gray-50 border-gray-200 opacity-40 cursor-not-allowed'
-                        : 'bg-purple-50 hover:bg-purple-100 border-purple-200'
-                    }`}
-                  >
-                    <Sparkles className={`w-6 h-6 ${garment.status === 'esterilizacion' ? 'text-gray-400' : 'text-purple-600'}`} />
-                    <span className={`text-xs font-medium text-center ${garment.status === 'esterilizacion' ? 'text-gray-400' : 'text-purple-700'}`}>
-                      {garment.status === 'esterilizacion' ? 'Ya en Esterilización' : 'Enviar a Esterilización'}
+                      {garment.status === 'lavado' ? 'Ya en Lavado y Esterilización' : 'Enviar a Lavado y Esterilización'}
                     </span>
                   </button>
                   <button
@@ -394,27 +380,19 @@ const GarmentDetail = () => {
             {/* Estadísticas — solo desktop (en mobile se muestran inline en la tarjeta de acciones) */}
             <div className="hidden md:block bg-white rounded-xl shadow-lg p-5">
               <h2 className="font-semibold text-gray-800 mb-3">Resumen de Ciclos</h2>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {(() => {
-                  const lc = actions.filter(a => a.action_type === 'lavado').length
-                  const ec = actions.filter(a => a.action_type === 'esterilizacion').length
+                  const cycleCount = getCycleCount(actions)
                   const rc = actions.filter(a => a.action_type === 'reparacion' || (a.action_type === 'inspeccion' && a.result === 'reparacion')).length
                   const L = 100, W = 80
                   return (
                     <>
-                      <div className={`p-4 rounded-lg text-center ${lc >= L ? 'bg-red-100' : lc >= W ? 'bg-orange-100' : 'bg-blue-50'}`}>
+                      <div className={`p-4 rounded-lg text-center ${cycleCount >= L ? 'bg-red-100' : cycleCount >= W ? 'bg-orange-100' : 'bg-blue-50'}`}>
                         <div className="flex items-center justify-center gap-1 mb-1">
-                          <Droplets className={`w-5 h-5 ${lc >= L ? 'text-red-600' : lc >= W ? 'text-orange-500' : 'text-blue-600'}`} />
-                          <span className={`text-2xl font-bold ${lc >= L ? 'text-red-600' : lc >= W ? 'text-orange-600' : 'text-blue-600'}`}>{lc}</span>
+                          <Droplets className={`w-5 h-5 ${cycleCount >= L ? 'text-red-600' : cycleCount >= W ? 'text-orange-500' : 'text-blue-600'}`} />
+                          <span className={`text-2xl font-bold ${cycleCount >= L ? 'text-red-600' : cycleCount >= W ? 'text-orange-600' : 'text-blue-600'}`}>{cycleCount}</span>
                         </div>
-                        <p className={`text-xs font-medium ${lc >= L ? 'text-red-700' : lc >= W ? 'text-orange-700' : 'text-blue-700'}`}>Lavados{lc >= L ? ' ⚠' : ''}</p>
-                      </div>
-                      <div className={`p-4 rounded-lg text-center ${ec >= L ? 'bg-red-100' : ec >= W ? 'bg-orange-100' : 'bg-purple-50'}`}>
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <Sparkles className={`w-5 h-5 ${ec >= L ? 'text-red-600' : ec >= W ? 'text-orange-500' : 'text-purple-600'}`} />
-                          <span className={`text-2xl font-bold ${ec >= L ? 'text-red-600' : ec >= W ? 'text-orange-600' : 'text-purple-600'}`}>{ec}</span>
-                        </div>
-                        <p className={`text-xs font-medium ${ec >= L ? 'text-red-700' : ec >= W ? 'text-orange-700' : 'text-purple-700'}`}>Esterilizaciones{ec >= L ? ' ⚠' : ''}</p>
+                        <p className={`text-xs font-medium ${cycleCount >= L ? 'text-red-700' : cycleCount >= W ? 'text-orange-700' : 'text-blue-700'}`}>Lavado y esterilización{cycleCount >= L ? ' ⚠' : ''}</p>
                       </div>
                       <div className="p-4 bg-orange-50 rounded-lg text-center">
                         <div className="flex items-center justify-center gap-1 mb-1">
@@ -442,7 +420,9 @@ const GarmentDetail = () => {
                     <div key={idx} className="p-2 md:p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-gray-800">
-                          {action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)}
+                          {action.action_type === 'lavado' || action.action_type === 'esterilizacion'
+                            ? 'Lavado y esterilización'
+                            : action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)}
                         </span>
                         <span className="text-xs text-gray-400">
                           {new Date(action.created_at).toLocaleString()}
@@ -554,7 +534,7 @@ const GarmentDetail = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono del cliente</label>
                   <input
                     type="text"
                     value={editForm.client_phone}
@@ -597,8 +577,7 @@ const GarmentDetail = () => {
           <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">
-                {actionType === 'lavado' && 'Enviar a Lavado'}
-                {actionType === 'esterilizacion' && 'Enviar a Esterilización'}
+                {actionType === 'lavado' && 'Enviar a Lavado y Esterilización'}
                 {actionType === 'inspeccion' && 'Resultado de Inspección'}
               </h2>
               <button onClick={() => setShowActionModal(false)} className="p-1 hover:bg-gray-100 rounded">
@@ -613,12 +592,10 @@ const GarmentDetail = () => {
 
             {/* Advertencia fin de vida útil */}
             {(() => {
-              const lavadoCount = actions.filter(a => a.action_type === 'lavado').length
-              const esterilizacionCount = actions.filter(a => a.action_type === 'esterilizacion').length
-              const newLavado = actionType === 'lavado' ? lavadoCount + 1 : lavadoCount
-              const newEsteril = actionType === 'esterilizacion' ? esterilizacionCount + 1 : esterilizacionCount
-              const alreadyExpired = lavadoCount >= 100 || esterilizacionCount >= 100
-              const willExpire = !alreadyExpired && (newLavado >= 100 || newEsteril >= 100)
+              const cycleCount = getCycleCount(actions)
+              const newCycleCount = actionType === 'lavado' ? cycleCount + 1 : cycleCount
+              const alreadyExpired = cycleCount >= 100
+              const willExpire = !alreadyExpired && newCycleCount >= 100
               if (!willExpire && !alreadyExpired) return null
               return (
                 <div className={`mb-4 p-3 rounded-lg border flex gap-3 ${alreadyExpired ? 'bg-red-50 border-red-300' : 'bg-orange-50 border-orange-300'}`}>
@@ -629,8 +606,8 @@ const GarmentDetail = () => {
                     </p>
                     <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
                       {alreadyExpired
-                        ? `Tiene ${lavadoCount >= 100 ? lavadoCount + ' lavados' : ''}${lavadoCount >= 100 && esterilizacionCount >= 100 ? ' y ' : ''}${esterilizacionCount >= 100 ? esterilizacionCount + ' esterilizaciones' : ''}. Se recomienda darla de baja.`
-                        : `Alcanzará ${newLavado >= 100 ? newLavado + ' lavados' : ''}${newLavado >= 100 && newEsteril >= 100 ? ' y ' : ''}${newEsteril >= 100 ? newEsteril + ' esterilizaciones' : ''}. Considera darla de baja.`
+                        ? `Tiene ${cycleCount} ciclos de lavado y esterilización. Se recomienda darla de baja.`
+                        : `Alcanzará ${newCycleCount} ciclos de lavado y esterilización. Considera darla de baja.`
                       }
                     </p>
                   </div>

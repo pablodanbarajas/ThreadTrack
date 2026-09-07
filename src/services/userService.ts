@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { UserRole } from '../contexts/AuthContext'
+import type { UserRole, AccessModule } from '../contexts/AuthContext'
 import type { Team } from '../types'
 
 export interface UserProfile {
@@ -7,6 +7,7 @@ export interface UserProfile {
   email: string
   role: UserRole
   team_id: string | null
+  access_module: AccessModule
   created_at: string
   updated_at: string
 }
@@ -35,6 +36,22 @@ export const userService = {
 
     if (error) {
       console.error('Error actualizando rol:', error)
+      throw error
+    }
+
+    return data.success ?? false
+  },
+
+  // Actualizar módulo asignado a un usuario (prendas/mangueras/ambos)
+  async updateUserModule(userId: string, newModule: AccessModule): Promise<boolean> {
+    const { data, error } = await supabase
+      .rpc('update_user_module', {
+        p_user_id: userId,
+        p_module: newModule
+      })
+
+    if (error) {
+      console.error('Error actualizando módulo:', error)
       throw error
     }
 

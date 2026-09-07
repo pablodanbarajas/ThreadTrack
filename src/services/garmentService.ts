@@ -1,6 +1,11 @@
 import { supabase } from '../lib/supabase'
 import type { Garment, GarmentInsert, GarmentUpdate, GarmentAction, ActionType, InspectionResult } from '../types'
 
+const normalizeGarment = (garment: any): Garment => ({
+  ...garment,
+  status: garment.status === 'esterilizacion' ? 'lavado' : garment.status,
+})
+
 export const garmentService = {
   // Obtener todas las prendas (incluyendo bajas para estadísticas)
   async getAll(): Promise<Garment[]> {
@@ -10,7 +15,7 @@ export const garmentService = {
       .order('created_at', { ascending: false })
 
     if (error) throw error
-    return data || []
+    return (data || []).map(normalizeGarment)
   },
 
   // Obtener prendas dadas de baja
@@ -22,7 +27,7 @@ export const garmentService = {
       .order('baja_date', { ascending: false })
 
     if (error) throw error
-    return data || []
+    return (data || []).map(normalizeGarment)
   },
 
   // Obtener prenda por código
@@ -34,7 +39,7 @@ export const garmentService = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    return data ? normalizeGarment(data) : null
   },
 
   // Obtener prenda por código corto de respaldo (ej: S1, G12, V3)
@@ -48,7 +53,7 @@ export const garmentService = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    return data ? normalizeGarment(data) : null
   },
 
   // Obtener prenda por ID
@@ -60,7 +65,7 @@ export const garmentService = {
       .single()
 
     if (error && error.code !== 'PGRST116') throw error
-    return data
+    return data ? normalizeGarment(data) : null
   },
 
   // Crear nueva prenda
@@ -77,7 +82,7 @@ export const garmentService = {
       })
 
     if (error) throw error
-    return data as Garment
+    return normalizeGarment(data)
   },
 
   // Actualizar prenda
@@ -90,10 +95,10 @@ export const garmentService = {
       .single()
 
     if (error) throw error
-    return data
+    return normalizeGarment(data)
   },
 
-  // Registrar acción (lavado, esterilización, etc.)
+  // Registrar acción (lavado/esterilización, inspección, etc.)
   async registerAction(
     garmentId: string, 
     actionType: ActionType, 
@@ -109,13 +114,15 @@ export const garmentService = {
       throw new Error('El campo RESPONSABLE es obligatorio')
     }
 
+    const normalizedActionType: ActionType = actionType
+
     // Obtener estado actual
     const current = await this.getById(garmentId)
     if (!current) throw new Error('Prenda no encontrada')
 
     // Determinar nuevo estado
-    let newStatus = actionType as string
-    if (actionType === 'inspeccion' && options?.result) {
+    let newStatus = normalizedActionType as string
+    if (normalizedActionType === 'inspeccion' && options?.result) {
       if (options.result === 'aprobado') {
         newStatus = 'disponible'
       } else {
@@ -136,7 +143,7 @@ export const garmentService = {
       .from('garment_actions')
       .insert({
         garment_id: garmentId,
-        action_type: actionType,
+        action_type: normalizedActionType,
         result: options?.result,
         notes: options?.notes,
         performed_by: responsible
@@ -185,7 +192,6 @@ export const garmentService = {
     total: number
     disponible: number
     lavado: number
-    esterilizacion: number
     inspeccion: number
     reparacion: number
     baja: number 
@@ -199,8 +205,7 @@ export const garmentService = {
     const stats = {
       total: data?.filter(g => g.status !== 'baja').length || 0,
       disponible: data?.filter(g => g.status === 'disponible').length || 0,
-      lavado: data?.filter(g => g.status === 'lavado').length || 0,
-      esterilizacion: data?.filter(g => g.status === 'esterilizacion').length || 0,
+      lavado: data?.filter(g => g.status === 'lavado' || g.status === 'esterilizacion').length || 0,
       inspeccion: data?.filter(g => g.status === 'inspeccion').length || 0,
       reparacion: data?.filter(g => g.status === 'reparacion').length || 0,
       baja: data?.filter(g => g.status === 'baja').length || 0

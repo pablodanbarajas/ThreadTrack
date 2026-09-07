@@ -101,7 +101,6 @@ const Scanner = () => {
     const colors: Record<string, string> = {
       disponible: 'bg-green-100 text-green-800',
       lavado: 'bg-blue-100 text-blue-800',
-      esterilizacion: 'bg-purple-100 text-purple-800',
       inspeccion: 'bg-yellow-100 text-yellow-800',
       reparacion: 'bg-orange-100 text-orange-800',
       baja: 'bg-red-100 text-red-800',
@@ -272,7 +271,7 @@ const Scanner = () => {
               )}
               {selectedGarment.client_phone && (
                 <div>
-                  <p className="text-sm text-gray-600 font-medium">Teléfono</p>
+                  <p className="text-sm text-gray-600 font-medium">Teléfono del cliente</p>
                   <p className="text-gray-800">{selectedGarment.client_phone}</p>
                 </div>
               )}

@@ -6,10 +6,11 @@ import { Loader2 } from 'lucide-react'
 interface ProtectedRouteProps {
   children: React.ReactNode
   requiredRole?: UserRole | UserRole[]
+  requiredModule?: 'prendas' | 'mangueras'
 }
 
-const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
-  const { user, role, loading } = useAuth()
+const ProtectedRoute = ({ children, requiredRole, requiredModule }: ProtectedRouteProps) => {
+  const { user, role, accessModule, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -40,6 +41,16 @@ const ProtectedRoute = ({ children, requiredRole }: ProtectedRouteProps) => {
           </div>
         </div>
       )
+    }
+  }
+
+  // Redirigir si el módulo asignado al usuario no incluye esta ruta
+  if (requiredModule && role !== 'administrador') {
+    const allowed = accessModule !== 'mangueras' && accessModule !== 'prendas'
+      ? true
+      : accessModule === requiredModule
+    if (!allowed) {
+      return <Navigate to={requiredModule === 'prendas' ? '/mangueras' : '/'} replace />
     }
   }
 

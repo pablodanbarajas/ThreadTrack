@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, Edit2, Trash2, Loader2, AlertTriangle, Plus, Building2, X } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
-import type { UserRole } from '../contexts/AuthContext'
+import type { UserRole, AccessModule } from '../contexts/AuthContext'
 import { roleBadges, roleDescriptions } from '../lib/rbac'
 import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
@@ -19,6 +19,7 @@ const AdminUsers = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [assigningTeam, setAssigningTeam] = useState<string | null>(null)
+  const [assigningModule, setAssigningModule] = useState<string | null>(null)
 
   // Nuevo equipo
   const [showNewTeam, setShowNewTeam] = useState(false)
@@ -86,6 +87,19 @@ const AdminUsers = () => {
       setMessage({ type: 'error', text: 'Error asignando equipo' })
     } finally {
       setAssigningTeam(null)
+    }
+  }
+
+  const handleUpdateModule = async (userId: string, module: AccessModule) => {
+    try {
+      setAssigningModule(userId)
+      await userService.updateUserModule(userId, module)
+      setMessage({ type: 'success', text: 'Módulo actualizado' })
+      loadAll()
+    } catch {
+      setMessage({ type: 'error', text: 'Error actualizando módulo' })
+    } finally {
+      setAssigningModule(null)
     }
   }
 
@@ -296,6 +310,20 @@ const AdminUsers = () => {
                           ))}
                         </select>
                         {assigningTeam === user.id && <Loader2 className="w-4 h-4 animate-spin text-purple-500" />}
+
+                        {/* Selector de módulo (Prendas/Mangueras/Ambos) */}
+                        <select
+                          value={user.access_module}
+                          onChange={e => handleUpdateModule(user.id, e.target.value as AccessModule)}
+                          disabled={assigningModule === user.id}
+                          className="input-field text-sm py-1 pr-8"
+                          title="Módulo asignado"
+                        >
+                          <option value="ambos">Ambos módulos</option>
+                          <option value="prendas">Solo Prendas</option>
+                          <option value="mangueras">Solo Mangueras</option>
+                        </select>
+                        {assigningModule === user.id && <Loader2 className="w-4 h-4 animate-spin text-blue-500" />}
 
                         {/* Editar rol */}
                         {isEditing ? (

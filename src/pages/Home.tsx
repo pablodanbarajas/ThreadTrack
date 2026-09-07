@@ -1,54 +1,33 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Shirt, Package, PackageCheck, Droplets, Sparkles, Scissors, AlertTriangle, FileDown, Users } from 'lucide-react'
+import { Shirt, Package, PackageCheck, Droplets, Scissors, AlertTriangle, FileDown, Users } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
-import { garmentService } from '../services/garmentService'
-import { generateReportPDF } from '../services/reportService'
-import { STERILIZATION_LIFE_LIMIT, getSterilizationLifeStatus } from '../lib/lifeStatus'
+import { useGarmentCache } from '../contexts/GarmentCacheContext'
+import { generateReportExcel } from '../services/reportService'
+import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifeStatus } from '../lib/lifeStatus'
 
 const Home = () => {
   const { role, canDownloadReport } = useRole()
-  const [stats, setStats] = useState({ 
-    total: 0, 
-    disponible: 0, 
-    lavado: 0, 
-    esterilizacion: 0, 
-    inspeccion: 0, 
-    reparacion: 0, 
-    baja: 0 
-  })
-  const [garments, setGarments] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { garments, loading, loadGarments } = useGarmentCache()
   const [generatingReport, setGeneratingReport] = useState(false)
 
   useEffect(() => {
-    loadStats()
-  }, [])
+    loadGarments().catch((error) => console.error('Error cargando datos:', error))
+  }, [loadGarments])
 
-  const loadStats = async () => {
-    try {
-      const data = await garmentService.getStats()
-      setStats(data)
-      // Cargar todas las prendas con sus acciones para el reporte
-      const allGarments = await garmentService.getAll()
-      const garmentsWithActions = await Promise.all(
-        allGarments.map(async (g) => {
-          const actions = await garmentService.getActions(g.id)
-          return { ...g, actions }
-        })
-      )
-      setGarments(garmentsWithActions)
-    } catch (error) {
-      console.error('Error cargando datos:', error)
-    } finally {
-      setLoading(false)
-    }
+  const stats = {
+    total: garments.filter((g) => g.status !== 'baja').length,
+    disponible: garments.filter((g) => g.status === 'disponible').length,
+    lavado: garments.filter((g) => g.status === 'lavado').length,
+    inspeccion: garments.filter((g) => g.status === 'inspeccion').length,
+    reparacion: garments.filter((g) => g.status === 'reparacion').length,
+    baja: garments.filter((g) => g.status === 'baja').length,
   }
 
   const handleGenerateReport = async () => {
     try {
       setGeneratingReport(true)
-      await generateReportPDF(garments)
+      await generateReportExcel(garments)
     } catch (error) {
       console.error('Error generando reporte:', error)
       alert('Error al generar el reporte')
@@ -60,8 +39,8 @@ const Home = () => {
   const activeGarments = garments.filter((g) => g.status !== 'baja')
   const lifeStatusCounts = activeGarments.reduce(
     (acc, garment) => {
-      const sterilizationCount = (garment.actions || []).filter((a: any) => a.action_type === 'esterilizacion').length
-      const status = getSterilizationLifeStatus(sterilizationCount)
+      const cycleCount = getCycleCount(garment.actions || [])
+      const status = getCycleLifeStatus(cycleCount)
       acc[status] += 1
       return acc
     },
@@ -100,9 +79,9 @@ const Home = () => {
             </div>
             <div className="text-left">
               <h2 className="text-lg font-semibold text-gray-800">
-                {generatingReport ? 'Generando...' : 'Descargar Reporte'}
+                {generatingReport ? 'Generando...' : 'Descargar Excel'}
               </h2>
-              <p className="text-gray-600 text-sm">PDF con toda la información</p>
+              <p className="text-gray-600 text-sm">Excel con lista de prendas</p>
             </div>
           </button>
         )}
@@ -126,7 +105,7 @@ const Home = () => {
       {/* Stats Preview */}
       <div className="card mb-4">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumen de Inventario</h3>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="text-center p-2 bg-gray-50 rounded-lg">
             <Shirt className="w-5 h-5 text-blue-600 mx-auto mb-1" />
             <div className="text-xl font-bold text-blue-600">
@@ -146,14 +125,7 @@ const Home = () => {
             <div className="text-xl font-bold text-blue-600">
               {loading ? '...' : stats.lavado}
             </div>
-            <div className="text-gray-600 text-xs">Lavado</div>
-          </div>
-          <div className="text-center p-2 bg-purple-50 rounded-lg">
-            <Sparkles className="w-5 h-5 text-purple-600 mx-auto mb-1" />
-            <div className="text-xl font-bold text-purple-600">
-              {loading ? '...' : stats.esterilizacion}
-            </div>
-            <div className="text-gray-600 text-xs truncate">Esterilización</div>
+            <div className="text-gray-600 text-xs">Lavado y esterilización</div>
           </div>
           <div className="text-center p-2 bg-orange-50 rounded-lg">
             <Scissors className="w-5 h-5 text-orange-600 mx-auto mb-1" />
@@ -172,12 +144,12 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Semáforo de vida útil por esterilizaciones */}
+      {/* Semáforo de vida útil por ciclos */}
       <div className="card mb-4">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-800">Semáforo de Vida Útil</h3>
-            <p className="text-sm text-gray-500">Basado en esterilizaciones por prenda (límite: {STERILIZATION_LIFE_LIMIT})</p>
+            <p className="text-sm text-gray-500">Basado en ciclos de lavado y esterilización por prenda (límite: {WASH_STERILIZATION_CYCLE_LIMIT})</p>
           </div>
           <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
             {lifeTotal} prendas activas
@@ -199,7 +171,7 @@ const Home = () => {
             </div>
             <p className="text-2xl font-bold text-green-700">{loading ? '...' : lifeStatusCounts.verde}</p>
             <p className="text-xs text-green-700">{loading ? '...' : `${lifePct(lifeStatusCounts.verde)}%`} del total</p>
-            <p className="text-[11px] text-green-700/80 mt-1">0-24 esterilizaciones</p>
+            <p className="text-[11px] text-green-700/80 mt-1">0-24 ciclos</p>
           </div>
 
           <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
@@ -209,7 +181,7 @@ const Home = () => {
             </div>
             <p className="text-2xl font-bold text-yellow-700">{loading ? '...' : lifeStatusCounts.amarillo}</p>
             <p className="text-xs text-yellow-700">{loading ? '...' : `${lifePct(lifeStatusCounts.amarillo)}%`} del total</p>
-            <p className="text-[11px] text-yellow-700/80 mt-1">25-49 esterilizaciones</p>
+            <p className="text-[11px] text-yellow-700/80 mt-1">25-49 ciclos</p>
           </div>
 
           <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
@@ -219,7 +191,7 @@ const Home = () => {
             </div>
             <p className="text-2xl font-bold text-orange-700">{loading ? '...' : lifeStatusCounts.naranja}</p>
             <p className="text-xs text-orange-700">{loading ? '...' : `${lifePct(lifeStatusCounts.naranja)}%`} del total</p>
-            <p className="text-[11px] text-orange-700/80 mt-1">50-74 esterilizaciones</p>
+            <p className="text-[11px] text-orange-700/80 mt-1">50-74 ciclos</p>
           </div>
 
           <div className="rounded-lg border border-red-200 bg-red-50 p-3">
@@ -229,7 +201,7 @@ const Home = () => {
             </div>
             <p className="text-2xl font-bold text-red-700">{loading ? '...' : lifeStatusCounts.rojo}</p>
             <p className="text-xs text-red-700">{loading ? '...' : `${lifePct(lifeStatusCounts.rojo)}%`} del total</p>
-            <p className="text-[11px] text-red-700/80 mt-1">75+ esterilizaciones</p>
+            <p className="text-[11px] text-red-700/80 mt-1">75+ ciclos</p>
           </div>
         </div>
       </div>
