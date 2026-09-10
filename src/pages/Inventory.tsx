@@ -11,7 +11,7 @@ import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
-import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
+import { parseGarmentCode, GARMENT_TYPES, COLORS, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
 import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
 import type { CycleLifeStatus } from '../lib/lifeStatus'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
@@ -128,10 +128,10 @@ const Inventory = () => {
   const { garments, loading, loadGarments: loadCachedGarments, refreshGarments } = useGarmentCache()
   const storedFilters = useRef(getStoredInventoryFilters()).current
   const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm)
-  const [filterStatus, setFilterStatus] = useState<string>(storedFilters.filterStatus)
-  const [filterDateFrom, setFilterDateFrom] = useState(storedFilters.filterDateFrom)
-  const [filterDateTo, setFilterDateTo] = useState(storedFilters.filterDateTo)
-  const [showDateFilters, setShowDateFilters] = useState(storedFilters.showDateFilters)
+  const [filterStatus] = useState<string>(storedFilters.filterStatus)
+  const [filterDateFrom] = useState(storedFilters.filterDateFrom)
+  const [filterDateTo] = useState(storedFilters.filterDateTo)
+  const [showDateFilters] = useState(storedFilters.showDateFilters)
   const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
@@ -151,11 +151,11 @@ const Inventory = () => {
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
   // Filtros para códigos de prenda
-  const [filterGarmentType, setFilterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
-  const [filterColor, setFilterColor] = useState<Color | ''>(storedFilters.filterColor)
-  const [filterSize, setFilterSize] = useState<Size | ''>(storedFilters.filterSize)
-  const [filterBatch, setFilterBatch] = useState(storedFilters.filterBatch)
-  const [showCodeFilters, setShowCodeFilters] = useState(storedFilters.showCodeFilters)
+  const [filterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
+  const [filterColor] = useState<Color | ''>(storedFilters.filterColor)
+  const [filterSize] = useState<Size | ''>(storedFilters.filterSize)
+  const [filterBatch] = useState(storedFilters.filterBatch)
+  const [showCodeFilters] = useState(storedFilters.showCodeFilters)
   // Ingreso masivo de prendas
   const [showBulkModal, setShowBulkModal] = useState(false)
   const [bulkInput, setBulkInput] = useState('')
@@ -175,7 +175,7 @@ const Inventory = () => {
   const [loadingAssign, setLoadingAssign] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
   const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
-  const [filterTeamId, setFilterTeamId] = useState<string>(storedFilters.filterTeamId)
+  const [filterTeamId] = useState<string>(storedFilters.filterTeamId)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [filterLifeStatuses, setFilterLifeStatuses] = useState<CycleLifeStatus[]>(storedFilters.filterLifeStatuses)
   const [showLifeStatusFilter, setShowLifeStatusFilter] = useState(false)

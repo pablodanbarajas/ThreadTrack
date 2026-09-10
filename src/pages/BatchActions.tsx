@@ -82,7 +82,6 @@ const BatchActions = () => {
   const [items, setItems] = useState<ScannedItem[]>(storedBatchState.items)
   const [inputValue, setInputValue] = useState('')
   const [showScanner, setShowScanner] = useState(false)
-  const [loadingCode, setLoadingCode] = useState(false)
   const [lastAdded, setLastAdded] = useState<string | null>(null)
 
   const [selectedAction, setSelectedAction] = useState<ActionType>(storedBatchState.selectedAction)
@@ -137,7 +136,6 @@ const BatchActions = () => {
     scanLockRef.current = true
     setTimeout(() => { scanLockRef.current = false }, 600)
 
-    setLoadingCode(true)
     try {
       // Try to extract garment ID from QR URL
       const id = extractGarmentIdFromUrl(trimmed)
@@ -178,8 +176,6 @@ const BatchActions = () => {
       })
     } catch (err: any) {
       showToast(err.message || 'Error al buscar la prenda', 'error')
-    } finally {
-      setLoadingCode(false)
     }
   }, [showToast])
 
