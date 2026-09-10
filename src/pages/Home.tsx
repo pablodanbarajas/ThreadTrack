@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { Shirt, Package, PackageCheck, Droplets, Scissors, AlertTriangle, FileDown, Users } from 'lucide-react'
+import { Shirt, Package, PackageCheck, Scissors, AlertTriangle, FileDown, Users } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { generateReportExcel } from '../services/reportService'
@@ -51,7 +51,7 @@ const Home = () => {
   const lifePct = (count: number) => (lifeTotal > 0 ? Math.round((count / lifeTotal) * 100) : 0)
 
   return (
-    <div className="max-w-6xl mx-auto pt-2">
+    <div className="w-full pt-2">
 
       {/* Quick Actions */}
       <div className="flex flex-col md:flex-row gap-3 justify-center mb-4">
@@ -105,7 +105,7 @@ const Home = () => {
       {/* Stats Preview */}
       <div className="card mb-4">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumen de Inventario</h3>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="text-center p-2 bg-gray-50 rounded-lg">
             <Shirt className="w-5 h-5 text-blue-600 mx-auto mb-1" />
             <div className="text-xl font-bold text-blue-600">
@@ -119,13 +119,6 @@ const Home = () => {
               {loading ? '...' : stats.disponible}
             </div>
             <div className="text-gray-600 text-xs">Disponible</div>
-          </div>
-          <div className="text-center p-2 bg-blue-50 rounded-lg">
-            <Droplets className="w-5 h-5 text-blue-600 mx-auto mb-1" />
-            <div className="text-xl font-bold text-blue-600">
-              {loading ? '...' : stats.lavado}
-            </div>
-            <div className="text-gray-600 text-xs">Lavado y esterilización</div>
           </div>
           <div className="text-center p-2 bg-orange-50 rounded-lg">
             <Scissors className="w-5 h-5 text-orange-600 mx-auto mb-1" />

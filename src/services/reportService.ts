@@ -50,12 +50,17 @@ const formatBatchMonth = (month: number, year: number) => `${monthNames[month - 
 
 export async function generateReportExcel(garments: any[]) {
   try {
-    const rows: ReportRow[] = garments.map((garment) => {
-      const actions = garment.actions || []
+    const prendaRows: ReportRow[] = []
+    const historialRows: ReportRow[] = []
+    const reparacionRows: ReportRow[] = []
+    const bajaRows: ReportRow[] = []
+
+    for (const garment of garments) {
+      const actions: any[] = garment.actions || []
       const parsed = parseGarmentCode(garment.code || '')
       const lastAction = actions[0]
 
-      return {
+      prendaRows.push({
         'Codigo corto': garment.short_code || '',
         'Codigo': garment.code || '',
         'Nombre': garment.name || '',
@@ -74,63 +79,84 @@ export async function generateReportExcel(garments: any[]) {
         'Estado': formatStatus(garment.status),
         'Ciclos lavado y esterilizacion': getCycleCount(actions),
         'Inspecciones': getActionCount(actions, 'inspeccion'),
-        'Inspecciones aprobadas': getInspectionResultCount(actions, 'aprobado'),
         'Reparaciones': getActionCount(actions, 'reparacion') + getInspectionResultCount(actions, 'reparacion'),
         'Bajas registradas': getActionCount(actions, 'baja') + getInspectionResultCount(actions, 'baja'),
         'Total acciones': actions.length,
         'Ultima accion': formatActionType(lastAction?.action_type),
-        'Resultado ultima accion': lastAction?.result || '',
-        'Responsable ultima accion': lastAction?.performed_by || '',
         'Fecha ultima accion': formatDate(lastAction?.created_at),
         'Notas': garment.notes || '',
-        'Motivo baja': garment.baja_reason || '',
-        'Fecha baja': formatDate(garment.baja_date),
         'Creado': formatDate(garment.created_at),
         'Actualizado': formatDate(garment.updated_at),
+      })
+
+      for (const action of actions) {
+        historialRows.push({
+          'Codigo corto': garment.short_code || '',
+          'Codigo': garment.code || '',
+          'Nombre': garment.name || '',
+          'Tipo accion': formatActionType(action.action_type),
+          'Resultado': action.result || '',
+          'Responsable': action.performed_by || '',
+          'Fecha': formatDate(action.created_at),
+          'Notas': action.notes || '',
+        })
+
+        if (action.action_type === 'reparacion' || (action.action_type === 'inspeccion' && action.result === 'reparacion')) {
+          reparacionRows.push({
+            'Codigo corto': garment.short_code || '',
+            'Codigo': garment.code || '',
+            'Nombre': garment.name || '',
+            'Origen': formatActionType(action.action_type),
+            'Responsable': action.performed_by || '',
+            'Fecha': formatDate(action.created_at),
+            'Notas': action.notes || '',
+          })
+        }
       }
-    })
 
-    const worksheet = XLSX.utils.json_to_sheet(rows)
-    worksheet['!cols'] = [
-      { wch: 14 },
-      { wch: 22 },
-      { wch: 28 },
-      { wch: 28 },
-      { wch: 18 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 10 },
-      { wch: 20 },
-      { wch: 16 },
-      { wch: 24 },
-      { wch: 28 },
-      { wch: 14 },
-      { wch: 22 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 14 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 24 },
-      { wch: 20 },
-      { wch: 30 },
-      { wch: 30 },
-      { wch: 20 },
-      { wch: 20 },
-      { wch: 20 },
-    ]
-
-    if (worksheet['!ref']) {
-      worksheet['!autofilter'] = { ref: worksheet['!ref'] }
+      if (garment.status === 'baja') {
+        bajaRows.push({
+          'Codigo corto': garment.short_code || '',
+          'Codigo': garment.code || '',
+          'Nombre': garment.name || '',
+          'Ciclos al momento de baja': getCycleCount(actions),
+          'Motivo baja': garment.baja_reason || '',
+          'Fecha baja': formatDate(garment.baja_date),
+        })
+      }
     }
 
     const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Prendas')
+
+    const prendaSheet = XLSX.utils.json_to_sheet(prendaRows)
+    prendaSheet['!cols'] = [
+      { wch: 14 }, { wch: 22 }, { wch: 28 }, { wch: 28 }, { wch: 18 }, { wch: 12 },
+      { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 12 },
+      { wch: 10 }, { wch: 20 }, { wch: 16 }, { wch: 24 }, { wch: 28 }, { wch: 14 },
+      { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 30 },
+      { wch: 20 }, { wch: 20 },
+    ]
+    if (prendaSheet['!ref']) prendaSheet['!autofilter'] = { ref: prendaSheet['!ref'] }
+
+    const historialSheet = XLSX.utils.json_to_sheet(historialRows)
+    historialSheet['!cols'] = [
+      { wch: 14 }, { wch: 22 }, { wch: 28 }, { wch: 18 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 32 },
+    ]
+
+    const reparacionSheet = XLSX.utils.json_to_sheet(reparacionRows)
+    reparacionSheet['!cols'] = [
+      { wch: 14 }, { wch: 22 }, { wch: 28 }, { wch: 14 }, { wch: 22 }, { wch: 22 }, { wch: 32 },
+    ]
+
+    const bajaSheet = XLSX.utils.json_to_sheet(bajaRows)
+    bajaSheet['!cols'] = [
+      { wch: 14 }, { wch: 22 }, { wch: 28 }, { wch: 18 }, { wch: 30 }, { wch: 22 },
+    ]
+
+    XLSX.utils.book_append_sheet(workbook, prendaSheet, 'Prendas')
+    XLSX.utils.book_append_sheet(workbook, historialSheet, 'Historial de acciones')
+    XLSX.utils.book_append_sheet(workbook, reparacionSheet, 'Reparaciones')
+    XLSX.utils.book_append_sheet(workbook, bajaSheet, 'Bajas')
 
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
     const blob = new Blob([excelBuffer], {

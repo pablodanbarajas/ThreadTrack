@@ -122,7 +122,10 @@ export const garmentService = {
 
     // Determinar nuevo estado
     let newStatus = normalizedActionType as string
-    if (normalizedActionType === 'inspeccion' && options?.result) {
+    if (normalizedActionType === 'lavado') {
+      // El ciclo de lavado y esterilización se completa automáticamente: vuelve a disponible
+      newStatus = 'disponible'
+    } else if (normalizedActionType === 'inspeccion' && options?.result) {
       if (options.result === 'aprobado') {
         newStatus = 'disponible'
       } else {

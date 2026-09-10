@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   ScanBarcode, Camera, Droplets, ClipboardCheck, Scissors,
-  Trash2, X, CheckCircle2, AlertCircle, Loader2, Play, RotateCcw,
-  PackageCheck,
+  PackageX, PackageCheck, X, CheckCircle2, AlertCircle, Loader2, Play, RotateCcw,
 } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
@@ -72,10 +71,10 @@ const getStoredBatchState = (): PersistedBatchState => {
 }
 
 const ACTION_CONFIG: Record<ActionType, { label: string; color: string; icon: any; bg: string; border: string }> = {
-  lavado:        { label: 'Enviar a Lavado y Esterilización', color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-300',   icon: Droplets },
-  inspeccion:    { label: 'Enviar a Inspección',     color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-300', icon: ClipboardCheck },
-  reparacion:    { label: 'Enviar a Reparación',     color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-300', icon: Scissors },
-  baja:          { label: 'Dar de Baja',             color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-300',    icon: Trash2 },
+  lavado:        { label: 'Lavado y Esterilización', color: 'text-blue-700',   bg: 'bg-blue-50',   border: 'border-blue-300',   icon: Droplets },
+  inspeccion:    { label: 'Inspección',     color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-300', icon: ClipboardCheck },
+  reparacion:    { label: 'Reparación',     color: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-300', icon: Scissors },
+  baja:          { label: 'Dar de Baja',             color: 'text-red-700',    bg: 'bg-red-50',    border: 'border-red-300',    icon: PackageX },
 }
 
 const BatchActions = () => {
@@ -96,6 +95,15 @@ const BatchActions = () => {
 
   const [cameraScanCount, setCameraScanCount] = useState(storedBatchState.cameraScanCount)
   const { invalidateGarments } = useGarmentCache()
+
+  const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null)
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showToast = useCallback((message: string, type: 'error' | 'warning' | 'success' = 'warning') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setToast({ message, type })
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 2500)
+  }, [])
 
   const inputRef = useRef<HTMLInputElement>(null)
   const scanLockRef = useRef(false)  // prevents duplicate rapid-fire scans
@@ -142,24 +150,14 @@ const BatchActions = () => {
       }
 
       if (!garment) {
-        setItems(prev => [{
-          uid: `${Date.now()}-${trimmed}`,
-          garmentId: '',
-          code: trimmed,
-          shortCode: undefined,
-          name: 'No encontrada',
-          status: 'disponible',
-          applyStatus: 'error',
-          errorMsg: 'Prenda no encontrada',
-        }, ...prev])
+        showToast(`Prenda no encontrada: ${trimmed}`, 'error')
         return
       }
 
       // Check duplicate inside functional updater to avoid stale closure
       setItems(prev => {
         if (prev.some(i => i.garmentId === garment.id)) {
-          setLastAdded(`dup-${garment.id}`)
-          setTimeout(() => setLastAdded(null), 1200)
+          showToast('Esta prenda ya está en la lista', 'warning')
           return prev
         }
         setCameraScanCount(c => c + 1)
@@ -175,23 +173,15 @@ const BatchActions = () => {
         }
         setLastAdded(garment.id)
         setTimeout(() => setLastAdded(null), 800)
+        showToast(`${garment.name} agregado a la lista`, 'success')
         return [newItem, ...prev]
       })
     } catch (err: any) {
-      setItems(prev => [{
-        uid: `${Date.now()}-err`,
-        garmentId: '',
-        code: trimmed,
-        shortCode: undefined,
-        name: 'Error',
-        status: 'disponible',
-        applyStatus: 'error',
-        errorMsg: err.message || 'Error al buscar',
-      }, ...prev])
+      showToast(err.message || 'Error al buscar la prenda', 'error')
     } finally {
       setLoadingCode(false)
     }
-  }, [])
+  }, [showToast])
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -294,15 +284,31 @@ const BatchActions = () => {
               <button
                 onClick={() => setShowScanner(true)}
                 disabled={applying}
-                className="px-3 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg transition-colors"
+                className="sm:hidden px-3 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg transition-colors"
                 title="Usar cámara"
               >
                 <Camera className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1 h-4">
-              {loadingCode && <><Loader2 className="w-3 h-3 animate-spin" /> Buscando...</>}
-            </p>
+            {/* Fixed-height slot so the warning fading in/out never shifts the layout */}
+            <div className="mt-2 h-8 overflow-hidden">
+              {toast && (
+                <div
+                  className={`h-8 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-opacity duration-300 ${
+                    toast.type === 'error'
+                      ? 'bg-red-50 border-red-200 text-red-600'
+                      : toast.type === 'success'
+                      ? 'bg-green-50 border-green-200 text-green-700'
+                      : 'bg-yellow-50 border-yellow-200 text-yellow-700'
+                  }`}
+                >
+                  {toast.type === 'success'
+                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <span className="truncate">{toast.message}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Scanned list */}
@@ -392,7 +398,9 @@ const BatchActions = () => {
           <div className="card">
             <p className="text-sm font-semibold text-gray-700 mb-3">Acción a aplicar</p>
             <div className="grid grid-cols-1 gap-2">
-              {(Object.entries(ACTION_CONFIG) as [ActionType, typeof cfg][]).map(([key, c]) => {
+              {(Object.entries(ACTION_CONFIG) as [ActionType, typeof cfg][])
+                .filter(([key]) => key === 'lavado' || key === 'inspeccion')
+                .map(([key, c]) => {
                 const Icon = c.icon
                 const active = selectedAction === key
                 return (
@@ -423,7 +431,7 @@ const BatchActions = () => {
                 {([
                   { value: 'aprobado',  label: 'Aprobado — vuelve a Disponible', icon: PackageCheck, color: 'text-green-600' },
                   { value: 'reparacion',label: 'Requiere Reparación',             icon: Scissors,     color: 'text-orange-600' },
-                  { value: 'baja',      label: 'Dar de Baja',                     icon: Trash2,       color: 'text-red-600' },
+                  { value: 'baja',      label: 'Dar de Baja',                     icon: PackageX,       color: 'text-red-600' },
                 ] as { value: InspectionResult; label: string; icon: any; color: string }[]).map(opt => {
                   const OptIcon = opt.icon
                   return (

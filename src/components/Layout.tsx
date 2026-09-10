@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, AlertTriangle, LogOut, Plus, ScanBarcode, Users, UserCircle, Waves } from 'lucide-react'
+import { Home, Package, Menu, X, PackageX, LogOut, Plus, Layers, Users, UserCircle, Waves } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
@@ -15,8 +15,8 @@ const Layout = () => {
     ...(canViewPrendas ? [
       { path: '/', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
       { path: '/inventory', label: 'Inventario', shortLabel: 'Inventario', icon: Package },
-      { path: '/bajas', label: 'Bajas', shortLabel: 'Bajas', icon: AlertTriangle },
-      { path: '/lote', label: 'Acciones en Lote', shortLabel: 'En Lote', icon: ScanBarcode },
+      { path: '/bajas', label: 'Bajas', shortLabel: 'Bajas', icon: PackageX },
+      { path: '/lote', label: 'Acciones en Lote', shortLabel: 'En Lote', icon: Layers },
       { path: '/crear-prenda', label: 'Crear Prenda', shortLabel: 'Crear', icon: Plus },
     ] : []),
     ...(canViewMangueras ? [{ path: '/mangueras', label: 'Mangueras', shortLabel: 'Mangueras', icon: Waves }] : []),

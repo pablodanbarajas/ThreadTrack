@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, History, X, Calendar, ScanBarcode, Download, Copy, ChevronDown, Filter, Upload, Check, AlertCircle, FileArchive, Users, Pencil, AlertTriangle } from 'lucide-react'
+import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, AlertTriangle, Search, ChevronDown } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -13,6 +13,7 @@ import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
 import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
+import type { CycleLifeStatus } from '../lib/lifeStatus'
 import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
 
 const compactHex = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, '')
@@ -90,6 +91,7 @@ interface InventoryFilters {
   filterBatch: string
   showCodeFilters: boolean
   filterTeamId: string
+  filterLifeStatuses: CycleLifeStatus[]
 }
 
 const defaultInventoryFilters: InventoryFilters = {
@@ -104,6 +106,7 @@ const defaultInventoryFilters: InventoryFilters = {
   filterBatch: '',
   showCodeFilters: false,
   filterTeamId: 'all',
+  filterLifeStatuses: [],
 }
 
 const getStoredInventoryFilters = (): InventoryFilters => {
@@ -174,6 +177,8 @@ const Inventory = () => {
   const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
   const [filterTeamId, setFilterTeamId] = useState<string>(storedFilters.filterTeamId)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
+  const [filterLifeStatuses, setFilterLifeStatuses] = useState<CycleLifeStatus[]>(storedFilters.filterLifeStatuses)
+  const [showLifeStatusFilter, setShowLifeStatusFilter] = useState(false)
   // Paginación
   const ITEMS_PER_PAGE = 12
   const [currentPage, setCurrentPage] = useState(1)
@@ -224,44 +229,40 @@ const Inventory = () => {
     lavado: { label: 'En Lavado y Esterilización', color: 'bg-blue-100 text-blue-800', icon: Droplets },
     inspeccion: { label: 'En Inspección', color: 'bg-yellow-100 text-yellow-800', icon: ClipboardCheck },
     reparacion: { label: 'En Reparación', color: 'bg-orange-100 text-orange-800', icon: Scissors },
-    baja: { label: 'Baja', color: 'bg-red-100 text-red-800', icon: Trash2 },
+    baja: { label: 'Baja', color: 'bg-red-100 text-red-800', icon: PackageX },
   }
 
   const actionLabels: Record<ActionType | LegacyActionType, { label: string; icon: any }> = {
-    lavado: { label: 'Enviar a Lavado y Esterilización', icon: Droplets },
+    lavado: { label: 'Lavado y Esterilización', icon: Droplets },
     esterilizacion: { label: 'Lavado y Esterilización', icon: Droplets },
-    inspeccion: { label: 'Enviar a Inspección', icon: ClipboardCheck },
-    reparacion: { label: 'Enviar a Reparación', icon: Scissors },
-    baja: { label: 'Dar de Baja', icon: Trash2 },
+    inspeccion: { label: 'Inspección', icon: ClipboardCheck },
+    reparacion: { label: 'Reparación', icon: Scissors },
+    baja: { label: 'Dar de Baja', icon: PackageX },
   }
 
   const lifeStatusStyles: Record<
     ReturnType<typeof getCycleLifeStatus>,
-    { label: string; dot: string; text: string; badge: string }
+    { label: string; dot: string; text: string }
   > = {
     verde: {
       label: 'Verde',
       dot: 'bg-green-500',
       text: 'text-green-700',
-      badge: 'bg-green-50 border-green-200',
     },
     amarillo: {
       label: 'Amarillo',
       dot: 'bg-yellow-400',
       text: 'text-yellow-700',
-      badge: 'bg-yellow-50 border-yellow-200',
     },
     naranja: {
       label: 'Naranja',
       dot: 'bg-orange-500',
       text: 'text-orange-700',
-      badge: 'bg-orange-50 border-orange-200',
     },
     rojo: {
       label: 'Rojo',
       dot: 'bg-red-500',
       text: 'text-red-700',
-      badge: 'bg-red-50 border-red-200',
     },
   }
 
@@ -294,9 +295,10 @@ const Inventory = () => {
       filterBatch,
       showCodeFilters,
       filterTeamId,
+      filterLifeStatuses,
     }
     sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters))
-  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, showDateFilters, filterGarmentType, filterColor, filterSize, filterBatch, showCodeFilters, filterTeamId])
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, showDateFilters, filterGarmentType, filterColor, filterSize, filterBatch, showCodeFilters, filterTeamId, filterLifeStatuses])
 
   useEffect(() => {
     if (isAdministrador) {
@@ -368,7 +370,11 @@ const Inventory = () => {
     
     const matchesTeam = !isAdministrador || filterTeamId === 'all' || garment.team_id === filterTeamId
 
-    return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters && matchesTeam
+    const matchesLifeStatus =
+      filterLifeStatuses.length === 0 ||
+      filterLifeStatuses.includes(getCycleLifeStatus(getCycleCount(garment.actions || [])))
+
+    return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters && matchesTeam && matchesLifeStatus
   }).sort((a, b) => {
     if (!resolvedSearch) return 0
 
@@ -392,7 +398,7 @@ const Inventory = () => {
   )
 
   // Resetear página al cambiar filtros
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId])
+  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -773,7 +779,7 @@ const Inventory = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 md:pb-0">
+    <div className="w-full pb-20 md:pb-0">
       {/* Modal de Confirmación de Eliminación */}
       {showDeleteModal && garmentToDelete && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -875,258 +881,121 @@ const Inventory = () => {
         />
       )}
 
-      <div className="flex items-center gap-3 mb-4">
-        <Package className="w-6 h-6 text-blue-600" />
-        <h1 className="text-xl font-bold text-gray-800">Inventario</h1>
+      <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Package className="w-6 h-6 text-blue-600" />
+          <h1 className="text-xl font-bold text-gray-800">Inventario</h1>
+        </div>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:items-center">
+          {isAdministrador && (
+            <button
+              onClick={async () => {
+                setShowBulkModal(true)
+                setBulkInput('')
+                setBulkClientName('')
+                setBulkGarments([])
+                setBulkAssignUserIds([])
+                if (allUsersForAssign.length === 0) {
+                  try {
+                    const users = await userService.getAllUsers()
+                    setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
+                  } catch {}
+                }
+              }}
+              className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none"
+            >
+              <Upload className="w-4 h-4" />
+              Ingreso Masivo
+            </button>
+          )}
+
+          <div className="relative flex-1 sm:flex-none">
+            <button
+              onClick={() => setShowLifeStatusFilter((prev) => !prev)}
+              className={`w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm whitespace-nowrap ${
+                filterLifeStatuses.length > 0
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+              }`}
+            >
+              Vida útil{filterLifeStatuses.length > 0 ? ` (${filterLifeStatuses.length})` : ''}
+              <ChevronDown className={`w-4 h-4 transition-transform ${showLifeStatusFilter ? 'rotate-180' : ''}`} />
+            </button>
+            {showLifeStatusFilter && (
+              <div className="absolute left-0 z-20 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-2">
+                {(Object.entries(lifeStatusStyles) as [CycleLifeStatus, typeof lifeStatusStyles['verde']][]).map(([key, style]) => (
+                  <label key={key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filterLifeStatuses.includes(key)}
+                      onChange={(e) => {
+                        setFilterLifeStatuses((prev) =>
+                          e.target.checked ? [...prev, key] : prev.filter((s) => s !== key)
+                        )
+                      }}
+                    />
+                    <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
+                    <span className="text-sm text-gray-700">{style.label}</span>
+                  </label>
+                ))}
+                {filterLifeStatuses.length > 0 && (
+                  <button
+                    onClick={() => setFilterLifeStatuses([])}
+                    className="mt-1 w-full text-center text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1"
+                  >
+                    Limpiar selección
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={downloadFilteredReport}
+            disabled={downloadingReport || filteredGarments.length === 0}
+            className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {downloadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Exportar
+          </button>
+
+          {isAdministrador && (
+            <button
+              onClick={downloadFilteredQRs}
+              disabled={downloadingQRs || filteredGarments.length === 0}
+              className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {downloadingQRs ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileArchive className="w-4 h-4" />}
+              Descargar QR
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Fila 1: búsqueda + filtros de equipo y fecha */}
-      <div className="flex flex-col sm:flex-row gap-2 mb-3">
-        {/* Buscador */}
-        <div className="flex gap-2 flex-1">
+      {/* Búsqueda */}
+      <div className="card mb-6">
+        <form onSubmit={(e) => e.preventDefault()} className="flex gap-2">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar código, nombre..."
-            className="input-field flex-1 py-2"
+            className="input-field flex-1"
           />
           <button
             type="button"
             onClick={openScannerForSearch}
-            className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors flex-shrink-0"
+            className="sm:hidden px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors flex-shrink-0"
             title="Escanear QR/código para buscar"
           >
             <ScanBarcode className="w-5 h-5" />
           </button>
-        </div>
-
-        {/* Filtros secundarios alineados a la derecha */}
-        <div className="flex gap-2 flex-shrink-0">
-          {isAdministrador && teams.length > 0 && (
-            <select
-              value={filterTeamId}
-              onChange={e => setFilterTeamId(e.target.value)}
-              className="input-field text-sm py-2 w-auto"
-            >
-              <option value="all">Todos los equipos</option>
-              {teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => setShowDateFilters(!showDateFilters)}
-            className={`px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm whitespace-nowrap ${
-              showDateFilters || filterDateFrom || filterDateTo
-                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Calendar className="w-4 h-4" />
-            Fechas
-            <ChevronDown className={`w-4 h-4 transition-transform ${showDateFilters ? 'rotate-180' : ''}`} />
+          <button type="submit" className="btn-primary flex items-center gap-2">
+            <Search className="w-4 h-4" />
+            Buscar
           </button>
-        </div>
+        </form>
       </div>
-
-      {/* Fila 2 (colapsable): filtros de fecha */}
-      {showDateFilters && (
-        <div className="flex flex-wrap gap-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-600 whitespace-nowrap">Desde</label>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => setFilterDateFrom(e.target.value)}
-              className="input-field text-xs py-1 px-2"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-gray-600 whitespace-nowrap">Hasta</label>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => setFilterDateTo(e.target.value)}
-              className="input-field text-xs py-1 px-2"
-            />
-          </div>
-          {(filterDateFrom || filterDateTo) && (
-            <button
-              onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); }}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
-              Limpiar fechas
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Fila 3: filtros de estado */}
-      <div className="flex gap-2 mb-3 overflow-x-auto pb-1">
-        {[
-          { key: 'all',           label: 'Total',          short: 'Total',    count: garments.length,                                          active: 'bg-blue-600 text-white' },
-          { key: 'disponible',    label: 'Disponible',     short: 'Disp.',    count: garments.filter(g => g.status === 'disponible').length,    active: 'bg-green-600 text-white' },
-          { key: 'lavado',        label: 'Lavado y esterilización', short: 'Lav/Ester', count: garments.filter(g => g.status === 'lavado').length, active: 'bg-blue-600 text-white' },
-          { key: 'inspeccion',    label: 'Inspección',     short: 'Insp.',    count: garments.filter(g => g.status === 'inspeccion').length,    active: 'bg-yellow-600 text-white' },
-          { key: 'reparacion',    label: 'Reparación',     short: 'Repar.',   count: garments.filter(g => g.status === 'reparacion').length,    active: 'bg-orange-600 text-white' },
-          { key: 'baja',          label: 'Bajas',          short: 'Bajas',    count: garments.filter(g => g.status === 'baja').length,          active: 'bg-red-600 text-white' },
-        ].map(({ key, label, short, count, active }) => (
-          <button
-            key={key}
-            onClick={() => setFilterStatus(key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex-shrink-0 ${filterStatus === key ? active : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          >
-            <span className="hidden md:inline">{label}</span>
-            <span className="md:hidden">{short}</span>
-            {' '}({count})
-          </button>
-        ))}
-      </div>
-
-      {/* Fila 4: filtro de código + botones de acción */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button
-          onClick={() => setShowCodeFilters(!showCodeFilters)}
-          className={`px-3 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-            showCodeFilters || filterGarmentType || filterColor || filterSize || filterBatch
-              ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Filter className="w-4 h-4" />
-          Filtrar código
-          <ChevronDown className={`w-4 h-4 transition-transform ${showCodeFilters ? 'rotate-180' : ''}`} />
-        </button>
-        {(filterGarmentType || filterColor || filterSize || filterBatch) && (
-          <button
-            onClick={() => { setFilterGarmentType(''); setFilterColor(''); setFilterSize(''); setFilterBatch('') }}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-2 py-2"
-          >
-            Limpiar filtros
-          </button>
-        )}
-
-        <div className="flex-1" />
-
-        {isAdministrador && (
-          <button
-            onClick={async () => {
-              setShowBulkModal(true)
-              setBulkInput('')
-              setBulkClientName('')
-              setBulkGarments([])
-              setBulkAssignUserIds([])
-              if (allUsersForAssign.length === 0) {
-                try {
-                  const users = await userService.getAllUsers()
-                  setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
-                } catch {}
-              }
-            }}
-            className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm bg-green-100 text-green-700 hover:bg-green-200"
-          >
-            <Upload className="w-4 h-4" />
-            Ingreso Masivo
-          </button>
-        )}
-
-        <button
-          onClick={downloadFilteredReport}
-          disabled={downloadingReport || filteredGarments.length === 0}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-            downloadingReport || filteredGarments.length === 0
-              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-              : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-          }`}
-        >
-          {downloadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-          {downloadingReport ? 'Generando...' : `Reporte Excel (${filteredGarments.length})`}
-        </button>
-
-        {isAdministrador && (
-          <button
-            onClick={downloadFilteredQRs}
-            disabled={downloadingQRs || filteredGarments.length === 0}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 text-sm ${
-              downloadingQRs || filteredGarments.length === 0
-                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}
-          >
-            {downloadingQRs && <Loader2 className="w-4 h-4 animate-spin" />}
-            {!downloadingQRs && <FileArchive className="w-4 h-4" />}
-            {downloadingQRs ? 'Generando...' : `Descargar QR (${filteredGarments.length})`}
-          </button>
-        )}
-      </div>
-
-      {showCodeFilters && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
-          {/* Filtro por tipo de prenda */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-2">Prenda</label>
-            <select
-              value={filterGarmentType}
-              onChange={(e) => setFilterGarmentType(e.target.value as GarmentType | '')}
-              className="input-field text-sm"
-            >
-              <option value="">Todas</option>
-              {Object.entries(GARMENT_TYPES).map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtro por talla */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-2">Talla</label>
-            <select
-              value={filterSize}
-              onChange={(e) => setFilterSize(e.target.value as Size | '')}
-              className="input-field text-sm"
-            >
-              <option value="">Todas</option>
-              {Object.entries(SIZES).map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtro por color */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-2">Color</label>
-            <select
-              value={filterColor}
-              onChange={(e) => setFilterColor(e.target.value as Color | '')}
-              className="input-field text-sm"
-            >
-              <option value="">Todos</option>
-              {Object.entries(COLORS).map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtro por lote */}
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-2">Lote</label>
-            <input
-              type="text"
-              value={filterBatch}
-              onChange={(e) => setFilterBatch(e.target.value.toUpperCase())}
-              placeholder="Ej: 202512A"
-              className="input-field text-sm"
-            />
-          </div>
-        </div>
-      )}
 
       {/* Modal de Ingreso Masivo */}
       {showBulkModal && (
@@ -1415,7 +1284,7 @@ const Inventory = () => {
                   <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-500'}`} />
                   <div>
                     <p className={`text-sm font-bold ${alreadyExpired ? 'text-red-700' : 'text-orange-700'}`}>
-                      {alreadyExpired ? '⚠ Esta prenda ya superó su vida útil' : '⚠ Esta acción alcanzará el límite de vida útil'}
+                      {alreadyExpired ? 'Esta prenda ya superó su vida útil' : 'Esta acción alcanzará el límite de vida útil'}
                     </p>
                     <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
                       {alreadyExpired
@@ -1462,7 +1331,7 @@ const Inventory = () => {
                       checked={inspectionResult === 'baja'}
                       onChange={() => setInspectionResult('baja')}
                     />
-                    <Trash2 className="w-5 h-5 text-red-600" />
+                    <PackageX className="w-5 h-5 text-red-600" />
                     <span>Dar de Baja</span>
                   </label>
                 </div>
@@ -1602,7 +1471,7 @@ const Inventory = () => {
                   <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
                     <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-red-700">⚠ Fin de vida útil alcanzado</p>
+                      <p className="text-xs font-bold text-red-700">Fin de vida útil alcanzado</p>
                       <p className="text-xs text-red-600">
                         {cycleCount} ciclos de lavado y esterilización
                       </p>
@@ -1634,7 +1503,7 @@ const Inventory = () => {
                     className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Ver historial"
                   >
-                    <History className="w-4 h-4" />
+                    <FileClock className="w-4 h-4" />
                   </button>
                   {canEditGarment && (
                     <button
@@ -1710,14 +1579,14 @@ const Inventory = () => {
                 </div>
 
                 {/* Semáforo de vida útil por ciclos */}
-                <div className={`mb-3 flex items-center justify-between gap-2 rounded-lg border px-2 py-1.5 ${cycleLifeStyle.badge}`}>
+                <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5">
                   <div className="inline-flex items-center gap-1.5 min-w-0">
                     <span className={`h-2.5 w-2.5 rounded-full ${cycleLifeStyle.dot}`} />
-                    <p className={`text-xs font-semibold ${cycleLifeStyle.text}`}>
-                      Vida útil: {cycleLifeStyle.label}
+                    <p className="text-xs font-semibold text-gray-600">
+                      Vida útil: <span className={cycleLifeStyle.text}>{cycleLifeStyle.label}</span>
                     </p>
                   </div>
-                  <p className={`text-xs font-semibold whitespace-nowrap ${cycleLifeStyle.text}`}>
+                  <p className="text-xs font-semibold whitespace-nowrap text-gray-500">
                     {cycleCount}/{WASH_STERILIZATION_CYCLE_LIMIT} ({cycleLifePercent}%)
                   </p>
                 </div>
@@ -1730,7 +1599,7 @@ const Inventory = () => {
                         <Droplets className={`w-3 h-3 ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`} />
                       </div>
                       <p className={`text-sm font-bold ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-600' : 'text-blue-600'}`}>{cycleCount}</p>
-                      <p className={`text-xs ${cycleCount >= LIFE_LIMIT ? 'text-red-700' : cycleCount >= LIFE_WARN ? 'text-orange-700' : 'text-blue-700'}`}>Lav/Ester</p>
+                      <p className={`text-xs ${cycleCount >= LIFE_LIMIT ? 'text-red-700' : cycleCount >= LIFE_WARN ? 'text-orange-700' : 'text-blue-700'}`}>Lavados y Esterilizaciones</p>
                     </div>
                     <div className="p-2 bg-orange-50 rounded text-center">
                       <div className="flex justify-center mb-0.5">

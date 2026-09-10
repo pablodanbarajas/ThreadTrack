@@ -135,7 +135,7 @@ const AdminUsers = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto pb-20 md:pb-0">
+    <div className="w-full pb-20 md:pb-0">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6 md:mb-8">
         <Users className="w-8 h-8 text-blue-600" />

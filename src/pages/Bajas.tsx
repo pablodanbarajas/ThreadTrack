@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Loader2, AlertTriangle, Calendar, FileText } from 'lucide-react'
+import { Trash2, Loader2, PackageX, Calendar, FileText, Search } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { Garment } from '../types'
@@ -42,32 +42,27 @@ const Bajas = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto pb-20 md:pb-0">
+    <div className="w-full pb-20 md:pb-0">
       <div className="flex items-center gap-3 mb-6">
-        <AlertTriangle className="w-8 h-8 text-red-600" />
+        <PackageX className="w-8 h-8 text-red-600" />
         <h1 className="text-2xl font-bold text-gray-800">Prendas Dadas de Baja</h1>
-      </div>
-
-      {/* Contador */}
-      <div className="card mb-6 bg-red-50 border border-red-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm text-red-600 font-medium">Total de Bajas</div>
-            <div className="text-3xl font-bold text-red-700">{garments.length}</div>
-          </div>
-          <Trash2 className="w-12 h-12 text-red-300" />
-        </div>
       </div>
 
       {/* Búsqueda */}
       <div className="card mb-6">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por código, nombre o motivo..."
-          className="input-field"
-        />
+        <form onSubmit={(e) => e.preventDefault()} className="flex gap-2">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por código, nombre o motivo..."
+            className="input-field flex-1"
+          />
+          <button type="submit" className="btn-primary flex items-center gap-2">
+            <Search className="w-4 h-4" />
+            Buscar
+          </button>
+        </form>
       </div>
 
       {/* Lista de Bajas */}
@@ -78,7 +73,7 @@ const Bajas = () => {
         </div>
       ) : filteredGarments.length === 0 ? (
         <div className="card text-center py-12">
-          <AlertTriangle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <PackageX className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">
             {garments.length === 0
               ? 'No hay prendas dadas de baja'

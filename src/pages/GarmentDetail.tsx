@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageCheck, Trash2, X, Pencil, AlertTriangle } from 'lucide-react'
+import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, AlertTriangle } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
@@ -297,7 +297,7 @@ const GarmentDetail = () => {
                   <div className="flex items-start gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
                     <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-bold text-red-700">⚠ Fin de vida útil alcanzado</p>
+                      <p className="text-xs font-bold text-red-700">Fin de vida útil alcanzado</p>
                       <p className="text-xs text-red-600">
                         {cycleCount} ciclos de lavado y esterilización. Se recomienda dar de baja.
                       </p>
@@ -339,7 +339,7 @@ const GarmentDetail = () => {
                   >
                     <Droplets className={`w-6 h-6 ${garment.status === 'lavado' ? 'text-gray-400' : 'text-blue-600'}`} />
                     <span className={`text-xs font-medium text-center ${garment.status === 'lavado' ? 'text-gray-400' : 'text-blue-700'}`}>
-                      {garment.status === 'lavado' ? 'Ya en Lavado y Esterilización' : 'Enviar a Lavado y Esterilización'}
+                      {garment.status === 'lavado' ? 'Ya en Lavado y Esterilización' : 'Lavado y Esterilización'}
                     </span>
                   </button>
                   <button
@@ -348,7 +348,7 @@ const GarmentDetail = () => {
                   >
                     <ClipboardCheck className="w-6 h-6 text-yellow-600" />
                     <span className="text-xs font-medium text-yellow-700 text-center">
-                      {garment.status === 'inspeccion' ? 'Registrar Resultado' : 'Enviar a Inspección'}
+                      {garment.status === 'inspeccion' ? 'Registrar Resultado' : 'Inspección'}
                     </span>
                   </button>
                 </div>
@@ -577,7 +577,7 @@ const GarmentDetail = () => {
           <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">
-                {actionType === 'lavado' && 'Enviar a Lavado y Esterilización'}
+                {actionType === 'lavado' && 'Lavado y Esterilización'}
                 {actionType === 'inspeccion' && 'Resultado de Inspección'}
               </h2>
               <button onClick={() => setShowActionModal(false)} className="p-1 hover:bg-gray-100 rounded">
@@ -602,7 +602,7 @@ const GarmentDetail = () => {
                   <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-500'}`} />
                   <div>
                     <p className={`text-sm font-bold ${alreadyExpired ? 'text-red-700' : 'text-orange-700'}`}>
-                      {alreadyExpired ? '⚠ Esta prenda ya superó su vida útil' : '⚠ Esta acción alcanzará el límite de vida útil'}
+                      {alreadyExpired ? 'Esta prenda ya superó su vida útil' : 'Esta acción alcanzará el límite de vida útil'}
                     </p>
                     <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
                       {alreadyExpired
@@ -631,7 +631,7 @@ const GarmentDetail = () => {
                   </label>
                   <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                     <input type="radio" name="result" value="baja" checked={inspectionResult === 'baja'} onChange={() => setInspectionResult('baja')} />
-                    <Trash2 className="w-5 h-5 text-red-600" />
+                    <PackageX className="w-5 h-5 text-red-600" />
                     <span>Dar de Baja</span>
                   </label>
                 </div>
