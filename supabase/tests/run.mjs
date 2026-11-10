@@ -122,8 +122,25 @@ let au = await one(`SELECT * FROM audit_log WHERE table_name='garments' AND oper
 const okAudit = au && au.old_data.name === 'Bata A' && au.new_data.name === 'Bata A (corregida)' && au.user_email === 'jefe@a.test' && au.changed_fields.includes('name')
 console.log(okAudit ? '  ✔ audit_log guarda usuario, valor anterior/nuevo, campos y motivo' : '  ✘ audit_log incompleto', au?.changed_fields)
 okAudit ? pass++ : fail++
-await expectOk('jefe da de baja con motivo', () =>
-  as('jefeA', `SELECT * FROM register_garment_action(${G}, 'baja', 'Pedro', NULL, 'Tela rota')`))
+await expectErr('baja SIN firma electrónica rechazada', () =>
+  as('jefeA', `SELECT * FROM register_garment_action(${G}, 'baja', 'Pedro', NULL, 'Tela rota')`), /firma/)
+await expectErr('resultado de inspección SIN firma rechazado', () =>
+  as('jefeA', `SELECT * FROM register_garment_action(${G}, 'inspeccion', 'Pedro', 'aprobado')`), /firma/)
+let badSig = (await as('jefeA', `SELECT request_signature('incorrecta') r`)).rows[0].r
+console.log(!badSig.ok ? '  ✔ firma con contraseña incorrecta rechazada' : '  ✘ firma incorrecta aceptada'); !badSig.ok ? pass++ : fail++
+let failLogged = await one(`SELECT count(*)::int n FROM login_attempts WHERE email = 'jefe@a.test' AND source = 'firma' AND NOT success`)
+console.log(failLogged.n === 1 ? '  ✔ intento de firma fallido queda registrado' : '  ✘ intento no registrado: ' + failLogged.n); failLogged.n === 1 ? pass++ : fail++
+let sigJefe = (await as('jefeA', `SELECT request_signature('Secreta123!') r`)).rows[0].r
+console.log(sigJefe.ok && sigJefe.token ? '  ✔ firma con contraseña correcta emite token' : '  ✘ token no emitido'); sigJefe.ok ? pass++ : fail++
+await expectErr('token de firma de otro usuario no sirve', () =>
+  as('admin', `SELECT * FROM register_garment_action(${G}, 'inspeccion', 'X', 'aprobado', NULL, '${sigJefe.token}')`), /firma/)
+await expectOk('jefe da de baja con motivo y firma', () =>
+  as('jefeA', `SELECT * FROM register_garment_action(${G}, 'baja', 'Pedro', NULL, 'Tela rota', '${sigJefe.token}')`))
+let sig = await one(`SELECT s.meaning, s.user_email, s.user_role, a.signature_id IS NOT NULL linked
+  FROM electronic_signatures s JOIN garment_actions a ON a.signature_id = s.id WHERE a.action_type = 'baja'`)
+const okSig = sig && sig.linked && sig.user_email === 'jefe@a.test' && /baja/.test(sig.meaning) && sig.user_role === 'jefe'
+console.log(okSig ? `  ✔ firma ligada a la acción (quién, rol, significado: "${sig.meaning}")` : '  ✘ firma no ligada'); okSig ? pass++ : fail++
+await expectErr('firmas electrónicas inmutables', () => db.query(`DELETE FROM electronic_signatures`), /inmutables/)
 let g = await one(`SELECT status, baja_reason FROM garments WHERE id = ${G}`)
 console.log(g.status === 'baja' && g.baja_reason === 'Tela rota' ? '  ✔ estado y motivo de baja aplicados' : '  ✘ baja no aplicada'); g.status === 'baja' ? pass++ : fail++
 let mv = await one(`SELECT count(*)::int n FROM movements WHERE garment_id = ${G}`)
@@ -161,7 +178,10 @@ await expectErr('jefe de otro equipo no reemplaza', () =>
   as('jefeB', `SELECT replace_hose(${P}, 'desgaste', 'X')`), /Sin acceso/)
 await expectErr('operador no reemplaza', () =>
   as('opA', `SELECT replace_hose(${P}, 'desgaste', 'X')`), /Sin permisos/)
-await expectOk('jefe reemplaza manguera', () => as('jefeA', `SELECT replace_hose(${P}, 'Fin de vida útil', 'Ana')`))
+await expectErr('reemplazo SIN firma rechazado', () =>
+  as('jefeA', `SELECT replace_hose(${P}, 'Fin de vida útil', 'Ana')`), /firma/)
+await expectOk('jefe reemplaza manguera con firma', () =>
+  as('jefeA', `SELECT replace_hose(${P}, 'Fin de vida útil', 'Ana', '${sigJefe.token}')`))
 let nh = await one(`SELECT short_code, current_cycle FROM hoses WHERE position_id = ${P} AND status = 'activa'`)
 console.log(nh?.current_cycle === 0 ? `  ✔ nueva manguera ${nh.short_code} en ciclo 0` : '  ✘ reemplazo'); nh?.current_cycle === 0 ? pass++ : fail++
 await expectErr('editar equipo sin motivo', () =>
@@ -194,6 +214,76 @@ await expectErr('operador no lista correos de usuarios', () =>
 await expectRows('jefe lista usuarios', () => as('jefeA', `SELECT * FROM get_all_users()`), 4)
 let roleAudit = await one(`SELECT reason FROM audit_log WHERE table_name='user_profiles' AND operation='UPDATE'`)
 console.log(roleAudit?.reason?.startsWith('Cambio de rol') ? '  ✔ cambio de rol queda en audit_log' : '  ✘ cambio de rol sin auditar'); roleAudit ? pass++ : fail++
+
+console.log('\n— Estado en una fecha determinada')
+{
+  const r = await as('jefeA', `SELECT * FROM get_inventory_status_at(now() - interval '1 second', ${G})`).catch(() => null)
+  // La prenda G ya está archivada ahora; un segundo antes también (se archivó antes), así que
+  // probamos contra el inicio de los tiempos de prueba: creada y sin acciones => no aparece aún
+  const past = await as('jefeA', `SELECT * FROM get_inventory_status_at('2000-01-01', NULL)`)
+  console.log(past.rows.length === 0 ? '  ✔ antes de crearse, ninguna prenda aparece' : '  ✘ ' + past.rows.length); past.rows.length === 0 ? pass++ : fail++
+  console.log(r ? '  ✔ consulta por fecha ejecuta' : '  ✘ consulta por fecha falló'); r ? pass++ : fail++
+}
+await db.exec(`INSERT INTO garments (id, code, name, team_id, created_at) VALUES
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'G-A-2', 'Bata 2', '00000000-0000-0000-0000-0000000000a1', '2026-01-01')`)
+await db.exec(`ALTER TABLE garment_actions DISABLE TRIGGER stamp_recorder_garment_actions`)
+await db.exec(`INSERT INTO garment_actions (garment_id, action_type, performed_by, created_at) VALUES
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'lavado', 'A', '2026-02-01'),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'lavado', 'A', '2026-03-01'),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'reparacion', 'B', '2026-04-01'),
+  ('aaaaaaaa-0000-0000-0000-000000000002', 'lavado', 'A', '2026-05-01')`)
+await db.exec(`ALTER TABLE garment_actions ENABLE TRIGGER stamp_recorder_garment_actions`)
+{
+  const at = async (d) => (await as('jefeA', `SELECT status_at, cycles_at::int FROM get_inventory_status_at('${d}', 'aaaaaaaa-0000-0000-0000-000000000002')`)).rows[0]
+  const a = await at('2026-03-15'), b = await at('2026-04-15'), c = await at('2026-06-01')
+  const ok = a.status_at === 'disponible' && a.cycles_at === 2 && b.status_at === 'reparacion' && b.cycles_at === 2 && c.status_at === 'disponible' && c.cycles_at === 3
+  console.log(ok ? '  ✔ reconstruye estado y ciclos en marzo, abril y junio' : '  ✘ ' + JSON.stringify({ a, b, c })); ok ? pass++ : fail++
+}
+await as('admin', `SELECT update_user_role('${USERS.opA[0]}', 'operador')`)  // la sección Usuarios lo había hecho supervisor
+await expectErr('operador no consulta reportes históricos', () =>
+  as('opA', `SELECT * FROM get_inventory_status_at(now())`), /Sin permisos/)
+
+console.log('\n— Desactivar usuarios')
+await expectErr('jefe NO puede desactivar usuarios', () =>
+  as('jefeA', `SELECT set_user_active('${USERS.opA[0]}', false, 'x')`), /Solo el administrador/)
+await expectErr('desactivar exige motivo', () =>
+  as('admin', `SELECT set_user_active('${USERS.opA[0]}', false, '')`), /MOTIVO/)
+await expectErr('admin no se desactiva a sí mismo', () =>
+  as('admin', `SELECT set_user_active('${USERS.admin[0]}', false, 'x')`), /propia/)
+await expectOk('admin desactiva al operador', () =>
+  as('admin', `SELECT set_user_active('${USERS.opA[0]}', false, 'Baja de la empresa')`))
+let banned = await one(`SELECT banned_until FROM auth.users WHERE id = '${USERS.opA[0]}'`)
+console.log(banned.banned_until ? '  ✔ login bloqueado en Supabase Auth (banned_until)' : '  ✘ no se bloqueó el login'); banned.banned_until ? pass++ : fail++
+await expectRows('usuario desactivado con sesión abierta NO ve prendas', () => as('opA', `SELECT * FROM garments`), 0)
+await expectErr('usuario desactivado NO registra acciones', () =>
+  as('opA', `SELECT * FROM register_garment_action('aaaaaaaa-0000-0000-0000-000000000002', 'lavado', 'X')`))
+await expectOk('admin reactiva al operador', () =>
+  as('admin', `SELECT set_user_active('${USERS.opA[0]}', true, 'Reingreso')`))
+await expectRows('operador reactivado vuelve a ver prendas', () => as('opA', `SELECT * FROM garments WHERE id = 'aaaaaaaa-0000-0000-0000-000000000002'`), 1)
+
+console.log('\n— Bloqueo por intentos fallidos')
+for (let i = 1; i <= 4; i++) await asAnon(`SELECT record_failed_login('operador@a.test')`)
+let st = (await asAnon(`SELECT check_login_allowed('OPERADOR@a.test') r`)).rows[0].r
+console.log(st.allowed ? '  ✔ 4 fallos: todavía permitido' : '  ✘ bloqueó antes de tiempo'); st.allowed ? pass++ : fail++
+st = (await asAnon(`SELECT record_failed_login('operador@a.test') r`)).rows[0].r
+console.log(!st.allowed && st.locked_until ? '  ✔ 5º fallo: cuenta bloqueada' : '  ✘ no bloqueó'); !st.allowed ? pass++ : fail++
+await expectRows('cuenta bloqueada con sesión abierta NO ve prendas', () => as('opA', `SELECT * FROM garments`), 0)
+let succ = (await as('opA', `SELECT record_successful_login() r`)).rows[0].r
+console.log(!succ.allowed ? '  ✔ login exitoso durante bloqueo sigue rechazado' : '  ✘ login permitido'); !succ.allowed ? pass++ : fail++
+await expectErr('anon no lee la bitácora de intentos', () => asAnon(`SELECT * FROM login_attempts`), /permission denied/)
+await expectRows('jefe no lee la bitácora de intentos', () => as('jefeA', `SELECT * FROM login_attempts`), 0)
+await expectOk('admin sí lee la bitácora de intentos', async () => {
+  const r = await as('admin', `SELECT * FROM login_attempts`); if (r.rows.length < 5) throw new Error('filas: ' + r.rows.length)
+})
+await expectRows('jefe de otro equipo no ve firmas ajenas', () => as('jefeB', `SELECT * FROM electronic_signatures`), 0)
+await expectErr('jefe no desbloquea cuentas', () => as('jefeA', `SELECT unlock_account('operador@a.test', 'x')`), /Solo el administrador/)
+await expectOk('admin desbloquea con motivo', () => as('admin', `SELECT unlock_account('operador@a.test', 'Verificado por teléfono')`))
+await expectRows('operador desbloqueado vuelve a ver prendas', () => as('opA', `SELECT * FROM garments WHERE id = 'aaaaaaaa-0000-0000-0000-000000000002'`), 1)
+await expectErr('bitácora de intentos inmutable', () => db.query(`DELETE FROM login_attempts`), /inmutables/)
+let lockAudit = await one(`SELECT count(*)::int n FROM audit_log WHERE table_name = 'account_locks'`)
+console.log(lockAudit.n >= 2 ? '  ✔ bloqueo y desbloqueo quedan en audit_log' : '  ✘ audit ' + lockAudit.n); lockAudit.n >= 2 ? pass++ : fail++
+let users = (await as('admin', `SELECT email, is_active, locked_until FROM get_all_users()`)).rows
+console.log(users.length === 4 && 'is_active' in users[0] ? '  ✔ get_all_users incluye estado y bloqueo' : '  ✘ get_all_users'); users.length === 4 ? pass++ : fail++
 
 console.log(`\nResultado: ${pass} OK, ${fail} fallas`)
 process.exit(fail ? 1 : 0)

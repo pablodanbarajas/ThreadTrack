@@ -6,6 +6,9 @@ import { saveAs } from 'file-saver'
 import { useRole } from '../contexts/AuthContext'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { garmentService } from '../services/garmentService'
+import SignatureField from '../components/SignatureField'
+import { garmentSignatureMeaning } from '../lib/signature'
+import { signatureService } from '../services/accessService'
 import { generateReportExcel } from '../services/reportService'
 import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
@@ -145,6 +148,9 @@ const Inventory = () => {
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
   const [actionResponsible, setActionResponsible] = useState('')
+  const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [signaturePassword, setSignaturePassword] = useState('')
   const [newGarment, setNewGarment] = useState({ code: '', name: '', client_name: '' })
   const [newGarmentTeamId, setNewGarmentTeamId] = useState<string>('')
   const [showQRModal, setShowQRModal] = useState(false)
@@ -509,22 +515,34 @@ const Inventory = () => {
     setActionNotes('')
     setActionResponsible('')
     setInspectionResult('aprobado')
+    setActionError(null)
+    setSignaturePassword('')
     setShowActionModal(true)
   }
 
+  const signatureMeaning = garmentSignatureMeaning(actionType, actionType === 'inspeccion' ? inspectionResult : undefined)
+
   const handleAction = async () => {
     if (!selectedGarment) return
+    setActionLoading(true)
+    setActionError(null)
     try {
+      const signatureToken = signatureMeaning ? await signatureService.sign(signaturePassword) : undefined
       await garmentService.registerAction(selectedGarment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
         responsible: actionResponsible,
+        signatureToken,
       })
       setShowActionModal(false)
       setSelectedGarment(null)
+      setSignaturePassword('')
       loadGarments(true)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error registrando acción:', error)
+      setActionError(error.message || 'Error al registrar la acción')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -1380,16 +1398,26 @@ const Inventory = () => {
               />
             </div>
 
+            {signatureMeaning && (
+              <div className="mb-4">
+                <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
+              </div>
+            )}
+
+            {actionError && (
+              <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{actionError}</div>
+            )}
+
             <div className="flex gap-3">
               <button onClick={() => setShowActionModal(false)} className="btn-secondary flex-1">
                 Cancelar
               </button>
-              <button 
-                onClick={handleAction} 
+              <button
+                onClick={handleAction}
                 className="btn-primary flex-1"
-                disabled={!actionResponsible.trim() || (inspectionResult === 'baja' && !actionNotes)}
+                disabled={actionLoading || !actionResponsible.trim() || (inspectionResult === 'baja' && !actionNotes) || (!!signatureMeaning && !signaturePassword)}
               >
-                Confirmar
+                {actionLoading ? 'Guardando...' : signatureMeaning ? 'Firmar y confirmar' : 'Confirmar'}
               </button>
             </div>
           </div>
@@ -1441,6 +1469,9 @@ const Inventory = () => {
                       )}
                       {action.recorded_by_email && (
                         <p className="text-xs text-gray-500 mt-1">Capturó: {action.recorded_by_email}</p>
+                      )}
+                      {action.signature_id && (
+                        <p className="text-xs text-indigo-600 font-medium mt-1">Firmado electrónicamente</p>
                       )}
                       <p className="text-xs text-gray-400 mt-2">{formatDate(action.created_at)}</p>
                     </div>

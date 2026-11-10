@@ -15,6 +15,33 @@ evaluación (secciones 2 a 5) y como base para la especificación funcional.
 | **Consistente** | Mismas reglas para todos los clientes: las validaciones de rol y equipo viven en la base, no solo en la interfaz. |
 | **Perdurable / Disponible** | Pendiente: política de respaldos, PITR y pruebas de restauración (Fase 5 del plan). |
 
+## Gestión de usuarios y acceso
+
+| Control | Implementación |
+|---|---|
+| Cuentas individuales | Una cuenta por persona (Supabase Auth); cada registro guarda quién lo capturó. |
+| Desactivar usuarios | El administrador desactiva/reactiva con motivo obligatorio. Se bloquea el inicio de sesión (`banned_until`) y, aunque la sesión siga abierta, la base niega todo acceso (`get_my_role()` devuelve nulo). Los usuarios no se eliminan para conservar la atribución del historial. |
+| Bloqueo por intentos fallidos | 5 intentos fallidos en 15 minutos bloquean la cuenta 30 minutos. Cuentan los fallos de inicio de sesión y de firma electrónica. Una cuenta bloqueada no accede a datos aunque tenga sesión. Solo el administrador desbloquea antes, con motivo. |
+| Bitácora de accesos | `login_attempts` (inmutable): cada intento con usuario, fecha y resultado. Exportable desde Reportes. |
+| Contraseñas | Almacenadas como hash; rechazo de contraseñas filtradas (HaveIBeenPwned); requisitos de complejidad configurados en Supabase Auth. |
+
+## Firma electrónica (21 CFR Part 11 §11.50, §11.70, §11.200)
+
+Requerida para: **dar de baja** una prenda o manguera, **certificar el resultado de una inspección** y **reemplazar** una manguera.
+
+1. El usuario vuelve a capturar su contraseña; el servidor la verifica (`request_signature`). Un fallo queda registrado y cuenta para el bloqueo.
+2. Se emite un token válido 5 minutos para ese mismo usuario (serie de firmas en una sesión controlada, §11.200(a)(1)(i); permite firmar un lote completo).
+3. La acción crea un registro en `electronic_signatures` (inmutable) con **firmante, rol, fecha y hora, significado** ("Autorizo la baja definitiva de la prenda", "Certifico el resultado de inspección: aprobado", etc.) y el registro firmado; la acción guarda `signature_id`, así la firma queda ligada al registro (§11.70).
+
+## Reportes históricos (menú *Reportes*)
+
+- **Estado del inventario en una fecha**: estado y ciclos acumulados de cada prenda al cierre del día elegido, reconstruidos del historial inmutable.
+- **Historial de acciones** de prendas y de mangueras por rango de fechas, con responsable, usuario que capturó y firma.
+- **Audit trail** del sistema por rango (administrador) y por prenda (supervisor, jefe, administrador; también visible en el detalle de la prenda).
+- **Bitácora de accesos y firmas** (administrador).
+
+Cada Excel incluye una hoja *Parámetros* con quién lo generó, cuándo y con qué filtros.
+
 ## Audit trail (`public.audit_log`)
 
 Se llena automáticamente por triggers en: `garments`, `garment_actions`,
@@ -46,7 +73,7 @@ administrador ve todos.
 
 ## Verificación
 
-Los controles se probaron con 59 casos automatizados (`npm run test:db`, ver `supabase/tests/`) (Postgres 16 en PGlite,
+Los controles se probaron con 98 casos automatizados (`npm run test:db`, ver `supabase/tests/`) (Postgres 16 en PGlite,
 simulando `auth.uid()`/JWT de Supabase): rechazo de escrituras directas,
 acceso sin sesión (anon key), aislamiento de documentos, inmutabilidad incluso para superusuario, atribución por sesión, motivo
 obligatorio, límites de ciclo, aislamiento entre equipos y escalamiento de
@@ -59,6 +86,10 @@ como parte del protocolo OQ.
   deshabilitar los triggers. Se mitiga con control de acceso al dashboard,
   MFA y revisión de migraciones; documentarlo en el análisis de riesgo.
 - `performed_by` sigue siendo texto libre (responsable físico). La atribución
-  formal es `recorded_by`. Firma electrónica: Fase 4.
+  formal es `recorded_by` y, en acciones críticas, la firma electrónica.
+- El bloqueo por intentos se registra desde la pantalla de inicio de sesión de
+  la app. Un ataque directo contra la API de autenticación no pasa por ese
+  contador, pero queda limitado por el *rate limiting* de Supabase Auth, y una
+  cuenta bloqueada no puede acceder a datos aunque obtenga sesión.
 - Desde `UNIFY_WASH_STERILIZATION_SETUP.sql`, los lavados y esterilizaciones
   anteriores son indistinguibles; declararlo en el reporte de evaluación.

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Edit2, Trash2, Loader2, AlertTriangle, Plus, Building2, X } from 'lucide-react'
+import { Users, Edit2, Trash2, Loader2, AlertTriangle, Plus, Building2, X, UserX, UserCheck, Unlock, Lock } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
 import type { UserRole, AccessModule } from '../contexts/AuthContext'
 import { roleBadges, roleDescriptions } from '../lib/rbac'
 import { userService } from '../services/userService'
+import { accessService } from '../services/accessService'
 import type { UserProfile } from '../services/userService'
 import type { Team } from '../types'
 
@@ -63,17 +64,51 @@ const AdminUsers = () => {
     }
   }
 
-  const handleDeleteUser = async (userId: string) => {
-    if (!window.confirm('¿Estás seguro? Esta acción no se puede deshacer.')) return
+  // Los usuarios no se eliminan (su historial debe seguir siendo atribuible):
+  // se desactivan. Un usuario desactivado no puede iniciar sesión ni acceder a datos.
+  const handleToggleActive = async (user: UserProfile) => {
+    const activating = !user.is_active
+    const reason = window.prompt(
+      activating
+        ? `Reactivar a ${user.email}.
+
+Motivo:`
+        : `Desactivar a ${user.email}. No podrá iniciar sesión y su sesión actual dejará de tener acceso.
+
+Motivo:`
+    )
+    if (reason === null) return
+    if (!reason.trim()) {
+      setMessage({ type: 'error', text: 'El motivo es obligatorio' })
+      return
+    }
     try {
-      setDeleting(userId)
-      await userService.deleteUser(userId)
-      setMessage({ type: 'success', text: 'Usuario eliminado' })
+      setDeleting(user.id)
+      await userService.setUserActive(user.id, activating, reason.trim())
+      setMessage({ type: 'success', text: activating ? 'Usuario reactivado' : 'Usuario desactivado' })
       loadAll()
-    } catch {
-      setMessage({ type: 'error', text: 'Error eliminando usuario' })
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error actualizando el usuario' })
     } finally {
       setDeleting(null)
+    }
+  }
+
+  const handleUnlock = async (user: UserProfile) => {
+    const reason = window.prompt(`Desbloquear a ${user.email} (bloqueado por intentos fallidos).
+
+Motivo:`)
+    if (reason === null) return
+    if (!reason.trim()) {
+      setMessage({ type: 'error', text: 'El motivo es obligatorio' })
+      return
+    }
+    try {
+      await accessService.unlockAccount(user.email, reason.trim())
+      setMessage({ type: 'success', text: 'Cuenta desbloqueada' })
+      loadAll()
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error desbloqueando la cuenta' })
     }
   }
 
@@ -273,7 +308,7 @@ const AdminUsers = () => {
                   return (
                     <div
                       key={user.id}
-                      className="card p-4 flex flex-col md:flex-row md:items-center gap-4"
+                      className={`card p-4 flex flex-col md:flex-row md:items-center gap-4 ${user.is_active ? '' : 'opacity-60'}`}
                     >
                       {/* Info usuario */}
                       <div className="flex-1 min-w-0">
@@ -291,6 +326,20 @@ const AdminUsers = () => {
                           ) : (
                             <span className="text-xs text-gray-400">Sin equipo</span>
                           )}
+                          {!user.is_active && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700" title={user.deactivation_reason ?? ''}>
+                              Desactivado
+                            </span>
+                          )}
+                          {user.locked_until && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 flex items-center gap-1">
+                              <Lock className="w-3 h-3" />
+                              Bloqueado hasta {new Date(user.locked_until).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Último acceso: {user.last_login_at ? new Date(user.last_login_at).toLocaleString('es-MX') : 'nunca'}
                         </div>
                       </div>
 
@@ -360,15 +409,24 @@ const AdminUsers = () => {
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
+                            {user.locked_until && (
+                              <button
+                                onClick={() => handleUnlock(user)}
+                                className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg"
+                                title="Desbloquear cuenta"
+                              >
+                                <Unlock className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
-                              onClick={() => handleDeleteUser(user.id)}
+                              onClick={() => handleToggleActive(user)}
                               disabled={deleting === user.id}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                              title="Eliminar usuario"
+                              className={`p-2 rounded-lg disabled:opacity-50 ${user.is_active ? 'text-red-600 hover:bg-red-50' : 'text-green-600 hover:bg-green-50'}`}
+                              title={user.is_active ? 'Desactivar usuario' : 'Reactivar usuario'}
                             >
                               {deleting === user.id
                                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                                : <Trash2 className="w-4 h-4" />}
+                                : user.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                             </button>
                           </div>
                         )}

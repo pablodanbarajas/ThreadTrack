@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, PackageX, LogOut, Plus, Layers, Users, UserCircle, Waves } from 'lucide-react'
+import { Home, Package, Menu, X, PackageX, LogOut, Plus, Layers, Users, UserCircle, Waves, History } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
@@ -9,7 +9,7 @@ const Layout = () => {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const { user, signOut, role } = useAuth()
-  const { canViewPrendas, canViewMangueras } = useRole()
+  const { canViewPrendas, canViewMangueras, canViewReports } = useRole()
 
   const navItems = [
     ...(canViewPrendas ? [
@@ -20,6 +20,7 @@ const Layout = () => {
       { path: '/crear-prenda', label: 'Crear Prenda', shortLabel: 'Crear', icon: Plus },
     ] : []),
     ...(canViewMangueras ? [{ path: '/mangueras', label: 'Mangueras', shortLabel: 'Mangueras', icon: Waves }] : []),
+    ...(canViewReports ? [{ path: '/reportes', label: 'Reportes', shortLabel: 'Reportes', icon: History }] : []),
     ...(role === 'administrador' ? [{ path: '/admin/usuarios', label: 'Gestionar Usuarios', shortLabel: 'Usuarios', icon: Users }] : []),
   ]
 
