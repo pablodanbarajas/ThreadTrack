@@ -117,6 +117,7 @@ export const garmentService = {
       notes?: string
       responsible?: string
       performedBy?: string
+      signatureToken?: string // requerido para bajas y resultados de inspección
     }
   ): Promise<GarmentAction> {
     const responsible = options?.responsible?.trim() || options?.performedBy?.trim()
@@ -130,6 +131,7 @@ export const garmentService = {
       p_responsible: responsible,
       p_result: options?.result ?? null,
       p_notes: options?.notes ?? null,
+      p_signature_token: options?.signatureToken ?? null,
     })
 
     if (error) throw error

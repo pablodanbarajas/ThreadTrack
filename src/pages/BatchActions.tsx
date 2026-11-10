@@ -5,6 +5,9 @@ import {
 } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
+import SignatureField from '../components/SignatureField'
+import { garmentSignatureMeaning } from '../lib/signature'
+import { signatureService } from '../services/accessService'
 import { extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { ActionType, InspectionResult, GarmentStatus } from '../types'
@@ -90,6 +93,7 @@ const BatchActions = () => {
   const [responsible, setResponsible] = useState(storedBatchState.responsible)
 
   const [applying, setApplying] = useState(false)
+  const [signaturePassword, setSignaturePassword] = useState('') // nunca se guarda en sessionStorage
   const [done, setDone] = useState(storedBatchState.done)
 
   const [cameraScanCount, setCameraScanCount] = useState(storedBatchState.cameraScanCount)
@@ -209,10 +213,25 @@ const BatchActions = () => {
 
   const pendingCount = items.filter(i => i.applyStatus === 'pending').length
 
+  const signatureMeaning = garmentSignatureMeaning(selectedAction, selectedAction === 'inspeccion' ? inspectionResult : undefined)
+
   const applyToAll = async () => {
     if (pendingCount === 0 || !responsible.trim()) return
     setApplying(true)
     setDone(false)
+
+    // Una sola firma para todo el lote (token válido 5 min, mismo usuario)
+    let signatureToken: string | undefined
+    if (signatureMeaning) {
+      try {
+        signatureToken = await signatureService.sign(signaturePassword)
+        setSignaturePassword('')
+      } catch (err: any) {
+        setToast({ message: err.message || 'Firma electrónica rechazada', type: 'error' })
+        setApplying(false)
+        return
+      }
+    }
 
     const toProcess = items.filter(i => i.applyStatus === 'pending')
 
@@ -222,6 +241,7 @@ const BatchActions = () => {
           result: selectedAction === 'inspeccion' ? inspectionResult : undefined,
           notes: notes || undefined,
           responsible,
+          signatureToken,
         })
         setItems(prev =>
           prev.map(i => i.uid === item.uid ? { ...i, applyStatus: 'success' } : i)
@@ -482,10 +502,18 @@ const BatchActions = () => {
             />
           </div>
 
+          {signatureMeaning && (
+            <SignatureField
+              meaning={`${signatureMeaning} (${pendingCount} prenda${pendingCount === 1 ? '' : 's'})`}
+              password={signaturePassword}
+              onChange={setSignaturePassword}
+            />
+          )}
+
           {/* Apply button */}
           <button
             onClick={applyToAll}
-            disabled={applying || pendingCount === 0 || !responsible.trim() || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes)}
+            disabled={applying || pendingCount === 0 || !responsible.trim() || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes) || (!!signatureMeaning && !signaturePassword)}
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base transition-all shadow-sm ${
               applying || pendingCount === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'

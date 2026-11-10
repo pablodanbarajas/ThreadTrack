@@ -25,13 +25,13 @@ const Login = () => {
 
     try {
       const { error } = await signIn(email, password)
-      
+
       if (error) {
-        setError('Credenciales inválidas')
+        setError(error.message || 'Credenciales inválidas')
         setLoading(false)
       }
       // Si no hay error, el AuthContext actualizará el user y redirigirá automáticamente
-    } catch (err) {
+    } catch {
       setError('Error de conexión')
       setLoading(false)
     }

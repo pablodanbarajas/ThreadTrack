@@ -16,6 +16,7 @@ import BatchActions from './pages/BatchActions'
 import HoseInventory from './pages/HoseInventory'
 import HoseDetail from './pages/HoseDetail'
 import CreateEquipment from './pages/CreateEquipment'
+import Reports from './pages/Reports'
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
             <Route path="mangueras" element={<ProtectedRoute requiredModule="mangueras"><HoseInventory /></ProtectedRoute>} />
             <Route path="mangueras/nuevo-equipo" element={<ProtectedRoute requiredModule="mangueras"><CreateEquipment /></ProtectedRoute>} />
             <Route path="mangueras/posicion/:positionId" element={<ProtectedRoute requiredModule="mangueras"><HoseDetail /></ProtectedRoute>} />
+            <Route path="reportes" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
             <Route path="admin/usuarios" element={<ProtectedRoute requiredRole="administrador"><AdminUsers /></ProtectedRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

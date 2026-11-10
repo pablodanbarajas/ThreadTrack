@@ -1,17 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, AlertTriangle } from 'lucide-react'
+import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, AlertTriangle, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
+import SignatureField from '../components/SignatureField'
+import { garmentSignatureMeaning } from '../lib/signature'
+import { signatureService } from '../services/accessService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
 import { getCycleCount } from '../lib/lifeStatus'
-import { useRole } from '../contexts/AuthContext'
+import { useRole, useAuth } from '../contexts/AuthContext'
+import { historyReportService, describeChanges } from '../services/historyReportService'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
-import type { Garment, Document, GarmentAction, ActionType, InspectionResult } from '../types'
+import type { Garment, Document, GarmentAction, ActionType, InspectionResult, AuditLogEntry } from '../types'
+
+const auditOpLabel: Record<string, string> = { INSERT: 'Alta', UPDATE: 'Modificación', DELETE: 'Eliminación' }
+const auditTableLabel: Record<string, string> = {
+  garments: 'Prenda', garment_actions: 'Acción', movements: 'Movimiento',
+  documents: 'Documento', garment_assignments: 'Asignación',
+}
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
-  const { canEditGarment } = useRole()
+  const { canEditGarment, canViewReports } = useRole()
+  const { user } = useAuth()
+  const [auditTrail, setAuditTrail] = useState<AuditLogEntry[] | null>(null)
+  const [auditLoading, setAuditLoading] = useState(false)
+  const [auditError, setAuditError] = useState<string | null>(null)
   const { invalidateGarments } = useGarmentCache()
   const [garment, setGarment] = useState<Garment | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
@@ -24,6 +38,8 @@ const GarmentDetail = () => {
   const [actionNotes, setActionNotes] = useState('')
   const [actionResponsible, setActionResponsible] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [signaturePassword, setSignaturePassword] = useState('')
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false)
@@ -34,6 +50,19 @@ const GarmentDetail = () => {
   useEffect(() => {
     loadGarmentData()
   }, [id])
+
+  const loadAuditTrail = async () => {
+    if (!id) return
+    setAuditLoading(true)
+    setAuditError(null)
+    try {
+      setAuditTrail(await garmentService.getAuditTrail(id))
+    } catch (err: any) {
+      setAuditError(err.message || 'No se pudo cargar el audit trail')
+    } finally {
+      setAuditLoading(false)
+    }
+  }
 
   const loadGarmentData = async () => {
     if (!id) {
@@ -87,6 +116,8 @@ const GarmentDetail = () => {
     setActionNotes('')
     setActionResponsible('')
     setInspectionResult('aprobado')
+    setActionError(null)
+    setSignaturePassword('')
     setShowActionModal(true)
   }
 
@@ -128,20 +159,27 @@ const GarmentDetail = () => {
     }
   }
 
+  const signatureMeaning = garmentSignatureMeaning(actionType, actionType === 'inspeccion' ? inspectionResult : undefined)
+
   const handleAction = async () => {
     if (!garment) return
     setActionLoading(true)
+    setActionError(null)
     try {
+      const signatureToken = signatureMeaning ? await signatureService.sign(signaturePassword) : undefined
       await garmentService.registerAction(garment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
         responsible: actionResponsible,
+        signatureToken,
       })
       invalidateGarments()
       setShowActionModal(false)
+      setSignaturePassword('')
       await loadGarmentData()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error registrando acción:', err)
+      setActionError(err.message || 'Error al registrar la acción')
     } finally {
       setActionLoading(false)
     }
@@ -442,11 +480,62 @@ const GarmentDetail = () => {
                       {action.recorded_by_email && (
                         <p className="text-xs text-gray-400">Capturó: {action.recorded_by_email}</p>
                       )}
+                      {action.signature_id && (
+                        <p className="text-xs text-indigo-600 font-medium">Firmado electrónicamente</p>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
             </div>
+
+            {/* Audit trail (supervisor / jefe / administrador) */}
+            {canViewReports && garment && (
+              <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h2 className="font-semibold text-gray-800 text-sm md:text-base flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-purple-600" />
+                    Audit trail {auditTrail && `(${auditTrail.length})`}
+                  </h2>
+                  <div className="flex gap-2">
+                    {!auditTrail ? (
+                      <button onClick={loadAuditTrail} disabled={auditLoading} className="text-xs px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50">
+                        {auditLoading ? 'Cargando...' : 'Ver cambios'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => historyReportService.exportGarmentAuditTrail(garment.code, auditTrail, user?.email ?? '')}
+                        className="text-xs px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center gap-1"
+                      >
+                        <FileSpreadsheet className="w-3 h-3" /> Exportar
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {auditError && <p className="text-xs text-red-600">{auditError}</p>}
+                {auditTrail && (
+                  auditTrail.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-3">Sin cambios registrados desde que se activó el audit trail</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                      {[...auditTrail].reverse().map((e) => (
+                        <div key={e.id} className="p-2 bg-purple-50/50 rounded-lg text-xs">
+                          <div className="flex justify-between gap-2">
+                            <span className="font-semibold text-gray-800">
+                              {auditOpLabel[e.operation]} · {auditTableLabel[e.table_name] ?? e.table_name}
+                            </span>
+                            <span className="text-gray-400">{new Date(e.occurred_at).toLocaleString()}</span>
+                          </div>
+                          <p className="text-gray-600">{e.user_email ?? 'Sistema / mantenimiento'}{e.user_role ? ` (${e.user_role})` : ''}</p>
+                          {describeChanges(e) && <p className="text-gray-600 break-words">{describeChanges(e)}</p>}
+                          {e.reason && <p className="text-gray-500">Motivo: {e.reason}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
             {/* Documentos */}
             {documents.length > 0 && (
@@ -676,6 +765,16 @@ const GarmentDetail = () => {
               />
             </div>
 
+            {signatureMeaning && (
+              <div className="mb-4">
+                <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
+              </div>
+            )}
+
+            {actionError && (
+              <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{actionError}</div>
+            )}
+
             <div className="flex gap-3">
               <button onClick={() => setShowActionModal(false)} className="btn-secondary flex-1">
                 Cancelar
@@ -683,9 +782,9 @@ const GarmentDetail = () => {
               <button
                 onClick={handleAction}
                 className="btn-primary flex-1"
-                disabled={actionLoading || !actionResponsible.trim() || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes)}
+                disabled={actionLoading || !actionResponsible.trim() || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes) || (!!signatureMeaning && !signaturePassword)}
               >
-                {actionLoading ? 'Guardando...' : 'Confirmar'}
+                {actionLoading ? 'Guardando...' : signatureMeaning ? 'Firmar y confirmar' : 'Confirmar'}
               </button>
             </div>
           </div>

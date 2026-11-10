@@ -4,9 +4,15 @@
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE SCHEMA auth;
-CREATE TABLE auth.users (id UUID PRIMARY KEY, email TEXT, created_at TIMESTAMPTZ DEFAULT now());
+CREATE TABLE auth.users (
+  id UUID PRIMARY KEY, email TEXT, created_at TIMESTAMPTZ DEFAULT now(),
+  encrypted_password TEXT, banned_until TIMESTAMPTZ, last_sign_in_at TIMESTAMPTZ
+);
+-- Sustituto de pgcrypto.crypt para pruebas: hash = 'h:' || contraseña
+CREATE SCHEMA extensions;
+CREATE FUNCTION extensions.crypt(p TEXT, salt TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$ SELECT 'h:' || p $$;
 CREATE FUNCTION auth.uid() RETURNS UUID LANGUAGE sql STABLE AS
-  $$ SELECT NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid $$;
+  $$ SELECT NULLIF(NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid $$;
 CREATE FUNCTION auth.jwt() RETURNS JSONB LANGUAGE sql STABLE AS
   $$ SELECT COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb $$;
 GRANT USAGE ON SCHEMA auth TO anon, authenticated;
@@ -135,6 +141,7 @@ INSERT INTO auth.users (id, email) VALUES
   ('22222222-2222-2222-2222-222222222222', 'operador@a.test'),
   ('33333333-3333-3333-3333-333333333333', 'jefe@b.test'),
   ('44444444-4444-4444-4444-444444444444', 'admin@x.test');
+UPDATE auth.users SET encrypted_password = 'h:Secreta123!';
 INSERT INTO public.user_profiles (id, role, team_id) VALUES
   ('11111111-1111-1111-1111-111111111111', 'jefe',          '00000000-0000-0000-0000-0000000000a1'),
   ('22222222-2222-2222-2222-222222222222', 'operador',      '00000000-0000-0000-0000-0000000000a1'),

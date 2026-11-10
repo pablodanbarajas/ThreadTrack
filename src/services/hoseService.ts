@@ -192,7 +192,7 @@ export const hoseService = {
   async registerHoseAction(
     hoseId: string,
     actionType: Exclude<HoseActionType, 'reemplazo'>,
-    options?: { notes?: string; performedBy?: string }
+    options?: { notes?: string; performedBy?: string; signatureToken?: string }
   ): Promise<HoseAction> {
     const performedBy = options?.performedBy?.trim()
     if (!performedBy) {
@@ -204,6 +204,7 @@ export const hoseService = {
       p_action_type: actionType,
       p_responsible: performedBy,
       p_notes: options?.notes ?? null,
+      p_signature_token: options?.signatureToken ?? null,
     })
 
     if (error) throw error
@@ -228,7 +229,7 @@ export const hoseService = {
   },
 
   // Reemplazar la manguera activa de una posición (vía RPC, atómico)
-  async replaceHose(positionId: string, reason: string, performedBy: string): Promise<Hose> {
+  async replaceHose(positionId: string, reason: string, performedBy: string, signatureToken: string): Promise<Hose> {
     if (!performedBy?.trim()) {
       throw new Error('El campo RESPONSABLE es obligatorio')
     }
@@ -238,6 +239,7 @@ export const hoseService = {
         p_position_id: positionId,
         p_reason: reason,
         p_performed_by: performedBy,
+        p_signature_token: signatureToken,
       })
 
     if (error) throw error

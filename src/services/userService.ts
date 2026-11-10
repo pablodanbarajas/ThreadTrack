@@ -8,6 +8,10 @@ export interface UserProfile {
   role: UserRole
   team_id: string | null
   access_module: AccessModule
+  is_active: boolean
+  deactivation_reason?: string | null
+  locked_until?: string | null
+  last_login_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -42,6 +46,16 @@ export const userService = {
     return data.success ?? false
   },
 
+  // Desactivar / reactivar usuario (bloquea también el login en Supabase Auth)
+  async setUserActive(userId: string, active: boolean, reason: string): Promise<void> {
+    const { error } = await supabase.rpc('set_user_active', {
+      p_user_id: userId,
+      p_active: active,
+      p_reason: reason,
+    })
+    if (error) throw error
+  },
+
   // Actualizar módulo asignado a un usuario (prendas/mangueras/ambos)
   async updateUserModule(userId: string, newModule: AccessModule): Promise<boolean> {
     const { data, error } = await supabase
@@ -66,26 +80,6 @@ export const userService = {
     return {
       success: false,
       message: 'Usa la función Edge create-user en Supabase'
-    }
-  },
-
-  // Eliminar usuario
-  async deleteUser(userId: string): Promise<boolean> {
-    try {
-      // Primero eliminar de user_profiles (cascada debería eliminar de auth.users)
-      const { error } = await supabase
-        .from('user_profiles')
-        .delete()
-        .eq('id', userId)
-
-      if (error) {
-        throw error
-      }
-
-      return true
-    } catch (error) {
-      console.error('Error eliminando usuario:', error)
-      throw error
     }
   },
 
