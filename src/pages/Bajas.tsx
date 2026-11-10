@@ -101,9 +101,6 @@ const Bajas = () => {
                     <StatusBadge tone="red">Baja</StatusBadge>
                   </div>
                   <div className="text-gray-600 font-medium">{garment.name}</div>
-                  {garment.client_name && (
-                    <div className="text-sm text-gray-500">Cliente: {garment.client_name}</div>
-                  )}
                   
                   {/* Motivo de baja */}
                   {garment.baja_reason && (

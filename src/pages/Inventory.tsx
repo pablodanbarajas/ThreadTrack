@@ -114,7 +114,7 @@ const Inventory = () => {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [signaturePassword, setSignaturePassword] = useState('')
-  const [newGarment, setNewGarment] = useState({ code: '', name: '', client_name: '' })
+  const [newGarment, setNewGarment] = useState({ code: '', name: '' })
   const [newGarmentTeamId, setNewGarmentTeamId] = useState<string>('')
   const [showQRModal, setShowQRModal] = useState(false)
   const [copiedQR, setCopiedQR] = useState(false)
@@ -309,10 +309,9 @@ const Inventory = () => {
       await garmentService.create({
         code: newGarment.code,
         name: newGarment.name,
-        client_name: newGarment.client_name || undefined,
         team_id: (isAdministrador && newGarmentTeamId) ? newGarmentTeamId : undefined,
       })
-      setNewGarment({ code: '', name: '', client_name: '' })
+      setNewGarment({ code: '', name: '' })
       setNewGarmentTeamId('')
       setShowModal(false)
       loadGarments()
@@ -733,16 +732,6 @@ const Inventory = () => {
                   placeholder="Ej: Camisa azul talla M"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                <input
-                  type="text"
-                  value={newGarment.client_name}
-                  onChange={(e) => setNewGarment({ ...newGarment, client_name: e.target.value })}
-                  className="input-field"
-                  placeholder="Nombre del cliente"
-                />
-              </div>
               {isAdministrador && teams.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Equipo / Empresa</label>
@@ -1026,13 +1015,6 @@ const Inventory = () => {
                 {/* Nombre */}
                 <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-0.5">{garment.name}</p>
 
-                {/* Cliente */}
-                {garment.client_name && (
-                  <div className="text-xs text-gray-500 mb-2 line-clamp-1">
-                    {garment.client_name}
-                  </div>
-                )}
-
                 {/* Estado */}
                 <div className="mb-3">
                   <StatusBadge tone={garmentStatusTone[garment.status] ?? 'gray'}>
@@ -1175,28 +1157,6 @@ const Inventory = () => {
                   placeholder="Descripción (opcional)"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_name}
-                    onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
-                    className="input-field"
-                    placeholder="Nombre del cliente"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono del cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_phone}
-                    onChange={e => setEditForm(f => ({ ...f, client_phone: e.target.value }))}
-                    className="input-field"
-                    placeholder="Teléfono (opcional)"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea
@@ -1212,7 +1172,7 @@ const Inventory = () => {
                   value={editForm.reason}
                   onChange={e => setEditForm(f => ({ ...f, reason: e.target.value }))}
                   className="input-field min-h-[60px]"
-                  placeholder="Ej. corrección del nombre del cliente"
+                  placeholder="Ej. corrección del nombre"
                 />
                 <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
               </div>

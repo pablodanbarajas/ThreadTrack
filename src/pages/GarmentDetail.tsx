@@ -257,20 +257,6 @@ const GarmentDetail = () => {
                 )}
               </div>
             </div>
-            {garment.client_name && (
-              <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-6 gap-y-1 text-gray-600">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-blue-200 text-xs">Cliente:</span>
-                  <span className="text-white text-xs font-semibold">{garment.client_name}</span>
-                </div>
-                {garment.client_phone && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-blue-200 text-xs">Tel. cliente:</span>
-                    <span className="text-white text-xs font-semibold">{garment.client_phone}</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -613,28 +599,6 @@ const GarmentDetail = () => {
                   placeholder="Descripción (opcional)"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_name}
-                    onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
-                    className="input-field"
-                    placeholder="Nombre del cliente"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono del cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_phone}
-                    onChange={e => setEditForm(f => ({ ...f, client_phone: e.target.value }))}
-                    className="input-field"
-                    placeholder="Teléfono (opcional)"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea
@@ -650,7 +614,7 @@ const GarmentDetail = () => {
                   value={editForm.reason}
                   onChange={e => setEditForm(f => ({ ...f, reason: e.target.value }))}
                   className="input-field min-h-[60px]"
-                  placeholder="Ej. corrección del nombre del cliente"
+                  placeholder="Ej. corrección del nombre"
                 />
                 <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
               </div>
