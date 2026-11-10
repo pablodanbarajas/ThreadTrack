@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, Search, ChevronDown } from 'lucide-react'
+import { Archive, Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, Search, ChevronDown } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -10,6 +10,7 @@ import { SkeletonList } from '../components/ui/Skeleton'
 import { garmentStatusTone, lifeTone, actionTone, softButton } from '../lib/tones'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { garmentService } from '../services/garmentService'
+import { useArchiveGarment } from '../hooks/useArchiveGarment'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
@@ -146,8 +147,6 @@ const Inventory = () => {
   const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [garmentToDelete, setGarmentToDelete] = useState<Garment | null>(null)
   const [showScanner, setShowScanner] = useState(false)
   const [scannerTarget, setScannerTarget] = useState<'search' | 'newCode'>('search')
   const [selectedGarment, setSelectedGarment] = useState<Garment | null>(null)
@@ -184,8 +183,6 @@ const Inventory = () => {
   const [assignTargetGarment, setAssignTargetGarment] = useState<Garment | null>(null)
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
   const [allUsersForAssign, setAllUsersForAssign] = useState<UserProfile[]>([])
-  const [archiveReason, setArchiveReason] = useState('')
-  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [loadingAssign, setLoadingAssign] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
   const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
@@ -494,28 +491,6 @@ const Inventory = () => {
     setShowQRModal(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!canDeleteGarment) {
-      setDeleteError('No tienes permisos para eliminar prendas')
-      return
-    }
-    if (!archiveReason.trim()) {
-      setDeleteError('El motivo es obligatorio para archivar una prenda')
-      return
-    }
-    try {
-      await garmentService.archive(id, archiveReason.trim())
-      setArchiveReason('')
-      setShowDeleteModal(false)
-      setGarmentToDelete(null)
-      setDeleteError(null)
-      loadGarments(true)
-    } catch (error: any) {
-      console.error('Error eliminando prenda:', error)
-      setDeleteError(error.message || 'Error al archivar la prenda')
-    }
-  }
-
   const openActionModal = (garment: Garment, action: ActionType) => {
     setSelectedGarment(garment)
     setActionType(action)
@@ -690,11 +665,10 @@ const Inventory = () => {
     }
   }
 
-  const openDeleteModal = (garment: Garment) => {
-    setGarmentToDelete(garment)
-    setDeleteError(null)
-    setArchiveReason('')
-    setShowDeleteModal(true)
+  const archiveGarment = useArchiveGarment()
+  const openDeleteModal = async (garment: Garment) => {
+    if (!canDeleteGarment) return
+    if (await archiveGarment(garment)) loadGarments(true)
   }
 
   const openAssignModal = async (garment: Garment) => {
@@ -813,51 +787,6 @@ const Inventory = () => {
   return (
     <div className="w-full pb-20 md:pb-0">
       {/* Modal de Confirmación de Eliminación */}
-      {showDeleteModal && garmentToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-            <div className="text-center">
-              <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <Trash2 className="w-6 h-6 text-gray-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">¿Archivar prenda?</h3>
-              <p className="text-gray-600 mb-2">Dejará de aparecer en el inventario. Su historial se conserva para trazabilidad.</p>
-              <div className="p-3 bg-gray-50 rounded-lg mb-4">
-                <div className="font-mono text-sm">{garmentToDelete.code}</div>
-                <div className="text-gray-600 text-sm">{garmentToDelete.name}</div>
-              </div>
-              <div className="text-left mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
-                <textarea
-                  value={archiveReason}
-                  onChange={e => setArchiveReason(e.target.value)}
-                  className="input-field min-h-[60px]"
-                  placeholder="Ej. prenda registrada por duplicado"
-                />
-              </div>
-              {deleteError && (
-                <Notice tone="error" className="mb-4">{deleteError}</Notice>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowDeleteModal(false); setGarmentToDelete(null); setArchiveReason(''); }}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleDelete(garmentToDelete.id)}
-                disabled={!archiveReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-              >
-                Archivar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal de Asignación de Usuarios */}
       {showAssignModal && assignTargetGarment && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1506,9 +1435,9 @@ const Inventory = () => {
                     <button
                       onClick={() => openDeleteModal(garment)}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Archivar"
+                      title="Archivar (retirar un registro duplicado o erróneo)"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Archive className="w-4 h-4" />
                     </button>
                   )}
                 </div>

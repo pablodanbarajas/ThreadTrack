@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react'
 import { Archive, PackageX, Calendar, FileText, Search } from 'lucide-react'
-import { useFeedback } from '../components/ui/feedback-context'
 import { StatusBadge, IconTile } from '../components/ui/StatusBadge'
 import { SkeletonList } from '../components/ui/Skeleton'
-import { garmentService } from '../services/garmentService'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
+import { useArchiveGarment } from '../hooks/useArchiveGarment'
 import type { Garment } from '../types'
 
 const Bajas = () => {
   const { garments: cachedGarments, loading, loadGarments, refreshGarments } = useGarmentCache()
   const [searchTerm, setSearchTerm] = useState('')
-  const feedback = useFeedback()
 
   useEffect(() => {
     loadGarments().catch((error) => console.error('Error cargando bajas:', error))
@@ -24,24 +22,9 @@ const Bajas = () => {
     (garment.baja_reason?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   )
 
-  const handleArchive = async (id: string, code: string) => {
-    const reason = await feedback.prompt({
-      title: `Archivar prenda ${code}`,
-      message: 'Dejará de aparecer en bajas. Su historial completo se conserva para trazabilidad.',
-      label: 'Motivo del archivado',
-      placeholder: 'Ej. registrada por duplicado',
-      required: true,
-      confirmLabel: 'Archivar',
-      variant: 'danger',
-    })
-    if (!reason) return
-    try {
-      await garmentService.archive(id, reason)
-      await refreshGarments()
-      feedback.success(`Prenda ${code} archivada`)
-    } catch (error) {
-      feedback.error((error as Error).message || 'Error al archivar la prenda')
-    }
+  const archiveGarment = useArchiveGarment()
+  const handleArchive = async (garment: Garment) => {
+    if (await archiveGarment(garment)) await refreshGarments()
   }
 
   const formatDate = (dateString?: string) => {
@@ -126,7 +109,7 @@ const Bajas = () => {
                 </div>
                 
                 <button
-                  onClick={() => handleArchive(garment.id, garment.code)}
+                  onClick={() => handleArchive(garment)}
                   className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="Archivar prenda"
                 >
