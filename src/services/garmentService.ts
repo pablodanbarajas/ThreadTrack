@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Garment, GarmentInsert, GarmentUpdate, GarmentAction, ActionType, InspectionResult } from '../types'
+import type { Garment, GarmentInsert, GarmentUpdate, GarmentAction, ActionType, InspectionResult, AuditLogEntry } from '../types'
 
 const normalizeGarment = (garment: any): Garment => ({
   ...garment,
@@ -12,6 +12,7 @@ export const garmentService = {
     const { data, error } = await supabase
       .from('garments')
       .select('*')
+      .is('archived_at', null)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -24,6 +25,7 @@ export const garmentService = {
       .from('garments')
       .select('*')
       .eq('status', 'baja')
+      .is('archived_at', null)
       .order('baja_date', { ascending: false })
 
     if (error) throw error
@@ -85,28 +87,36 @@ export const garmentService = {
     return normalizeGarment(data)
   },
 
-  // Actualizar prenda
-  async update(id: string, updates: GarmentUpdate): Promise<Garment> {
-    const { data, error } = await supabase
-      .from('garments')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
+  // Actualizar datos descriptivos de la prenda (vía RPC; el motivo queda en el audit trail)
+  async update(id: string, updates: GarmentUpdate, reason: string): Promise<Garment> {
+    if (!reason?.trim()) throw new Error('El MOTIVO DEL CAMBIO es obligatorio')
+    if (!updates.name?.trim()) throw new Error('El nombre es obligatorio')
+
+    const { data, error } = await supabase.rpc('update_garment', {
+      p_garment_id: id,
+      p_name: updates.name,
+      p_description: updates.description ?? null,
+      p_client_name: updates.client_name ?? null,
+      p_client_phone: updates.client_phone ?? null,
+      p_notes: updates.notes ?? null,
+      p_reason: reason,
+    })
 
     if (error) throw error
     return normalizeGarment(data)
   },
 
-  // Registrar acción (lavado/esterilización, inspección, etc.)
+  // Registrar acción (lavado/esterilización, inspección, reparación, baja).
+  // El servidor cambia el estado, guarda la acción y el movimiento en una sola
+  // transacción, y registra quién la capturó a partir de la sesión.
   async registerAction(
-    garmentId: string, 
-    actionType: ActionType, 
-    options?: { 
+    garmentId: string,
+    actionType: ActionType,
+    options?: {
       result?: InspectionResult
       notes?: string
       responsible?: string
-      performedBy?: string 
+      performedBy?: string
     }
   ): Promise<GarmentAction> {
     const responsible = options?.responsible?.trim() || options?.performedBy?.trim()
@@ -114,56 +124,15 @@ export const garmentService = {
       throw new Error('El campo RESPONSABLE es obligatorio')
     }
 
-    const normalizedActionType: ActionType = actionType
-
-    // Obtener estado actual
-    const current = await this.getById(garmentId)
-    if (!current) throw new Error('Prenda no encontrada')
-
-    // Determinar nuevo estado
-    let newStatus = normalizedActionType as string
-    if (normalizedActionType === 'lavado') {
-      // El ciclo de lavado y esterilización se completa automáticamente: vuelve a disponible
-      newStatus = 'disponible'
-    } else if (normalizedActionType === 'inspeccion' && options?.result) {
-      if (options.result === 'aprobado') {
-        newStatus = 'disponible'
-      } else {
-        newStatus = options.result // 'reparacion' o 'baja'
-      }
-    }
-
-    // Actualizar estado de la prenda
-    const updateData: GarmentUpdate = { status: newStatus as any }
-    if (newStatus === 'baja') {
-      updateData.baja_reason = options?.notes
-      updateData.baja_date = new Date().toISOString()
-    }
-    await this.update(garmentId, updateData)
-
-    // Registrar la acción
-    const { data, error } = await supabase
-      .from('garment_actions')
-      .insert({
-        garment_id: garmentId,
-        action_type: normalizedActionType,
-        result: options?.result,
-        notes: options?.notes,
-        performed_by: responsible
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-
-    // Registrar en movimientos también
-    await supabase.from('movements').insert({
-      garment_id: garmentId,
-      previous_status: current.status,
-      new_status: newStatus,
-      notes: options?.notes
+    const { data, error } = await supabase.rpc('register_garment_action', {
+      p_garment_id: garmentId,
+      p_action_type: actionType,
+      p_responsible: responsible,
+      p_result: options?.result ?? null,
+      p_notes: options?.notes ?? null,
     })
 
+    if (error) throw error
     return data
   },
 
@@ -179,15 +148,23 @@ export const garmentService = {
     return data || []
   },
 
-  // Eliminar prenda
-  async delete(id: string): Promise<void> {
-    const { error, count } = await supabase
-      .from('garments')
-      .delete({ count: 'exact' })
-      .eq('id', id)
-
+  // Archivar prenda. Ya no se borra físicamente: su historial se conserva.
+  async archive(id: string, reason: string): Promise<void> {
+    if (!reason?.trim()) throw new Error('El MOTIVO es obligatorio')
+    const { error } = await supabase.rpc('archive_garment', {
+      p_garment_id: id,
+      p_reason: reason,
+    })
     if (error) throw error
-    if (count === 0) throw new Error('No tienes permisos para eliminar esta prenda o ya no existe.')
+  },
+
+  // Audit trail completo de la prenda (jefe/supervisor/administrador)
+  async getAuditTrail(garmentId: string): Promise<AuditLogEntry[]> {
+    const { data, error } = await supabase.rpc('get_garment_audit_trail', {
+      p_garment_id: garmentId,
+    })
+    if (error) throw error
+    return data || []
   },
 
   // Obtener estadísticas
@@ -202,6 +179,7 @@ export const garmentService = {
     const { data, error } = await supabase
       .from('garments')
       .select('status')
+      .is('archived_at', null)
 
     if (error) throw error
 
@@ -223,6 +201,7 @@ export const garmentService = {
       .from('garments')
       .select('*')
       .neq('status', 'baja')
+      .is('archived_at', null)
       .or(`code.ilike.%${term}%,name.ilike.%${term}%,client_name.ilike.%${term}%`)
       .order('created_at', { ascending: false })
 

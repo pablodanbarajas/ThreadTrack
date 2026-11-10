@@ -27,6 +27,7 @@ const ActionRow = ({ action }: { action: HoseAction }) => (
     </div>
     <div className="text-right text-gray-500">
       <div>{action.performed_by}</div>
+      {action.recorded_by_email && <div className="text-xs">Capturó: {action.recorded_by_email}</div>}
       <div>{new Date(action.created_at).toLocaleString()}</div>
     </div>
   </li>

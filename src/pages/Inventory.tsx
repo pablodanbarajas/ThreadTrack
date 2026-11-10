@@ -171,6 +171,7 @@ const Inventory = () => {
   const [assignTargetGarment, setAssignTargetGarment] = useState<Garment | null>(null)
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
   const [allUsersForAssign, setAllUsersForAssign] = useState<UserProfile[]>([])
+  const [archiveReason, setArchiveReason] = useState('')
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [loadingAssign, setLoadingAssign] = useState(false)
   const [savingAssign, setSavingAssign] = useState(false)
@@ -185,7 +186,7 @@ const Inventory = () => {
   // Edit garment modal
   const [showEditModal, setShowEditModal] = useState(false)
   const [editTargetGarment, setEditTargetGarment] = useState<Garment | null>(null)
-  const [editForm, setEditForm] = useState({ name: '', description: '', client_name: '', client_phone: '', notes: '' })
+  const [editForm, setEditForm] = useState({ name: '', description: '', client_name: '', client_phone: '', notes: '', reason: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
@@ -197,6 +198,7 @@ const Inventory = () => {
       client_name: garment.client_name ?? '',
       client_phone: garment.client_phone ?? '',
       notes: garment.notes ?? '',
+      reason: '',
     })
     setEditError(null)
     setShowEditModal(true)
@@ -205,6 +207,7 @@ const Inventory = () => {
   const handleEditSave = async () => {
     if (!editTargetGarment) return
     if (!editForm.name.trim()) { setEditError('El nombre es obligatorio'); return }
+    if (!editForm.reason.trim()) { setEditError('El motivo del cambio es obligatorio'); return }
     setEditLoading(true)
     setEditError(null)
     try {
@@ -214,7 +217,7 @@ const Inventory = () => {
         client_name: editForm.client_name.trim() || undefined,
         client_phone: editForm.client_phone.trim() || undefined,
         notes: editForm.notes.trim() || undefined,
-      })
+      }, editForm.reason.trim())
       setShowEditModal(false)
       await loadGarments(true)
     } catch (err: any) {
@@ -483,15 +486,20 @@ const Inventory = () => {
       setDeleteError('No tienes permisos para eliminar prendas')
       return
     }
+    if (!archiveReason.trim()) {
+      setDeleteError('El motivo es obligatorio para archivar una prenda')
+      return
+    }
     try {
-      await garmentService.delete(id)
+      await garmentService.archive(id, archiveReason.trim())
+      setArchiveReason('')
       setShowDeleteModal(false)
       setGarmentToDelete(null)
       setDeleteError(null)
       loadGarments(true)
     } catch (error: any) {
       console.error('Error eliminando prenda:', error)
-      setDeleteError(error.message || 'Error al eliminar la prenda')
+      setDeleteError(error.message || 'Error al archivar la prenda')
     }
   }
 
@@ -662,6 +670,7 @@ const Inventory = () => {
   const openDeleteModal = (garment: Garment) => {
     setGarmentToDelete(garment)
     setDeleteError(null)
+    setArchiveReason('')
     setShowDeleteModal(true)
   }
 
@@ -788,11 +797,20 @@ const Inventory = () => {
               <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
                 <Trash2 className="w-6 h-6 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">¿Eliminar prenda?</h3>
-              <p className="text-gray-600 mb-2">Esta acción no se puede deshacer.</p>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">¿Archivar prenda?</h3>
+              <p className="text-gray-600 mb-2">Dejará de aparecer en el inventario. Su historial se conserva para trazabilidad.</p>
               <div className="p-3 bg-gray-50 rounded-lg mb-4">
                 <div className="font-mono text-sm">{garmentToDelete.code}</div>
                 <div className="text-gray-600 text-sm">{garmentToDelete.name}</div>
+              </div>
+              <div className="text-left mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
+                <textarea
+                  value={archiveReason}
+                  onChange={e => setArchiveReason(e.target.value)}
+                  className="input-field min-h-[60px]"
+                  placeholder="Ej. prenda registrada por duplicado"
+                />
               </div>
               {deleteError && (
                 <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{deleteError}</div>
@@ -800,16 +818,17 @@ const Inventory = () => {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => { setShowDeleteModal(false); setGarmentToDelete(null); }}
+                onClick={() => { setShowDeleteModal(false); setGarmentToDelete(null); setArchiveReason(''); }}
                 className="btn-secondary flex-1"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => handleDelete(garmentToDelete.id)}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                disabled={!archiveReason.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
               >
-                Eliminar
+                Archivar
               </button>
             </div>
           </div>
@@ -1420,6 +1439,9 @@ const Inventory = () => {
                       {action.performed_by && (
                         <p className="text-sm text-gray-600 mt-1">Responsable: {action.performed_by}</p>
                       )}
+                      {action.recorded_by_email && (
+                        <p className="text-xs text-gray-500 mt-1">Capturó: {action.recorded_by_email}</p>
+                      )}
                       <p className="text-xs text-gray-400 mt-2">{formatDate(action.created_at)}</p>
                     </div>
                   ))}
@@ -1527,7 +1549,7 @@ const Inventory = () => {
                     <button
                       onClick={() => openDeleteModal(garment)}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Eliminar"
+                      title="Archivar"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -1788,6 +1810,16 @@ const Inventory = () => {
                   className="input-field min-h-[70px]"
                   placeholder="Notas adicionales (opcional)"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del cambio *</label>
+                <textarea
+                  value={editForm.reason}
+                  onChange={e => setEditForm(f => ({ ...f, reason: e.target.value }))}
+                  className="input-field min-h-[60px]"
+                  placeholder="Ej. corrección del nombre del cliente"
+                />
+                <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
               </div>
             </div>
 

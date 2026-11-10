@@ -25,6 +25,9 @@ export interface Garment {
   qr_code?: string // URL del QR generada dinámicamente
   short_code?: string // Código corto de respaldo (ej: S1, G12, V3)
   team_id?: string
+  archived_at?: string
+  archived_by?: string
+  archive_reason?: string
   created_at: string
   updated_at: string
 }
@@ -51,7 +54,9 @@ export interface GarmentAction {
   action_type: ActionType | LegacyActionType
   result?: InspectionResult
   notes?: string
-  performed_by?: string
+  performed_by?: string // responsable físico (lo escribe el usuario)
+  recorded_by?: string // usuario autenticado que capturó el registro (lo fija la base)
+  recorded_by_email?: string
   created_at: string
 }
 
@@ -61,7 +66,24 @@ export interface Movement {
   previous_status?: string
   new_status: string
   notes?: string
+  recorded_by?: string
+  recorded_by_email?: string
   created_at: string
+}
+
+export interface AuditLogEntry {
+  id: number
+  occurred_at: string
+  user_id?: string
+  user_email?: string
+  user_role?: string
+  operation: 'INSERT' | 'UPDATE' | 'DELETE'
+  table_name: string
+  record_id?: string
+  old_data?: Record<string, unknown>
+  new_data?: Record<string, unknown>
+  changed_fields?: string[]
+  reason?: string
 }
 
 export interface GarmentInsert {
@@ -106,6 +128,9 @@ export interface Equipment {
   code: string
   name: string
   team_id?: string
+  archived_at?: string
+  archived_by?: string
+  archive_reason?: string
   created_at: string
   updated_at: string
 }
@@ -139,6 +164,8 @@ export interface HoseAction {
   cycle_after?: number
   notes?: string
   performed_by: string
+  recorded_by?: string
+  recorded_by_email?: string
   created_at: string
 }
 

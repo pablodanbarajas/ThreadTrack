@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase'
-import { MAX_HOSE_CYCLES } from '../lib/hoseLifeStatus'
 import type {
   Equipment,
   EquipmentInsert,
@@ -16,6 +15,7 @@ export const hoseService = {
     const { data, error } = await supabase
       .from('equipment')
       .select('*')
+      .is('archived_at', null)
       .order('created_at', { ascending: false })
 
     if (error) throw error
@@ -48,38 +48,46 @@ export const hoseService = {
     return data
   },
 
-  // Editar código/nombre del equipo
-  async updateEquipment(id: string, updates: { code?: string; name?: string }): Promise<Equipment> {
-    const { data, error } = await supabase
-      .from('equipment')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
+  // Editar código/nombre del equipo (vía RPC, motivo obligatorio)
+  async updateEquipment(id: string, updates: { code?: string; name?: string }, reason: string): Promise<Equipment> {
+    if (!reason?.trim()) throw new Error('El MOTIVO DEL CAMBIO es obligatorio')
+    const { data, error } = await supabase.rpc('update_equipment', {
+      p_equipment_id: id,
+      p_code: updates.code ?? null,
+      p_name: updates.name ?? null,
+      p_reason: reason,
+    })
 
     if (error) throw error
     return data
   },
 
-  // Editar el calibre/longitud/etiqueta de una posición
-  async updatePosition(id: string, updates: { caliber?: string; length?: string; label?: string }): Promise<HosePosition> {
-    const { data, error } = await supabase
-      .from('hose_positions')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
+  // Editar el calibre/longitud/etiqueta de una posición (vía RPC, motivo obligatorio)
+  async updatePosition(
+    id: string,
+    updates: { caliber?: string; length?: string; label?: string },
+    reason: string
+  ): Promise<HosePosition> {
+    if (!reason?.trim()) throw new Error('El MOTIVO DEL CAMBIO es obligatorio')
+    const { data, error } = await supabase.rpc('update_hose_position', {
+      p_position_id: id,
+      p_caliber: updates.caliber ?? null,
+      p_length: updates.length ?? null,
+      p_label: updates.label ?? null,
+      p_reason: reason,
+    })
 
     if (error) throw error
     return data
   },
 
-  // Eliminar equipo (elimina en cascada sus posiciones, mangueras e historial)
-  async deleteEquipment(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('equipment')
-      .delete()
-      .eq('id', id)
+  // Archivar equipo. Ya no se borra: sus mangueras e historial se conservan.
+  async archiveEquipment(id: string, reason: string): Promise<void> {
+    if (!reason?.trim()) throw new Error('El MOTIVO es obligatorio')
+    const { error } = await supabase.rpc('archive_equipment', {
+      p_equipment_id: id,
+      p_reason: reason,
+    })
 
     if (error) throw error
   },
@@ -178,10 +186,12 @@ export const hoseService = {
     return data || []
   },
 
-  // Registrar acción sobre una manguera (uso/inspección/baja manual)
+  // Registrar acción sobre una manguera (uso/inspección/baja manual).
+  // El ciclo se incrementa en el servidor con la fila bloqueada, así dos
+  // escaneos simultáneos no pierden conteos.
   async registerHoseAction(
     hoseId: string,
-    actionType: HoseActionType,
+    actionType: Exclude<HoseActionType, 'reemplazo'>,
     options?: { notes?: string; performedBy?: string }
   ): Promise<HoseAction> {
     const performedBy = options?.performedBy?.trim()
@@ -189,52 +199,32 @@ export const hoseService = {
       throw new Error('El campo RESPONSABLE es obligatorio')
     }
 
-    const current = await this.getHoseById(hoseId)
-    if (!current) throw new Error('Manguera no encontrada')
-
-    let cycleAfter = current.current_cycle
-    if (actionType === 'uso') {
-      cycleAfter = Math.min(current.current_cycle + 1, MAX_HOSE_CYCLES)
-      await supabase
-        .from('hoses')
-        .update({ current_cycle: cycleAfter, updated_at: new Date().toISOString() })
-        .eq('id', hoseId)
-    } else if (actionType === 'baja') {
-      await supabase
-        .from('hoses')
-        .update({
-          status: 'baja',
-          baja_reason: options?.notes,
-          baja_date: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', hoseId)
-    }
-
-    const { data, error } = await supabase
-      .from('hose_actions')
-      .insert({
-        hose_id: hoseId,
-        action_type: actionType,
-        cycle_after: cycleAfter,
-        notes: options?.notes,
-        performed_by: performedBy,
-      })
-      .select()
-      .single()
+    const { data, error } = await supabase.rpc('register_hose_action', {
+      p_hose_id: hoseId,
+      p_action_type: actionType,
+      p_responsible: performedBy,
+      p_notes: options?.notes ?? null,
+    })
 
     if (error) throw error
     return data
   },
 
-  // Registrar un ciclo de uso a varias mangueras a la vez (ej. las 5 de un equipo)
+  // Registrar un ciclo de uso a varias mangueras a la vez (todo o nada)
   async registerBulkUse(hoseIds: string[], options: { notes?: string; performedBy?: string }): Promise<HoseAction[]> {
     const performedBy = options?.performedBy?.trim()
     if (!performedBy) {
       throw new Error('El campo RESPONSABLE es obligatorio')
     }
 
-    return Promise.all(hoseIds.map((hoseId) => this.registerHoseAction(hoseId, 'uso', options)))
+    const { data, error } = await supabase.rpc('register_bulk_hose_use', {
+      p_hose_ids: hoseIds,
+      p_responsible: performedBy,
+      p_notes: options?.notes ?? null,
+    })
+
+    if (error) throw error
+    return data || []
   },
 
   // Reemplazar la manguera activa de una posición (vía RPC, atómico)
@@ -262,6 +252,7 @@ export const hoseService = {
     const { data, error } = await supabase
       .from('equipment')
       .select('*')
+      .is('archived_at', null)
       .or(`code.ilike.%${normalized}%,name.ilike.%${normalized}%`)
       .order('created_at', { ascending: false })
 
