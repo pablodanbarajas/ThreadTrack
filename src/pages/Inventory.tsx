@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Archive, Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, Search, ChevronDown } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
@@ -8,9 +8,10 @@ import { useFeedback } from '../components/ui/feedback-context'
 import { StatusBadge, StatusDot, Notice } from '../components/ui/StatusBadge'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { garmentStatusTone, lifeTone, actionTone, softButton } from '../lib/tones'
-import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { garmentService } from '../services/garmentService'
 import { useArchiveGarment } from '../hooks/useArchiveGarment'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import Pagination from '../components/ui/Pagination'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
@@ -23,58 +24,12 @@ import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, GARMENT_TYPES, COLORS, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
-import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
+import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
 import type { CycleLifeStatus } from '../lib/lifeStatus'
-import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
+import type { Garment, GarmentListItem, GarmentListFilters, LifeStatus, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
 
 const compactHex = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, '')
 
-const isOneEditAway = (a: string, b: string): boolean => {
-  const aLen = a.length
-  const bLen = b.length
-
-  if (Math.abs(aLen - bLen) > 1) return false
-  if (a === b) return true
-
-  if (aLen === bLen) {
-    let diffs = 0
-    for (let i = 0; i < aLen; i++) {
-      if (a[i] !== b[i]) {
-        diffs++
-        if (diffs > 1) return false
-      }
-    }
-    return diffs === 1
-  }
-
-  const shorter = aLen < bLen ? a : b
-  const longer = aLen < bLen ? b : a
-  let i = 0
-  let j = 0
-  let skipped = false
-
-  while (i < shorter.length && j < longer.length) {
-    if (shorter[i] === longer[j]) {
-      i++
-      j++
-      continue
-    }
-    if (skipped) return false
-    skipped = true
-    j++
-  }
-
-  return true
-}
-
-const isUuidLikeMatch = (garmentId: string, candidate: string): boolean => {
-  const id = compactHex(garmentId)
-  const query = compactHex(candidate)
-
-  if (!query || query.length < 24) return false
-  if (id.includes(query) || query.includes(id)) return true
-  return isOneEditAway(id, query)
-}
 
 const buildUuidCandidate = (rawSearch: string): string => {
   const direct = extractGarmentId(rawSearch)
@@ -136,7 +91,11 @@ const getStoredInventoryFilters = (): InventoryFilters => {
 
 const Inventory = () => {
   const { canCreateGarment, canDeleteGarment, canRecordAction, canEditGarment, isAdministrador } = useRole()
-  const { garments, loading, loadGarments: loadCachedGarments, refreshGarments } = useGarmentCache()
+  // Página actual de prendas (paginada y filtrada en el servidor)
+  const [garments, setGarments] = useState<GarmentListItem[]>([])
+  const [totalGarments, setTotalGarments] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
   const feedback = useFeedback()
   const storedFilters = useRef(getStoredInventoryFilters()).current
   const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm)
@@ -229,7 +188,7 @@ const Inventory = () => {
         notes: editForm.notes.trim() || undefined,
       }, editForm.reason.trim())
       setShowEditModal(false)
-      await loadGarments(true)
+      await loadGarments()
     } catch (err: any) {
       setEditError(err.message || 'Error al guardar los cambios')
     } finally {
@@ -279,21 +238,8 @@ const Inventory = () => {
     },
   }
 
-  const loadGarments = useCallback(async (force = false) => {
-    try {
-      if (force) {
-        await refreshGarments()
-      } else {
-        await loadCachedGarments()
-      }
-    } catch (error) {
-      console.error('Error cargando prendas:', error)
-    }
-  }, [loadCachedGarments, refreshGarments])
-
-  useEffect(() => {
-    loadGarments()
-  }, [loadGarments])
+  // Recargar la página actual (después de crear, editar o registrar acciones)
+  const loadGarments = useCallback(() => { setReloadKey((k) => k + 1) }, [])
 
   useEffect(() => {
     const filters: InventoryFilters = {
@@ -319,99 +265,47 @@ const Inventory = () => {
     }
   }, [isAdministrador])
 
-  const resolvedSearch = (extractGarmentId(searchTerm) || searchTerm).trim().toLowerCase()
-  const resolvedUuidCandidate = buildUuidCandidate(searchTerm)
+  const debouncedSearch = useDebouncedValue(searchTerm)
+  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE)
 
-  const getSearchRelevance = (garment: any): number => {
-    if (!resolvedSearch) return 999
+  const listFilters = useMemo<GarmentListFilters>(() => ({
+    search: buildUuidCandidate(debouncedSearch) || extractGarmentId(debouncedSearch) || debouncedSearch,
+    status: filterStatus === 'all' ? null : (filterStatus as GarmentStatus),
+    dateFrom: filterDateFrom || null,
+    dateTo: filterDateTo || null,
+    garmentType: filterGarmentType || null,
+    color: filterColor || null,
+    size: filterSize || null,
+    batch: filterBatch || null,
+    teamId: isAdministrador && filterTeamId !== 'all' ? filterTeamId : null,
+    life: filterLifeStatuses as LifeStatus[],
+  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, isAdministrador, filterTeamId, filterLifeStatuses])
 
-    const shortCode = (garment.short_code || '').toLowerCase()
-    const code = (garment.code || '').toLowerCase()
-    const name = (garment.name || '').toLowerCase()
-    const clientName = (garment.client_name || '').toLowerCase()
-    const id = (garment.id || '').toLowerCase()
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    garmentService.list(listFilters, currentPage, pageSize)
+      .then((res) => {
+        if (cancelled) return
+        setGarments(res.rows)
+        setTotalGarments(res.total)
+      })
+      .catch((error) => {
+        console.error('Error cargando prendas:', error)
+        if (!cancelled) feedback.error('No se pudo cargar el inventario')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [listFilters, currentPage, pageSize, reloadKey, feedback])
 
-    if (shortCode === resolvedSearch) return 0
-    if (code === resolvedSearch) return 1
-    if (id === resolvedSearch) return 2
-    if (resolvedUuidCandidate && isUuidLikeMatch(id, resolvedUuidCandidate)) return 3
+  const hasActiveFilters = Object.values(listFilters).some((v) => (Array.isArray(v) ? v.length > 0 : !!v))
 
-    if (shortCode.startsWith(resolvedSearch)) return 10 + shortCode.length
-    if (code.startsWith(resolvedSearch)) return 30 + code.length
-    if (name.startsWith(resolvedSearch)) return 50 + name.length
-    if (clientName.startsWith(resolvedSearch)) return 60 + clientName.length
-
-    if (shortCode.includes(resolvedSearch)) return 70 + shortCode.indexOf(resolvedSearch)
-    if (code.includes(resolvedSearch)) return 80 + code.indexOf(resolvedSearch)
-    if (name.includes(resolvedSearch)) return 90 + name.indexOf(resolvedSearch)
-    if (clientName.includes(resolvedSearch)) return 100 + clientName.indexOf(resolvedSearch)
-    if (id.includes(resolvedSearch)) return 110 + id.indexOf(resolvedSearch)
-
-    return 999
-  }
-
-  const filteredGarments = garments.filter((garment) => {
-    const matchesSearch =
-      !resolvedSearch ||
-      garment.id.toLowerCase().includes(resolvedSearch) ||
-      (resolvedUuidCandidate ? isUuidLikeMatch(garment.id, resolvedUuidCandidate) : false) ||
-      garment.code.toLowerCase().includes(resolvedSearch) ||
-      garment.name.toLowerCase().includes(resolvedSearch) ||
-      (garment.short_code?.toLowerCase().includes(resolvedSearch) ?? false) ||
-      (garment.client_name?.toLowerCase().includes(resolvedSearch) ?? false)
-    const matchesFilter = filterStatus === 'all' || garment.status === filterStatus
-    
-    // Filtro por fecha
-    const garmentDate = new Date(garment.updated_at || garment.created_at).setHours(0, 0, 0, 0)
-    const matchesDateFrom = !filterDateFrom || garmentDate >= new Date(filterDateFrom).setHours(0, 0, 0, 0)
-    const matchesDateTo = !filterDateTo || garmentDate <= new Date(filterDateTo).setHours(23, 59, 59, 999)
-    
-    // Filtro por código de prenda (si está configurado)
-    let matchesCodeFilters = true
-    if (filterGarmentType || filterColor || filterSize || filterBatch) {
-      const parsed = parseGarmentCode(garment.code)
-      if (parsed.valid) {
-        if (filterGarmentType && parsed.garmentType !== filterGarmentType) matchesCodeFilters = false
-        if (filterColor && parsed.color !== filterColor) matchesCodeFilters = false
-        if (filterSize && parsed.size !== filterSize) matchesCodeFilters = false
-        if (filterBatch && parsed.batchCode !== filterBatch) matchesCodeFilters = false
-      } else {
-        // Si el código no es válido y hay filtros activos, excluir
-        matchesCodeFilters = false
-      }
-    }
-    
-    const matchesTeam = !isAdministrador || filterTeamId === 'all' || garment.team_id === filterTeamId
-
-    const matchesLifeStatus =
-      filterLifeStatuses.length === 0 ||
-      filterLifeStatuses.includes(getCycleLifeStatus(getCycleCount(garment.actions || [])))
-
-    return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters && matchesTeam && matchesLifeStatus
-  }).sort((a, b) => {
-    if (!resolvedSearch) return 0
-
-    const scoreA = getSearchRelevance(a)
-    const scoreB = getSearchRelevance(b)
-
-    if (scoreA !== scoreB) return scoreA - scoreB
-
-    // Desempate para short codes parecidos: primero el más corto (X1 antes que X199)
-    const shortA = (a.short_code || '').toString()
-    const shortB = (b.short_code || '').toString()
-    if (shortA.length !== shortB.length) return shortA.length - shortB.length
-
-    return 0
-  })
-
-  const totalPages = Math.ceil(filteredGarments.length / ITEMS_PER_PAGE)
-  const paginatedGarments = filteredGarments.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
+  // La página actual ya viene filtrada y ordenada desde el servidor
+  const filteredGarments = garments
+  const paginatedGarments = garments
 
   // Resetear página al cambiar filtros
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, pageSize, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -429,7 +323,7 @@ const Inventory = () => {
       setNewGarment({ code: '', name: '', client_name: '' })
       setNewGarmentTeamId('')
       setShowModal(false)
-      loadGarments(true)
+      loadGarments()
     } catch (error: any) {
       if (error.code === '23505') {
         feedback.error('Ya existe una prenda con ese código')
@@ -517,7 +411,7 @@ const Inventory = () => {
       setShowActionModal(false)
       setSelectedGarment(null)
       setSignaturePassword('')
-      loadGarments(true)
+      loadGarments()
     } catch (error: any) {
       console.error('Error registrando acción:', error)
       setActionError(error.message || 'Error al registrar la acción')
@@ -579,7 +473,7 @@ const Inventory = () => {
   }
 
   const downloadFilteredQRs = async () => {
-    if (filteredGarments.length === 0) {
+    if (totalGarments === 0) {
       feedback.toast('No hay prendas para descargar', 'warning')
       return
     }
@@ -590,7 +484,8 @@ const Inventory = () => {
       const qrFolder = zip.folder('QR_Prendas')
       const QRCodeLib = await import('qrcode')
 
-      for (const garment of filteredGarments) {
+      const allGarments = await garmentService.listAll(listFilters)
+      for (const garment of allGarments) {
         const qrUrl = generateQRUrl(garment.id)
 
         try {
@@ -640,7 +535,7 @@ const Inventory = () => {
 
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       saveAs(zipBlob, `${zipName}_${new Date().toISOString().split('T')[0]}.zip`)
-      feedback.success(`Descargados ${filteredGarments.length} QR en formato ZIP`)
+      feedback.success(`Descargados ${totalGarments} QR en formato ZIP`)
     } catch (error) {
       console.error('Error descargando QR:', error)
       feedback.error('Error al descargar QR')
@@ -650,13 +545,13 @@ const Inventory = () => {
   }
 
   const downloadFilteredReport = async () => {
-    if (filteredGarments.length === 0) {
+    if (totalGarments === 0) {
       feedback.toast('No hay prendas para reportar', 'warning')
       return
     }
     try {
       setDownloadingReport(true)
-      await generateReportExcel(filteredGarments)
+      await generateReportExcel(await garmentService.listAll(listFilters, true))
     } catch (error) {
       console.error('Error generando reporte:', error)
       feedback.error('Error al generar el reporte Excel')
@@ -668,7 +563,7 @@ const Inventory = () => {
   const archiveGarment = useArchiveGarment()
   const openDeleteModal = async (garment: Garment) => {
     if (!canDeleteGarment) return
-    if (await archiveGarment(garment)) loadGarments(true)
+    if (await archiveGarment(garment)) loadGarments()
   }
 
   const openAssignModal = async (garment: Garment) => {
@@ -775,7 +670,7 @@ const Inventory = () => {
       setBulkTeamId('')
       setBulkGarments([])
       setShowBulkModal(false)
-      loadGarments(true)
+      loadGarments()
     } catch (error) {
       console.error('Error en ingreso masivo:', error)
       feedback.error('Error al crear prendas')
@@ -923,7 +818,7 @@ const Inventory = () => {
 
           <button
             onClick={downloadFilteredReport}
-            disabled={downloadingReport || filteredGarments.length === 0}
+            disabled={downloadingReport || totalGarments === 0}
             className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {downloadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -933,7 +828,7 @@ const Inventory = () => {
           {isAdministrador && (
             <button
               onClick={downloadFilteredQRs}
-              disabled={downloadingQRs || filteredGarments.length === 0}
+              disabled={downloadingQRs || totalGarments === 0}
               className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {downloadingQRs ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileArchive className="w-4 h-4" />}
@@ -1244,8 +1139,7 @@ const Inventory = () => {
 
             {/* Advertencia fin de vida útil en el modal */}
             {(() => {
-              const selActions = (selectedGarment as any).actions ?? []
-              const cycleCount = getCycleCount(selActions)
+              const cycleCount = (selectedGarment as GarmentListItem).wash_count ?? 0
               const newCycleCount = actionType === 'lavado' ? cycleCount + 1 : cycleCount
               const alreadyExpired = cycleCount >= 100
               const willExpire = !alreadyExpired && newCycleCount >= 100
@@ -1370,7 +1264,7 @@ const Inventory = () => {
         <div className="card text-center py-12">
           <PackageX className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">
-            {garments.length === 0
+            {!hasActiveFilters
               ? 'No hay prendas en el inventario'
               : 'No se encontraron prendas con ese criterio'}
           </p>
@@ -1381,12 +1275,8 @@ const Inventory = () => {
             const StatusIcon = statusLabels[garment.status as GarmentStatus]?.icon || Package
             const availableActions = getAvailableActions(garment.status as GarmentStatus)
             // Contadores de acciones
-            const actions = (garment.actions ?? []) as import('../types').GarmentAction[];
-            const cycleCount = getCycleCount(actions)
-            const reparacionCount = actions.filter((a) =>
-              a.action_type === 'reparacion' ||
-              (a.action_type === 'inspeccion' && a.result === 'reparacion')
-            ).length
+            const cycleCount = garment.wash_count
+            const reparacionCount = garment.repair_count
             const LIFE_LIMIT = 100
             const LIFE_WARN = 80
             const lifeExpired = cycleCount >= LIFE_LIMIT
@@ -1514,7 +1404,7 @@ const Inventory = () => {
                 </div>
 
                 {/* Contadores - Grid 2 columnas */}
-                {actions.length > 0 && (
+                {(cycleCount > 0 || reparacionCount > 0) && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
                       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${lifeExpired ? 'bg-red-50 text-red-600' : lifeNearEnd ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -1584,68 +1474,15 @@ const Inventory = () => {
         </div>
       )}
 
-      {/* Paginación */}
-      {!loading && filteredGarments.length > 0 && totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-1">
-          <p className="text-sm text-gray-500">
-            Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredGarments.length)} de {filteredGarments.length} prendas
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-              className="px-2 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              «
-            </button>
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-              .reduce<(number | '...')[]>((acc, p, idx, arr) => {
-                if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...')
-                acc.push(p)
-                return acc
-              }, [])
-              .map((p, idx) =>
-                p === '...' ? (
-                  <span key={`ellipsis-${idx}`} className="px-2 py-1 text-sm text-gray-400">…</span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setCurrentPage(p as number)}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      currentPage === p
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              ›
-            </button>
-            <button
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className="px-2 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              »
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Paginación (en el servidor) */}
+      <Pagination
+        page={currentPage}
+        pageSize={pageSize}
+        total={totalGarments}
+        onPageChange={(p) => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+        onPageSizeChange={setPageSize}
+        label="prendas"
+      />
 
       {/* Edit Garment Modal */}
       {showEditModal && editTargetGarment && (

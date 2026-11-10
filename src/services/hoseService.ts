@@ -10,6 +10,28 @@ import type {
 } from '../types'
 
 export const hoseService = {
+  // Equipos paginados con posiciones y mangueras en una sola consulta
+  async listEquipment(search: string, page: number, pageSize: number): Promise<{ rows: (Equipment & { positions: HosePositionWithDetails[] })[]; total: number }> {
+    const { data, error } = await supabase.rpc('list_equipment', {
+      p_search: search.trim() || null,
+      p_limit: pageSize,
+      p_offset: (page - 1) * pageSize,
+    })
+    if (error) throw error
+    const rows = (data || []).map((r: any) => ({ ...r, positions: (r.positions || []) as HosePositionWithDetails[] }))
+    return { rows, total: rows.length ? Number((data as any[])[0].total_count) : 0 }
+  },
+
+  async listAllEquipment(search = ''): Promise<(Equipment & { positions: HosePositionWithDetails[] })[]> {
+    const all: (Equipment & { positions: HosePositionWithDetails[] })[] = []
+    for (let page = 1; ; page++) {
+      const { rows, total } = await this.listEquipment(search, page, 500)
+      all.push(...rows)
+      if (all.length >= total || rows.length === 0) break
+    }
+    return all
+  },
+
   // Obtener todos los equipos
   async getAllEquipment(): Promise<Equipment[]> {
     const { data, error } = await supabase

@@ -30,6 +30,8 @@ const GarmentDetail = () => {
   const { canEditGarment, canViewReports } = useRole()
   const { user } = useAuth()
   const [auditTrail, setAuditTrail] = useState<AuditLogEntry[] | null>(null)
+  const HISTORY_STEP = 15
+  const [historyVisible, setHistoryVisible] = useState(HISTORY_STEP)
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditError, setAuditError] = useState<string | null>(null)
   const { invalidateGarments } = useGarmentCache()
@@ -442,8 +444,9 @@ const GarmentDetail = () => {
               {actions.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-3">Sin acciones registradas</p>
               ) : (
-                <div className="space-y-1.5 max-h-60 md:max-h-72 overflow-y-auto pr-1">
-                  {actions.map((action, idx) => (
+                <>
+                <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                  {actions.slice(0, historyVisible).map((action, idx) => (
                     <div key={idx} className="p-2 md:p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-gray-800">
@@ -471,6 +474,15 @@ const GarmentDetail = () => {
                     </div>
                   ))}
                 </div>
+                {actions.length > historyVisible && (
+                  <button
+                    onClick={() => setHistoryVisible((n) => n + HISTORY_STEP)}
+                    className="btn-soft mt-2 w-full py-1.5 text-sm"
+                  >
+                    Ver más ({actions.length - historyVisible} restantes)
+                  </button>
+                )}
+                </>
               )}
             </div>
 

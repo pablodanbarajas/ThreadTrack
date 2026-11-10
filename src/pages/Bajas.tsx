@@ -1,30 +1,45 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Archive, PackageX, Calendar, FileText, Search } from 'lucide-react'
 import { StatusBadge, IconTile } from '../components/ui/StatusBadge'
 import { SkeletonList } from '../components/ui/Skeleton'
-import { useGarmentCache } from '../contexts/GarmentCacheContext'
+import Pagination from '../components/ui/Pagination'
 import { useArchiveGarment } from '../hooks/useArchiveGarment'
-import type { Garment } from '../types'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import { garmentService } from '../services/garmentService'
+import type { Garment, GarmentListItem } from '../types'
+
+const PAGE_SIZE = 20
 
 const Bajas = () => {
-  const { garments: cachedGarments, loading, loadGarments, refreshGarments } = useGarmentCache()
   const [searchTerm, setSearchTerm] = useState('')
+  const search = useDebouncedValue(searchTerm)
+  const [page, setPage] = useState(1)
+  const [rows, setRows] = useState<GarmentListItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [everHad, setEverHad] = useState(false)
 
-  useEffect(() => {
-    loadGarments().catch((error) => console.error('Error cargando bajas:', error))
-  }, [loadGarments])
+  // Búsqueda y paginación en el servidor
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await garmentService.list({ search, status: 'baja' }, page, PAGE_SIZE)
+      setRows(res.rows)
+      setTotal(res.total)
+      if (res.total > 0) setEverHad(true)
+    } catch (error) {
+      console.error('Error cargando bajas:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [search, page])
 
-  const garments = cachedGarments.filter((garment): garment is Garment => garment.status === 'baja')
-
-  const filteredGarments = garments.filter((garment) =>
-    garment.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    garment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (garment.baja_reason?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
-  )
+  useEffect(() => { load() }, [load])
+  useEffect(() => { setPage(1) }, [search])
 
   const archiveGarment = useArchiveGarment()
   const handleArchive = async (garment: Garment) => {
-    if (await archiveGarment(garment)) await refreshGarments()
+    if (await archiveGarment(garment)) await load()
   }
 
   const formatDate = (dateString?: string) => {
@@ -63,20 +78,20 @@ const Bajas = () => {
       </div>
 
       {/* Lista de Bajas */}
-      {loading && cachedGarments.length === 0 ? (
+      {loading && rows.length === 0 ? (
         <SkeletonList rows={4} />
-      ) : filteredGarments.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div className="card text-center py-12">
           <PackageX className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">
-            {garments.length === 0
+            {!everHad && !search
               ? 'No hay prendas dadas de baja'
               : 'No se encontraron prendas con ese criterio'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredGarments.map((garment) => (
+          {rows.map((garment) => (
             <div key={garment.id} className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 pl-6 shadow-sm">
               <span className="absolute inset-y-0 left-0 w-1 bg-red-500" />
               <div className="flex items-start justify-between">
@@ -120,6 +135,8 @@ const Bajas = () => {
           ))}
         </div>
       )}
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} label="bajas" />
     </div>
   )
 }

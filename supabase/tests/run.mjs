@@ -395,5 +395,49 @@ await expectErr('un jefe no cambia nombres de otros', () => as('jefeA', `SELECT 
   console.log(nm.full_name === 'Juan Pérez García' ? '  ✔ nombre actualizado' : '  ✘ ' + nm.full_name); nm.full_name === 'Juan Pérez García' ? pass++ : fail++
 }
 
+console.log('\n— Consultas paginadas')
+{
+  // 30 prendas extra en el equipo A, con distintos ciclos de lavado
+  await db.exec(`ALTER TABLE garment_actions DISABLE TRIGGER stamp_recorder_garment_actions`)
+  for (let i = 1; i <= 30; i++) {
+    const id = `bbbbbbbb-0000-0000-0000-${String(i).padStart(12, '0')}`
+    await db.query(`INSERT INTO garments (id, code, name, team_id, short_code, status) VALUES
+      ('${id}', '202607A-${i % 2 ? 'FI' : 'PA'}-L-NE-${String(i).padStart(3, '0')}', 'Prenda ${i}',
+       '00000000-0000-0000-0000-0000000000a1', 'P${i}', '${i % 5 === 0 ? 'reparacion' : 'disponible'}')`)
+    const washes = i <= 3 ? 80 : i <= 6 ? 30 : 1
+    await db.query(`INSERT INTO garment_actions (garment_id, action_type, performed_by)
+      SELECT '${id}', 'lavado', 'x' FROM generate_series(1, ${washes})`)
+  }
+  await db.exec(`ALTER TABLE garment_actions ENABLE TRIGGER stamp_recorder_garment_actions`)
+
+  const page = (sql) => as('jefeA', sql).then((r) => r.rows)
+  let rows = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 0)`)
+  const total = Number(rows[0]?.total_count)
+  console.log(rows.length === 10 && total >= 31 ? `  ✔ primera página de 10 con total ${total}` : '  ✘ ' + rows.length + '/' + total); rows.length === 10 ? pass++ : fail++
+  const p4 = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 30)`)
+  console.log(p4.length === total - 30 ? '  ✔ última página con el resto' : '  ✘ ' + p4.length); p4.length === total - 30 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments('p12', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 5, 0)`)
+  console.log(rows[0]?.short_code === 'P12' ? '  ✔ búsqueda por código corto: coincidencia exacta primero' : '  ✘ ' + rows[0]?.short_code); rows[0]?.short_code === 'P12' ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ARRAY['rojo'], 50, 0)`)
+  const okLife = rows.length === 3 && rows.every((r) => r.life_status === 'rojo' && Number(r.wash_count) === 80)
+  console.log(okLife ? '  ✔ filtro de vida útil (rojo) calculado en la base' : '  ✘ ' + JSON.stringify(rows.map((r) => [r.code, r.wash_count]))); okLife ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(NULL, 'reparacion', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 50, 0)`)
+  console.log(rows.length >= 6 && rows.every((r) => r.status === 'reparacion') ? '  ✔ filtro por estado' : '  ✘ ' + rows.length); rows.length >= 6 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, 'PA', NULL, NULL, NULL, NULL, NULL, 50, 0)`)
+  console.log(rows.length === 15 && rows.every((r) => r.code.split('-')[1] === 'PA') ? '  ✔ filtro por tipo de prenda (segmento del código)' : '  ✘ ' + rows.length); rows.length === 15 ? pass++ : fail++
+  rows = await as('jefeB', `SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 0)`).then((r) => r.rows)
+  console.log(rows.every((r) => r.organization_id !== rows.find(() => false)) && !rows.some((r) => r.code.startsWith('202607A-')) ? '  ✔ otra empresa no ve estas prendas' : '  ✘ ' + rows.length); !rows.some((r) => r.code.startsWith('202607A-')) ? pass++ : fail++
+  await expectRows('usuario sin módulo Prendas no lista prendas', () =>
+    as('adminx@x.test', `SELECT * FROM list_garments()`), 0)
+
+  const st = (await as('jefeA', `SELECT garment_stats() s`)).rows[0].s
+  const okStats = st.life.rojo === 3 && st.life.naranja === 0 && st.life.amarillo === 3 && st.reparacion >= 6
+  console.log(okStats ? `  ✔ totales de Inicio en la base (activas ${st.active}, rojo ${st.life.rojo}, amarillo ${st.life.amarillo})` : '  ✘ ' + JSON.stringify(st)); okStats ? pass++ : fail++
+
+  await db.query(`INSERT INTO equipment (id, code, name, team_id) VALUES ('eeeeeeee-0000-0000-0000-000000000002', 'EQ-B2', 'Equipo dos', '00000000-0000-0000-0000-0000000000a1')`)
+  rows = await page(`SELECT * FROM list_equipment(NULL, 10, 0)`)
+  console.log(rows.length >= 1 && Array.isArray(rows[0].positions) ? `  ✔ equipos paginados con posiciones (${rows.length}, total ${rows[0].total_count})` : '  ✘ ' + JSON.stringify(rows[0])); rows.length >= 1 ? pass++ : fail++
+}
+
 console.log(`\nResultado: ${pass} OK, ${fail} fallas`)
 process.exit(fail ? 1 : 0)

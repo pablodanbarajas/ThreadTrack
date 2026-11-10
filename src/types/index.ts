@@ -200,3 +200,46 @@ export interface EquipmentInsert {
   lengths?: string[]
   team_id?: string
 }
+
+// ------------------------------------------------------------
+// Listas paginadas en el servidor
+// ------------------------------------------------------------
+export type LifeStatus = 'verde' | 'amarillo' | 'naranja' | 'rojo'
+
+/** Prenda en una lista: contadores calculados en la base */
+export interface GarmentListItem extends Garment {
+  wash_count: number
+  repair_count: number
+  life_status: LifeStatus
+  last_action_at?: string | null
+  /** Solo se llena al exportar */
+  actions?: GarmentAction[]
+}
+
+export interface GarmentListFilters {
+  search?: string
+  status?: GarmentStatus | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  garmentType?: string | null
+  color?: string | null
+  size?: string | null
+  batch?: string | null
+  teamId?: string | null
+  life?: LifeStatus[]
+}
+
+export interface Paged<T> {
+  rows: T[]
+  total: number
+}
+
+export interface GarmentStats {
+  active: number
+  disponible: number
+  lavado: number
+  inspeccion: number
+  reparacion: number
+  baja: number
+  life: Record<LifeStatus, number>
+}

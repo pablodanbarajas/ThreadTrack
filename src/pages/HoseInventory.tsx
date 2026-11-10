@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Waves, Plus, Search, Loader, Pencil, Trash2, PlusCircle, Download } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
-import { useHoseCache } from '../contexts/HoseCacheContext'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import Pagination from '../components/ui/Pagination'
 import { hoseService } from '../services/hoseService'
 import RecordedBy from '../components/RecordedBy'
 import { SkeletonList } from '../components/ui/Skeleton'
@@ -21,8 +22,14 @@ const lifeStatusStyles: Record<HoseLifeStatus, { label: string; dot: string }> =
 
 const HoseInventory = () => {
   const { canCreateEquipment, canDeleteEquipment, canRegisterHoseAction } = useRole()
-  const { equipmentList, loading, loadEquipment, invalidateEquipment } = useHoseCache()
   const [searchTerm, setSearchTerm] = useState('')
+  const search = useDebouncedValue(searchTerm)
+  // Página actual de equipos (paginada y filtrada en el servidor)
+  const [equipmentList, setEquipmentList] = useState<(Equipment & { positions: HosePositionWithDetails[] })[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const PAGE_SIZE = 10
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -44,9 +51,21 @@ const HoseInventory = () => {
   const [cycleError, setCycleError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
-  useEffect(() => {
-    loadEquipment()
-  }, [loadEquipment])
+  const loadEquipment = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await hoseService.listEquipment(search, page, PAGE_SIZE)
+      setEquipmentList(res.rows)
+      setTotal(res.total)
+    } catch (err: any) {
+      setSearchError(err.message || 'Error al cargar los productos')
+    } finally {
+      setLoading(false)
+    }
+  }, [search, page])
+
+  useEffect(() => { loadEquipment() }, [loadEquipment])
+  useEffect(() => { setPage(1) }, [search])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,15 +89,8 @@ const HoseInventory = () => {
     }
   }
 
-  const filteredEquipment = equipmentList.filter((equipment) => {
-    if (!searchTerm.trim()) return true
-    const term = searchTerm.trim().toLowerCase()
-    const matchesEquipment = equipment.code.toLowerCase().includes(term) || equipment.name.toLowerCase().includes(term)
-    const matchesHoseCode = (equipment.positions || []).some((position) =>
-      (position.history || []).some((hose) => hose.short_code?.toLowerCase().includes(term))
-    )
-    return matchesEquipment || matchesHoseCode
-  })
+  // La página ya viene filtrada desde el servidor (código, nombre o código de manguera)
+  const filteredEquipment = equipmentList
 
   const openEditModal = (equipment: Equipment & { positions?: HosePositionWithDetails[] }) => {
     setEditingEquipment(equipment)
@@ -123,8 +135,7 @@ const HoseInventory = () => {
     setCycleError(null)
     try {
       await hoseService.registerBulkUse(activeHoseIds, { notes: cycleNotes })
-      invalidateEquipment()
-      await loadEquipment({ force: true })
+      await loadEquipment()
       setCycleEquipment(null)
     } catch (err: any) {
       setCycleError(err.message || 'Error al registrar el ciclo')
@@ -137,7 +148,8 @@ const HoseInventory = () => {
     setExporting(true)
     setSearchError(null)
     try {
-      const exportEquipment = await Promise.all(filteredEquipment.map(async (equipment) => {
+      const allEquipment = await hoseService.listAllEquipment(search)
+      const exportEquipment = await Promise.all(allEquipment.map(async (equipment) => {
         const positions = await Promise.all((equipment.positions || []).map(async (position) => {
           const historyActions: Record<string, Awaited<ReturnType<typeof hoseService.getHoseActions>>> = {}
           for (const hose of position.history || []) {
@@ -168,8 +180,7 @@ const HoseInventory = () => {
     setDeletingId(confirmDelete.id)
     try {
       await hoseService.archiveEquipment(confirmDelete.id, archiveReason.trim())
-      invalidateEquipment()
-      await loadEquipment({ force: true })
+      await loadEquipment()
       setConfirmDelete(null)
     } catch (err: any) {
       setSearchError(err.message || 'Error al archivar el producto')
@@ -211,8 +222,7 @@ const HoseInventory = () => {
           }, reason))
       )
 
-      invalidateEquipment()
-      await loadEquipment({ force: true })
+      await loadEquipment()
       setEditingEquipment(null)
     } catch (err: any) {
       setEditError(err.message || 'Error al guardar los cambios')
@@ -235,7 +245,7 @@ const HoseInventory = () => {
               Nuevo Producto
             </Link>
           )}
-          <button onClick={handleExport} className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || filteredEquipment.length === 0}>
+          <button onClick={handleExport} className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || total === 0}>
             {exporting ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Exportar
           </button>
@@ -264,7 +274,7 @@ const HoseInventory = () => {
       {loading && equipmentList.length === 0 ? (
         <SkeletonList rows={4} />
       ) : filteredEquipment.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">No hay productos registrados</div>
+        <div className="text-center py-12 text-gray-500">{search ? 'No se encontraron productos con ese criterio' : 'No hay productos registrados'}</div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {filteredEquipment.map((equipment) => (
@@ -336,6 +346,8 @@ const HoseInventory = () => {
           ))}
         </div>
       )}
+
+      <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} label="productos" />
 
       {cycleEquipment && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
