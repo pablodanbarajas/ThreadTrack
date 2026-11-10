@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, ShieldCheck, FileSpreadsheet } from 'lucide-react'
+import { AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, X, Pencil, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
+import InspectionResultPicker from '../components/InspectionResultPicker'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { documentService } from '../services/documentService'
@@ -29,6 +30,8 @@ const GarmentDetail = () => {
   const { canEditGarment, canViewReports } = useRole()
   const { user } = useAuth()
   const [auditTrail, setAuditTrail] = useState<AuditLogEntry[] | null>(null)
+  const HISTORY_STEP = 15
+  const [historyVisible, setHistoryVisible] = useState(HISTORY_STEP)
   const [auditLoading, setAuditLoading] = useState(false)
   const [auditError, setAuditError] = useState<string | null>(null)
   const { invalidateGarments } = useGarmentCache()
@@ -254,20 +257,6 @@ const GarmentDetail = () => {
                 )}
               </div>
             </div>
-            {garment.client_name && (
-              <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-6 gap-y-1 text-gray-600">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-blue-200 text-xs">Cliente:</span>
-                  <span className="text-white text-xs font-semibold">{garment.client_name}</span>
-                </div>
-                {garment.client_phone && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-blue-200 text-xs">Tel. cliente:</span>
-                    <span className="text-white text-xs font-semibold">{garment.client_phone}</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -441,8 +430,9 @@ const GarmentDetail = () => {
               {actions.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-3">Sin acciones registradas</p>
               ) : (
-                <div className="space-y-1.5 max-h-60 md:max-h-72 overflow-y-auto pr-1">
-                  {actions.map((action, idx) => (
+                <>
+                <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                  {actions.slice(0, historyVisible).map((action, idx) => (
                     <div key={idx} className="p-2 md:p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-gray-800">
@@ -470,6 +460,15 @@ const GarmentDetail = () => {
                     </div>
                   ))}
                 </div>
+                {actions.length > historyVisible && (
+                  <button
+                    onClick={() => setHistoryVisible((n) => n + HISTORY_STEP)}
+                    className="btn-soft mt-2 w-full py-1.5 text-sm"
+                  >
+                    Ver más ({actions.length - historyVisible} restantes)
+                  </button>
+                )}
+                </>
               )}
             </div>
 
@@ -600,28 +599,6 @@ const GarmentDetail = () => {
                   placeholder="Descripción (opcional)"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_name}
-                    onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
-                    className="input-field"
-                    placeholder="Nombre del cliente"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono del cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_phone}
-                    onChange={e => setEditForm(f => ({ ...f, client_phone: e.target.value }))}
-                    className="input-field"
-                    placeholder="Teléfono (opcional)"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea
@@ -637,7 +614,7 @@ const GarmentDetail = () => {
                   value={editForm.reason}
                   onChange={e => setEditForm(f => ({ ...f, reason: e.target.value }))}
                   className="input-field min-h-[60px]"
-                  placeholder="Ej. corrección del nombre del cliente"
+                  placeholder="Ej. corrección del nombre"
                 />
                 <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
               </div>
@@ -699,29 +676,8 @@ const GarmentDetail = () => {
             })()}
 
             {actionType === 'inspeccion' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Resultado</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="result" value="aprobado" checked={inspectionResult === 'aprobado'} onChange={() => setInspectionResult('aprobado')} />
-                    <PackageCheck className="w-5 h-5 text-green-600" />
-                    <span>Aprobado - Vuelve a Disponible</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="result" value="reparacion" checked={inspectionResult === 'reparacion'} onChange={() => setInspectionResult('reparacion')} />
-                    <Scissors className="w-5 h-5 text-orange-600" />
-                    <span>Requiere Reparación</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="radio" name="result" value="baja" checked={inspectionResult === 'baja'} onChange={() => setInspectionResult('baja')} />
-                    <PackageX className="w-5 h-5 text-red-600" />
-                    <span>Dar de Baja</span>
-                  </label>
-                </div>
-              </div>
+              <InspectionResultPicker value={inspectionResult} onChange={setInspectionResult} />
             )}
-
-            <RecordedBy className="mb-4" />
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -735,11 +691,12 @@ const GarmentDetail = () => {
               />
             </div>
 
-            {signatureMeaning && (
-              <div className="mb-4">
-                <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
-              </div>
-            )}
+            {/* Confirmación: firma (incluye al firmante) o, si no aplica, a nombre de quién se registra */}
+            <div className="mb-4">
+              {signatureMeaning
+                ? <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
+                : <RecordedBy />}
+            </div>
 
             {actionError && (
               <Notice tone="error" className="mb-4">{actionError}</Notice>

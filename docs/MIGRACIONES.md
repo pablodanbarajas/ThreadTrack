@@ -17,13 +17,16 @@ fecha, descripción y revisión.
 | 2026-11-10 | `20261110140000` | SQL Editor (manual) | Usuarios activos, bloqueo por intentos, firma electrónica y estado en fecha. Verificado: tablas, funciones, permisos de `anon` (solo login) y pgcrypto. Frontend desplegado en `eb29cb0`. |
 | 2026-11-10 | `20261110160000` + Edge Function `admin-users` | SQL Editor + Dashboard (manual) | Empresas y licencias (SOPHIA 5 usuarios), superadmin, administrador por módulo, política de contraseñas. Verificado: datos migrados sin registros huérfanos, función activa con verificación JWT. |
 | 2026-11-10 | `20261110170000` + Edge Function `admin-users` v3 | SQL Editor + Dashboard (manual) | Nombre completo del usuario, responsable automático (usuario en sesión) y nombre del firmante. Verificado: columnas, funciones, permisos de `anon` y función desplegada con `full_name`. |
+| 2026-11-10 | `20261110180000` | SQL Editor (manual) | Consultas paginadas en el servidor (`list_garments`, `garment_stats`, `list_equipment`). Verificado: firmas de las funciones. |
+| 2026-11-10 | `20261110190000` | SQL Editor (manual) | Filtros del inventario (cliente, inactividad, orden), `existing_garment_codes` y retiro del trigger de asignación. Verificado: firma de 15 parámetros y trigger eliminado. |
+| 2026-11-10 | `20261110200000` | SQL Editor (manual) | Mangueras al nivel de prendas: filtros de `list_equipment`, `hose_calibers`, `hose_stats`, `get_hose_status_at`, `existing_equipment_codes`, `create_equipment` versionada. Verificado: firmas de las 7 funciones. |
 
 Como se aplicaron a mano, el historial de migraciones de Supabase no las
 registra. La primera vez que se use el CLI contra producción, márcalas como
 aplicadas para que `db push` no intente repetirlas:
 
 ```bash
-supabase migration repair --status applied 20261110120000 20261110120100 20261110120200 20261110120300 20261110120400 20261110140000 20261110160000 20261110170000
+supabase migration repair --status applied 20261110120000 20261110120100 20261110120200 20261110120300 20261110120400 20261110140000 20261110160000 20261110170000 20261110180000 20261110190000 20261110200000
 ```
 
 ## Fase 0 — Línea base (hacer una sola vez)

@@ -74,8 +74,6 @@ export async function generateReportExcel(garments: any[]) {
         'Lote': parsed.valid ? parsed.batchCode : '',
         'Mes lote': parsed.valid ? formatBatchMonth(parsed.batchMonth, parsed.batchYear) : '',
         'Secuencia': parsed.valid ? parsed.sequenceNumber.toString().padStart(3, '0') : '',
-        'Cliente': garment.client_name || '',
-        'Telefono cliente': garment.client_phone || '',
         'Estado': formatStatus(garment.status),
         'Ciclos lavado y esterilizacion': getCycleCount(actions),
         'Inspecciones': getActionCount(actions, 'inspeccion'),

@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, Search, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { Archive, Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, FileClock, X, ScanBarcode, Download, Copy, Upload, FileArchive, Pencil, Search } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -8,71 +8,29 @@ import { useFeedback } from '../components/ui/feedback-context'
 import { StatusBadge, StatusDot, Notice } from '../components/ui/StatusBadge'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { garmentStatusTone, lifeTone, actionTone, softButton } from '../lib/tones'
-import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { garmentService } from '../services/garmentService'
+import { useArchiveGarment } from '../hooks/useArchiveGarment'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import Pagination from '../components/ui/Pagination'
+import ImportGarmentsModal from '../components/ImportGarmentsModal'
+import InventoryFilterBar, { FilterField } from '../components/InventoryFilterBar'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
+import InspectionResultPicker from '../components/InspectionResultPicker'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { generateReportExcel } from '../services/reportService'
 import { userService } from '../services/userService'
-import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
-import { parseGarmentCode, GARMENT_TYPES, COLORS, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
-import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
+import { parseGarmentCode, COLORS, SIZES, type Color, type Size } from '../lib/garmentCodeParser'
+import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
 import type { CycleLifeStatus } from '../lib/lifeStatus'
-import type { Garment, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
+import type { Garment, GarmentListItem, GarmentListFilters, LifeStatus, GarmentSort, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
 
 const compactHex = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, '')
 
-const isOneEditAway = (a: string, b: string): boolean => {
-  const aLen = a.length
-  const bLen = b.length
-
-  if (Math.abs(aLen - bLen) > 1) return false
-  if (a === b) return true
-
-  if (aLen === bLen) {
-    let diffs = 0
-    for (let i = 0; i < aLen; i++) {
-      if (a[i] !== b[i]) {
-        diffs++
-        if (diffs > 1) return false
-      }
-    }
-    return diffs === 1
-  }
-
-  const shorter = aLen < bLen ? a : b
-  const longer = aLen < bLen ? b : a
-  let i = 0
-  let j = 0
-  let skipped = false
-
-  while (i < shorter.length && j < longer.length) {
-    if (shorter[i] === longer[j]) {
-      i++
-      j++
-      continue
-    }
-    if (skipped) return false
-    skipped = true
-    j++
-  }
-
-  return true
-}
-
-const isUuidLikeMatch = (garmentId: string, candidate: string): boolean => {
-  const id = compactHex(garmentId)
-  const query = compactHex(candidate)
-
-  if (!query || query.length < 24) return false
-  if (id.includes(query) || query.includes(id)) return true
-  return isOneEditAway(id, query)
-}
 
 const buildUuidCandidate = (rawSearch: string): string => {
   const direct = extractGarmentId(rawSearch)
@@ -93,14 +51,12 @@ interface InventoryFilters {
   filterStatus: string
   filterDateFrom: string
   filterDateTo: string
-  showDateFilters: boolean
-  filterGarmentType: GarmentType | ''
   filterColor: Color | ''
   filterSize: Size | ''
   filterBatch: string
-  showCodeFilters: boolean
-  filterTeamId: string
   filterLifeStatuses: CycleLifeStatus[]
+  filterIdleDays: number
+  sortBy: GarmentSort
 }
 
 const defaultInventoryFilters: InventoryFilters = {
@@ -108,14 +64,12 @@ const defaultInventoryFilters: InventoryFilters = {
   filterStatus: 'all',
   filterDateFrom: '',
   filterDateTo: '',
-  showDateFilters: false,
-  filterGarmentType: '',
   filterColor: '',
   filterSize: '',
   filterBatch: '',
-  showCodeFilters: false,
-  filterTeamId: 'all',
   filterLifeStatuses: [],
+  filterIdleDays: 0,
+  sortBy: 'recientes',
 }
 
 const getStoredInventoryFilters = (): InventoryFilters => {
@@ -134,19 +88,20 @@ const getStoredInventoryFilters = (): InventoryFilters => {
 
 const Inventory = () => {
   const { canCreateGarment, canDeleteGarment, canRecordAction, canEditGarment, isAdministrador } = useRole()
-  const { garments, loading, loadGarments: loadCachedGarments, refreshGarments } = useGarmentCache()
+  // Página actual de prendas (paginada y filtrada en el servidor)
+  const [garments, setGarments] = useState<GarmentListItem[]>([])
+  const [totalGarments, setTotalGarments] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [reloadKey, setReloadKey] = useState(0)
   const feedback = useFeedback()
   const storedFilters = useRef(getStoredInventoryFilters()).current
   const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm)
-  const [filterStatus] = useState<string>(storedFilters.filterStatus)
-  const [filterDateFrom] = useState(storedFilters.filterDateFrom)
-  const [filterDateTo] = useState(storedFilters.filterDateTo)
-  const [showDateFilters] = useState(storedFilters.showDateFilters)
+  const [filterStatus, setFilterStatus] = useState<string>(storedFilters.filterStatus)
+  const [filterDateFrom, setFilterDateFrom] = useState(storedFilters.filterDateFrom)
+  const [filterDateTo, setFilterDateTo] = useState(storedFilters.filterDateTo)
   const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [garmentToDelete, setGarmentToDelete] = useState<Garment | null>(null)
   const [showScanner, setShowScanner] = useState(false)
   const [scannerTarget, setScannerTarget] = useState<'search' | 'newCode'>('search')
   const [selectedGarment, setSelectedGarment] = useState<Garment | null>(null)
@@ -157,41 +112,24 @@ const Inventory = () => {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [signaturePassword, setSignaturePassword] = useState('')
-  const [newGarment, setNewGarment] = useState({ code: '', name: '', client_name: '' })
+  const [newGarment, setNewGarment] = useState({ code: '', name: '' })
   const [newGarmentTeamId, setNewGarmentTeamId] = useState<string>('')
   const [showQRModal, setShowQRModal] = useState(false)
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
   // Filtros para códigos de prenda
-  const [filterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
-  const [filterColor] = useState<Color | ''>(storedFilters.filterColor)
-  const [filterSize] = useState<Size | ''>(storedFilters.filterSize)
-  const [filterBatch] = useState(storedFilters.filterBatch)
-  const [showCodeFilters] = useState(storedFilters.showCodeFilters)
-  // Ingreso masivo de prendas
-  const [showBulkModal, setShowBulkModal] = useState(false)
-  const [bulkInput, setBulkInput] = useState('')
-  const [bulkClientName, setBulkClientName] = useState('')
-  const [bulkTeamId, setBulkTeamId] = useState<string>('')
-  const [bulkGarments, setBulkGarments] = useState<any[]>([])
-  const [bulkLoading, setBulkLoading] = useState(false)
+  const [filterColor, setFilterColor] = useState<Color | ''>(storedFilters.filterColor)
+  const [filterSize, setFilterSize] = useState<Size | ''>(storedFilters.filterSize)
+  const [filterBatch, setFilterBatch] = useState(storedFilters.filterBatch)
+  const [filterIdleDays, setFilterIdleDays] = useState<number>(storedFilters.filterIdleDays)
+  const [sortBy, setSortBy] = useState<GarmentSort>(storedFilters.sortBy)
+  const [showFilters, setShowFilters] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   // Descarga masiva de QR
   const [downloadingQRs, setDownloadingQRs] = useState(false)
   const [downloadingReport, setDownloadingReport] = useState(false)
-  // Asignación de usuarios a prendas
-  const [showAssignModal, setShowAssignModal] = useState(false)
-  const [assignTargetGarment, setAssignTargetGarment] = useState<Garment | null>(null)
-  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
-  const [allUsersForAssign, setAllUsersForAssign] = useState<UserProfile[]>([])
-  const [archiveReason, setArchiveReason] = useState('')
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [loadingAssign, setLoadingAssign] = useState(false)
-  const [savingAssign, setSavingAssign] = useState(false)
-  const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
-  const [filterTeamId] = useState<string>(storedFilters.filterTeamId)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [filterLifeStatuses, setFilterLifeStatuses] = useState<CycleLifeStatus[]>(storedFilters.filterLifeStatuses)
-  const [showLifeStatusFilter, setShowLifeStatusFilter] = useState(false)
   // Paginación
   const ITEMS_PER_PAGE = 12
   const [currentPage, setCurrentPage] = useState(1)
@@ -231,7 +169,7 @@ const Inventory = () => {
         notes: editForm.notes.trim() || undefined,
       }, editForm.reason.trim())
       setShowEditModal(false)
-      await loadGarments(true)
+      await loadGarments()
     } catch (err: any) {
       setEditError(err.message || 'Error al guardar los cambios')
     } finally {
@@ -281,21 +219,8 @@ const Inventory = () => {
     },
   }
 
-  const loadGarments = useCallback(async (force = false) => {
-    try {
-      if (force) {
-        await refreshGarments()
-      } else {
-        await loadCachedGarments()
-      }
-    } catch (error) {
-      console.error('Error cargando prendas:', error)
-    }
-  }, [loadCachedGarments, refreshGarments])
-
-  useEffect(() => {
-    loadGarments()
-  }, [loadGarments])
+  // Recargar la página actual (después de crear, editar o registrar acciones)
+  const loadGarments = useCallback(() => { setReloadKey((k) => k + 1) }, [])
 
   useEffect(() => {
     const filters: InventoryFilters = {
@@ -303,17 +228,15 @@ const Inventory = () => {
       filterStatus,
       filterDateFrom,
       filterDateTo,
-      showDateFilters,
-      filterGarmentType,
       filterColor,
       filterSize,
       filterBatch,
-      showCodeFilters,
-      filterTeamId,
       filterLifeStatuses,
+      filterIdleDays,
+      sortBy,
     }
-    sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters))
-  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, showDateFilters, filterGarmentType, filterColor, filterSize, filterBatch, showCodeFilters, filterTeamId, filterLifeStatuses])
+    try { sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters)) } catch { /* sin almacenamiento */ }
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays, sortBy])
 
   useEffect(() => {
     if (isAdministrador) {
@@ -321,99 +244,55 @@ const Inventory = () => {
     }
   }, [isAdministrador])
 
-  const resolvedSearch = (extractGarmentId(searchTerm) || searchTerm).trim().toLowerCase()
-  const resolvedUuidCandidate = buildUuidCandidate(searchTerm)
+  const debouncedSearch = useDebouncedValue(searchTerm)
+  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE)
 
-  const getSearchRelevance = (garment: any): number => {
-    if (!resolvedSearch) return 999
+  const listFilters = useMemo<GarmentListFilters>(() => ({
+    search: buildUuidCandidate(debouncedSearch) || extractGarmentId(debouncedSearch) || debouncedSearch,
+    status: filterStatus === 'all' ? null : (filterStatus as GarmentStatus),
+    dateFrom: filterDateFrom || null,
+    dateTo: filterDateTo || null,
+    color: filterColor || null,
+    size: filterSize || null,
+    batch: filterBatch || null,
+    life: filterLifeStatuses as LifeStatus[],
+    idleDays: filterIdleDays || null,
+  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays])
+  const listQuery = useMemo(() => ({ ...listFilters, sort: sortBy }), [listFilters, sortBy])
 
-    const shortCode = (garment.short_code || '').toLowerCase()
-    const code = (garment.code || '').toLowerCase()
-    const name = (garment.name || '').toLowerCase()
-    const clientName = (garment.client_name || '').toLowerCase()
-    const id = (garment.id || '').toLowerCase()
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    garmentService.list(listQuery, currentPage, pageSize)
+      .then((res) => {
+        if (cancelled) return
+        setGarments(res.rows)
+        setTotalGarments(res.total)
+      })
+      .catch((error) => {
+        console.error('Error cargando prendas:', error)
+        if (!cancelled) feedback.error('No se pudo cargar el inventario')
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [listQuery, currentPage, pageSize, reloadKey, feedback])
 
-    if (shortCode === resolvedSearch) return 0
-    if (code === resolvedSearch) return 1
-    if (id === resolvedSearch) return 2
-    if (resolvedUuidCandidate && isUuidLikeMatch(id, resolvedUuidCandidate)) return 3
-
-    if (shortCode.startsWith(resolvedSearch)) return 10 + shortCode.length
-    if (code.startsWith(resolvedSearch)) return 30 + code.length
-    if (name.startsWith(resolvedSearch)) return 50 + name.length
-    if (clientName.startsWith(resolvedSearch)) return 60 + clientName.length
-
-    if (shortCode.includes(resolvedSearch)) return 70 + shortCode.indexOf(resolvedSearch)
-    if (code.includes(resolvedSearch)) return 80 + code.indexOf(resolvedSearch)
-    if (name.includes(resolvedSearch)) return 90 + name.indexOf(resolvedSearch)
-    if (clientName.includes(resolvedSearch)) return 100 + clientName.indexOf(resolvedSearch)
-    if (id.includes(resolvedSearch)) return 110 + id.indexOf(resolvedSearch)
-
-    return 999
+  const hasActiveFilters = Object.values(listFilters).some((v) => (Array.isArray(v) ? v.length > 0 : !!v))
+  // Filtros del panel (sin contar la búsqueda ni el estado, que están a la vista)
+  const panelFilterCount = [filterSize, filterColor, filterBatch, filterDateFrom, filterDateTo,
+    filterIdleDays ? 'x' : '', filterLifeStatuses.length ? 'x' : ''].filter(Boolean).length
+  const clearFilters = () => {
+    setFilterStatus('all'); setFilterSize(''); setFilterColor(''); setFilterBatch('')
+    setFilterDateFrom(''); setFilterDateTo(''); setFilterIdleDays(0)
+    setFilterLifeStatuses([]); setSortBy('recientes')
   }
 
-  const filteredGarments = garments.filter((garment) => {
-    const matchesSearch =
-      !resolvedSearch ||
-      garment.id.toLowerCase().includes(resolvedSearch) ||
-      (resolvedUuidCandidate ? isUuidLikeMatch(garment.id, resolvedUuidCandidate) : false) ||
-      garment.code.toLowerCase().includes(resolvedSearch) ||
-      garment.name.toLowerCase().includes(resolvedSearch) ||
-      (garment.short_code?.toLowerCase().includes(resolvedSearch) ?? false) ||
-      (garment.client_name?.toLowerCase().includes(resolvedSearch) ?? false)
-    const matchesFilter = filterStatus === 'all' || garment.status === filterStatus
-    
-    // Filtro por fecha
-    const garmentDate = new Date(garment.updated_at || garment.created_at).setHours(0, 0, 0, 0)
-    const matchesDateFrom = !filterDateFrom || garmentDate >= new Date(filterDateFrom).setHours(0, 0, 0, 0)
-    const matchesDateTo = !filterDateTo || garmentDate <= new Date(filterDateTo).setHours(23, 59, 59, 999)
-    
-    // Filtro por código de prenda (si está configurado)
-    let matchesCodeFilters = true
-    if (filterGarmentType || filterColor || filterSize || filterBatch) {
-      const parsed = parseGarmentCode(garment.code)
-      if (parsed.valid) {
-        if (filterGarmentType && parsed.garmentType !== filterGarmentType) matchesCodeFilters = false
-        if (filterColor && parsed.color !== filterColor) matchesCodeFilters = false
-        if (filterSize && parsed.size !== filterSize) matchesCodeFilters = false
-        if (filterBatch && parsed.batchCode !== filterBatch) matchesCodeFilters = false
-      } else {
-        // Si el código no es válido y hay filtros activos, excluir
-        matchesCodeFilters = false
-      }
-    }
-    
-    const matchesTeam = !isAdministrador || filterTeamId === 'all' || garment.team_id === filterTeamId
-
-    const matchesLifeStatus =
-      filterLifeStatuses.length === 0 ||
-      filterLifeStatuses.includes(getCycleLifeStatus(getCycleCount(garment.actions || [])))
-
-    return matchesSearch && matchesFilter && matchesDateFrom && matchesDateTo && matchesCodeFilters && matchesTeam && matchesLifeStatus
-  }).sort((a, b) => {
-    if (!resolvedSearch) return 0
-
-    const scoreA = getSearchRelevance(a)
-    const scoreB = getSearchRelevance(b)
-
-    if (scoreA !== scoreB) return scoreA - scoreB
-
-    // Desempate para short codes parecidos: primero el más corto (X1 antes que X199)
-    const shortA = (a.short_code || '').toString()
-    const shortB = (b.short_code || '').toString()
-    if (shortA.length !== shortB.length) return shortA.length - shortB.length
-
-    return 0
-  })
-
-  const totalPages = Math.ceil(filteredGarments.length / ITEMS_PER_PAGE)
-  const paginatedGarments = filteredGarments.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  )
+  // La página actual ya viene filtrada y ordenada desde el servidor
+  const filteredGarments = garments
+  const paginatedGarments = garments
 
   // Resetear página al cambiar filtros
-  useEffect(() => { setCurrentPage(1) }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -425,13 +304,12 @@ const Inventory = () => {
       await garmentService.create({
         code: newGarment.code,
         name: newGarment.name,
-        client_name: newGarment.client_name || undefined,
         team_id: (isAdministrador && newGarmentTeamId) ? newGarmentTeamId : undefined,
       })
-      setNewGarment({ code: '', name: '', client_name: '' })
+      setNewGarment({ code: '', name: '' })
       setNewGarmentTeamId('')
       setShowModal(false)
-      loadGarments(true)
+      loadGarments()
     } catch (error: any) {
       if (error.code === '23505') {
         feedback.error('Ya existe una prenda con ese código')
@@ -493,28 +371,6 @@ const Inventory = () => {
     setShowQRModal(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!canDeleteGarment) {
-      setDeleteError('No tienes permisos para eliminar prendas')
-      return
-    }
-    if (!archiveReason.trim()) {
-      setDeleteError('El motivo es obligatorio para archivar una prenda')
-      return
-    }
-    try {
-      await garmentService.archive(id, archiveReason.trim())
-      setArchiveReason('')
-      setShowDeleteModal(false)
-      setGarmentToDelete(null)
-      setDeleteError(null)
-      loadGarments(true)
-    } catch (error: any) {
-      console.error('Error eliminando prenda:', error)
-      setDeleteError(error.message || 'Error al archivar la prenda')
-    }
-  }
-
   const openActionModal = (garment: Garment, action: ActionType) => {
     setSelectedGarment(garment)
     setActionType(action)
@@ -541,7 +397,7 @@ const Inventory = () => {
       setShowActionModal(false)
       setSelectedGarment(null)
       setSignaturePassword('')
-      loadGarments(true)
+      loadGarments()
     } catch (error: any) {
       console.error('Error registrando acción:', error)
       setActionError(error.message || 'Error al registrar la acción')
@@ -603,7 +459,7 @@ const Inventory = () => {
   }
 
   const downloadFilteredQRs = async () => {
-    if (filteredGarments.length === 0) {
+    if (totalGarments === 0) {
       feedback.toast('No hay prendas para descargar', 'warning')
       return
     }
@@ -614,7 +470,8 @@ const Inventory = () => {
       const qrFolder = zip.folder('QR_Prendas')
       const QRCodeLib = await import('qrcode')
 
-      for (const garment of filteredGarments) {
+      const allGarments = await garmentService.listAll(listFilters)
+      for (const garment of allGarments) {
         const qrUrl = generateQRUrl(garment.id)
 
         try {
@@ -653,9 +510,8 @@ const Inventory = () => {
 
       // Generar nombre del ZIP con información de filtros
       let zipName = 'QR_Prendas'
-      if (filterGarmentType || filterColor || filterSize || filterBatch) {
+      if (filterColor || filterSize || filterBatch) {
         const filters = []
-        if (filterGarmentType) filters.push(GARMENT_TYPES[filterGarmentType])
         if (filterSize) filters.push(`Talla${filterSize}`)
         if (filterColor) filters.push(COLORS[filterColor])
         if (filterBatch) filters.push(filterBatch)
@@ -664,7 +520,7 @@ const Inventory = () => {
 
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       saveAs(zipBlob, `${zipName}_${new Date().toISOString().split('T')[0]}.zip`)
-      feedback.success(`Descargados ${filteredGarments.length} QR en formato ZIP`)
+      feedback.success(`Descargados ${totalGarments} QR en formato ZIP`)
     } catch (error) {
       console.error('Error descargando QR:', error)
       feedback.error('Error al descargar QR')
@@ -674,13 +530,13 @@ const Inventory = () => {
   }
 
   const downloadFilteredReport = async () => {
-    if (filteredGarments.length === 0) {
+    if (totalGarments === 0) {
       feedback.toast('No hay prendas para reportar', 'warning')
       return
     }
     try {
       setDownloadingReport(true)
-      await generateReportExcel(filteredGarments)
+      await generateReportExcel(await garmentService.listAll(listFilters, true))
     } catch (error) {
       console.error('Error generando reporte:', error)
       feedback.error('Error al generar el reporte Excel')
@@ -689,232 +545,15 @@ const Inventory = () => {
     }
   }
 
-  const openDeleteModal = (garment: Garment) => {
-    setGarmentToDelete(garment)
-    setDeleteError(null)
-    setArchiveReason('')
-    setShowDeleteModal(true)
-  }
-
-  const openAssignModal = async (garment: Garment) => {
-    setAssignTargetGarment(garment)
-    setShowAssignModal(true)
-    setLoadingAssign(true)
-    try {
-      const [users, assignments] = await Promise.all([
-        userService.getAllUsers(),
-        userService.getGarmentAssignments(garment.id)
-      ])
-      setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
-      setAssignedUserIds(assignments)
-    } catch (err) {
-      console.error('Error cargando asignaciones:', err)
-    } finally {
-      setLoadingAssign(false)
-    }
-  }
-
-  const saveAssignments = async () => {
-    if (!assignTargetGarment) return
-    setSavingAssign(true)
-    try {
-      await userService.setGarmentAssignments(assignTargetGarment.id, assignedUserIds)
-      setShowAssignModal(false)
-    } catch (err) {
-      console.error('Error guardando asignaciones:', err)
-    } finally {
-      setSavingAssign(false)
-    }
-  }
-
-  const processBulkCodes = (input: string) => {
-    const codes = input
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-
-    const processed = codes.map((code) => {
-      const parsed = parseGarmentCode(code)
-      if (parsed.valid) {
-        const name = `${parsed.garmentName} - Talla ${parsed.sizeName} - ${parsed.colorName}`
-        return {
-          code: parsed.fullCode,
-          name,
-          client_name: bulkClientName,
-          parsed,
-          valid: true,
-        }
-      } else {
-        return {
-          code,
-          name: '',
-          client_name: bulkClientName,
-          error: parsed.error,
-          valid: false,
-        }
-      }
-    })
-
-    setBulkGarments(processed)
-  }
-
-  const handleBulkCreate = async () => {
-    const validGarments = bulkGarments.filter((g) => g.valid)
-
-    if (validGarments.length === 0) {
-      feedback.toast('No hay prendas válidas para crear', 'warning')
-      return
-    }
-
-    if (!canCreateGarment) {
-      feedback.error('No tienes permisos para crear prendas')
-      return
-    }
-
-    try {
-      setBulkLoading(true)
-      let successCount = 0
-      let errorCount = 0
-
-      for (const garment of validGarments) {
-        try {
-          const created = await garmentService.create({
-            code: garment.code,
-            name: garment.name,
-            client_name: garment.client_name || undefined,
-            team_id: (isAdministrador && bulkTeamId) ? bulkTeamId : undefined,
-          })
-          if (isAdministrador && bulkAssignUserIds.length > 0) {
-            await userService.setGarmentAssignments(created.id, bulkAssignUserIds)
-          }
-          successCount++
-        } catch (error: any) {
-          console.error(`Error creando ${garment.code}:`, error)
-          errorCount++
-        }
-      }
-
-      feedback.toast(`Creadas ${successCount} prendas${errorCount ? `. Errores: ${errorCount}` : ''}`, errorCount ? 'warning' : 'success')
-      setBulkInput('')
-      setBulkClientName('')
-      setBulkTeamId('')
-      setBulkGarments([])
-      setShowBulkModal(false)
-      loadGarments(true)
-    } catch (error) {
-      console.error('Error en ingreso masivo:', error)
-      feedback.error('Error al crear prendas')
-    } finally {
-      setBulkLoading(false)
-    }
+  const archiveGarment = useArchiveGarment()
+  const openDeleteModal = async (garment: Garment) => {
+    if (!canDeleteGarment) return
+    if (await archiveGarment(garment)) loadGarments()
   }
 
   return (
     <div className="w-full pb-20 md:pb-0">
       {/* Modal de Confirmación de Eliminación */}
-      {showDeleteModal && garmentToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-sm">
-            <div className="text-center">
-              <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <Trash2 className="w-6 h-6 text-gray-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">¿Archivar prenda?</h3>
-              <p className="text-gray-600 mb-2">Dejará de aparecer en el inventario. Su historial se conserva para trazabilidad.</p>
-              <div className="p-3 bg-gray-50 rounded-lg mb-4">
-                <div className="font-mono text-sm">{garmentToDelete.code}</div>
-                <div className="text-gray-600 text-sm">{garmentToDelete.name}</div>
-              </div>
-              <div className="text-left mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
-                <textarea
-                  value={archiveReason}
-                  onChange={e => setArchiveReason(e.target.value)}
-                  className="input-field min-h-[60px]"
-                  placeholder="Ej. prenda registrada por duplicado"
-                />
-              </div>
-              {deleteError && (
-                <Notice tone="error" className="mb-4">{deleteError}</Notice>
-              )}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setShowDeleteModal(false); setGarmentToDelete(null); setArchiveReason(''); }}
-                className="btn-secondary flex-1"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleDelete(garmentToDelete.id)}
-                disabled={!archiveReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
-              >
-                Archivar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal de Asignación de Usuarios */}
-      {showAssignModal && assignTargetGarment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2 min-w-0">
-                <Users className="w-5 h-5 shrink-0 text-green-600" />
-                <span className="truncate">Asignar: {assignTargetGarment.code}</span>
-              </h3>
-              <button onClick={() => setShowAssignModal(false)} className="p-1 hover:bg-gray-100 rounded ml-2 shrink-0">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {loadingAssign ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              </div>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500 mb-3">Usuarios que podrán ver y operar esta prenda:</p>
-                <div className="space-y-1 max-h-64 overflow-y-auto border rounded-lg p-2 mb-4">
-                  {allUsersForAssign.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-4">No hay usuarios disponibles</p>
-                  ) : (
-                    allUsersForAssign.map(user => (
-                      <label key={user.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={assignedUserIds.includes(user.id)}
-                          onChange={e => setAssignedUserIds(prev =>
-                            e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
-                          )}
-                          className="rounded"
-                        />
-                        <span className="flex-1 text-sm truncate">{user.email}</span>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowAssignModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                  <button
-                    onClick={saveAssignments}
-                    disabled={savingAssign}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2"
-                  >
-                    {savingAssign && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Guardar ({assignedUserIds.length})
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Scanner Modal */}
       {showScanner && (
         <BarcodeScanner
           onScan={handleScanResult}
@@ -928,72 +567,19 @@ const Inventory = () => {
           <h1 className="text-xl font-bold text-gray-800">Inventario</h1>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:items-center">
-          {isAdministrador && (
+          {canCreateGarment && (
             <button
-              onClick={async () => {
-                setShowBulkModal(true)
-                setBulkInput('')
-                setBulkClientName('')
-                setBulkGarments([])
-                setBulkAssignUserIds([])
-                if (allUsersForAssign.length === 0) {
-                  try {
-                    const users = await userService.getAllUsers()
-                    setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
-                  } catch {}
-                }
-              }}
+              onClick={() => setShowImport(true)}
               className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none"
             >
               <Upload className="w-4 h-4" />
-              Ingreso Masivo
+              Importar
             </button>
           )}
 
-          <div className="relative flex-1 sm:flex-none">
-            <button
-              onClick={() => setShowLifeStatusFilter((prev) => !prev)}
-              className={`w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm whitespace-nowrap ${
-                filterLifeStatuses.length > 0
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              Vida útil{filterLifeStatuses.length > 0 ? ` (${filterLifeStatuses.length})` : ''}
-              <ChevronDown className={`w-4 h-4 transition-transform ${showLifeStatusFilter ? 'rotate-180' : ''}`} />
-            </button>
-            {showLifeStatusFilter && (
-              <div className="absolute left-0 z-20 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-2">
-                {(Object.entries(lifeStatusStyles) as [CycleLifeStatus, typeof lifeStatusStyles['verde']][]).map(([key, style]) => (
-                  <label key={key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filterLifeStatuses.includes(key)}
-                      onChange={(e) => {
-                        setFilterLifeStatuses((prev) =>
-                          e.target.checked ? [...prev, key] : prev.filter((s) => s !== key)
-                        )
-                      }}
-                    />
-                    <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-                    <span className="text-sm text-gray-700">{style.label}</span>
-                  </label>
-                ))}
-                {filterLifeStatuses.length > 0 && (
-                  <button
-                    onClick={() => setFilterLifeStatuses([])}
-                    className="mt-1 w-full text-center text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1"
-                  >
-                    Limpiar selección
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
           <button
             onClick={downloadFilteredReport}
-            disabled={downloadingReport || filteredGarments.length === 0}
+            disabled={downloadingReport || totalGarments === 0}
             className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {downloadingReport ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -1003,7 +589,7 @@ const Inventory = () => {
           {isAdministrador && (
             <button
               onClick={downloadFilteredQRs}
-              disabled={downloadingQRs || filteredGarments.length === 0}
+              disabled={downloadingQRs || totalGarments === 0}
               className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {downloadingQRs ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileArchive className="w-4 h-4" />}
@@ -1036,181 +622,67 @@ const Inventory = () => {
             Buscar
           </button>
         </form>
+
+        <InventoryFilterBar
+          status={filterStatus} onStatus={setFilterStatus}
+          sort={sortBy} onSort={(v) => setSortBy(v as GarmentSort)}
+          open={showFilters} onToggle={() => setShowFilters((v) => !v)}
+          activeCount={panelFilterCount}
+          onClear={clearFilters}
+          canClear={hasActiveFilters || sortBy !== 'recientes'}
+        >
+          <FilterField label="Talla">
+            <select value={filterSize} onChange={(e) => setFilterSize(e.target.value as Size | '')} className="input-field py-1.5 text-sm">
+              <option value="">Todas</option>
+              {Object.entries(SIZES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="Color">
+            <select value={filterColor} onChange={(e) => setFilterColor(e.target.value as Color | '')} className="input-field py-1.5 text-sm">
+              <option value="">Todos</option>
+              {Object.entries(COLORS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="Lote">
+            <input value={filterBatch} onChange={(e) => setFilterBatch(e.target.value.toUpperCase().trim())} placeholder="Ej. 202607A" className="input-field py-1.5 text-sm" />
+          </FilterField>
+          <FilterField label="Vida útil">
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.entries(lifeStatusStyles) as [CycleLifeStatus, typeof lifeStatusStyles['verde']][]).map(([key, style]) => {
+                const on = filterLifeStatuses.includes(key)
+                return (
+                  <button key={key} type="button"
+                    onClick={() => setFilterLifeStatuses((prev) => on ? prev.filter((x) => x !== key) : [...prev, key])}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-50 text-blue-700 ring-blue-300' : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'}`}>
+                    <StatusDot tone={lifeTone[key]} /> {style.label}
+                  </button>
+                )
+              })}
+            </div>
+          </FilterField>
+          <FilterField label="Sin actividad">
+            <select value={filterIdleDays} onChange={(e) => setFilterIdleDays(Number(e.target.value))} className="input-field py-1.5 text-sm">
+              <option value={0}>Cualquiera</option>
+              <option value={7}>Más de 7 días</option>
+              <option value={30}>Más de 30 días</option>
+              <option value={90}>Más de 90 días</option>
+            </select>
+          </FilterField>
+          <FilterField label="Actualizada entre" className="sm:col-span-2">
+            <div className="flex items-center gap-2">
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="input-field min-w-0 flex-1 py-1.5 text-sm" aria-label="Desde" />
+              <span className="text-gray-400">–</span>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="input-field min-w-0 flex-1 py-1.5 text-sm" aria-label="Hasta" />
+            </div>
+          </FilterField>
+        </InventoryFilterBar>
       </div>
 
-      {/* Modal de Ingreso Masivo */}
-      {showBulkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl my-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Ingreso Masivo de Prendas</h2>
-              <button onClick={() => setShowBulkModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Cliente */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Cliente (opcional)</label>
-                <input
-                  type="text"
-                  value={bulkClientName}
-                  onChange={(e) => {
-                    setBulkClientName(e.target.value)
-                    processBulkCodes(bulkInput)
-                  }}
-                  placeholder="Nombre del cliente"
-                  className="input-field w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
-              </div>
-
-              {/* Equipo (solo admin) */}
-              {isAdministrador && teams.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Equipo / Empresa</label>
-                  <select
-                    value={bulkTeamId}
-                    onChange={(e) => setBulkTeamId(e.target.value)}
-                    className="input-field w-full"
-                  >
-                    <option value="">Sin equipo asignado</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
-                </div>
-              )}
-
-              {/* Textarea */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Códigos de Prendas (uno por línea)
-                </label>
-                <textarea
-                  value={bulkInput}
-                  onChange={(e) => {
-                    setBulkInput(e.target.value)
-                    processBulkCodes(e.target.value)
-                  }}
-                  placeholder="202512A-OV-M-NE-001&#10;202512A-FI-L-AC-002&#10;202512A-PA-S-AM-003"
-                  className="input-field w-full h-32 font-mono text-sm resize-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">Formato: LOTE-PRENDA-TALLA-COLOR-NNN</p>
-              </div>
-
-              {/* Preview Table */}
-              {bulkGarments.length > 0 && (
-                <div className="overflow-x-auto">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                    Preview ({bulkGarments.filter((g) => g.valid).length} válidos de {bulkGarments.length})
-                  </h3>
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-2 py-1 text-left">Código</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Prenda</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Talla</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Color</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Lote</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Cliente</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkGarments.map((garment, idx) => (
-                        <tr key={idx} className={garment.valid ? '' : 'text-gray-400'}>
-                          <td className="border border-gray-300 px-2 py-1 font-mono">{garment.code}</td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.garmentName : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.sizeName : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.colorName : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.batchCode : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1 text-sm">
-                            {garment.client_name || '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1 text-center">
-                            {garment.valid ? (
-                              <Check className="w-4 h-4 text-green-600 mx-auto" />
-                            ) : (
-                              <div className="text-red-600" title={garment.error}>
-                                <AlertCircle className="w-4 h-4 mx-auto" />
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Asignación de usuarios — solo administrador */}
-              {isAdministrador && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-green-600" />
-                    Asignar acceso a usuarios
-                  </label>
-                  {allUsersForAssign.length === 0 ? (
-                    <p className="text-xs text-gray-400 animate-pulse">Cargando usuarios…</p>
-                  ) : (
-                    <div className="space-y-1 max-h-40 overflow-y-auto border rounded-lg p-2">
-                      {allUsersForAssign.map(user => (
-                        <label key={user.id} className="flex items-center gap-3 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={bulkAssignUserIds.includes(user.id)}
-                            onChange={e => setBulkAssignUserIds(prev =>
-                              e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
-                            )}
-                            className="rounded"
-                          />
-                          <span className="flex-1 text-sm truncate">{user.email}</span>
-                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {bulkAssignUserIds.length > 0 && (
-                    <p className="text-xs text-green-700 mt-1">Se asignarán a {bulkAssignUserIds.length} usuario{bulkAssignUserIds.length !== 1 ? 's' : ''}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Botones */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowBulkModal(false)}
-                  className="btn-secondary flex-1"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleBulkCreate}
-                  disabled={bulkLoading || bulkGarments.filter((g) => g.valid).length === 0}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                    bulkLoading || bulkGarments.filter((g) => g.valid).length === 0
-                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                >
-                  {bulkLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {bulkLoading ? 'Creando...' : 'Crear Prendas'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showImport && (
+        <ImportGarmentsModal
+          onClose={() => setShowImport(false)}
+          onImported={() => loadGarments()}
+        />
       )}
 
       {showModal && !showScanner && (
@@ -1246,16 +718,6 @@ const Inventory = () => {
                   onChange={(e) => setNewGarment({ ...newGarment, name: e.target.value })}
                   className="input-field"
                   placeholder="Ej: Camisa azul talla M"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                <input
-                  type="text"
-                  value={newGarment.client_name}
-                  onChange={(e) => setNewGarment({ ...newGarment, client_name: e.target.value })}
-                  className="input-field"
-                  placeholder="Nombre del cliente"
                 />
               </div>
               {isAdministrador && teams.length > 0 && (
@@ -1314,8 +776,7 @@ const Inventory = () => {
 
             {/* Advertencia fin de vida útil en el modal */}
             {(() => {
-              const selActions = (selectedGarment as any).actions ?? []
-              const cycleCount = getCycleCount(selActions)
+              const cycleCount = (selectedGarment as GarmentListItem).wash_count ?? 0
               const newCycleCount = actionType === 'lavado' ? cycleCount + 1 : cycleCount
               const alreadyExpired = cycleCount >= 100
               const willExpire = !alreadyExpired && newCycleCount >= 100
@@ -1334,47 +795,8 @@ const Inventory = () => {
             })()}
 
             {actionType === 'inspeccion' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Resultado</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="result"
-                      value="aprobado"
-                      checked={inspectionResult === 'aprobado'}
-                      onChange={() => setInspectionResult('aprobado')}
-                    />
-                    <PackageCheck className="w-5 h-5 text-green-600" />
-                    <span>Aprobado - Vuelve a Disponible</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="result"
-                      value="reparacion"
-                      checked={inspectionResult === 'reparacion'}
-                      onChange={() => setInspectionResult('reparacion')}
-                    />
-                    <Scissors className="w-5 h-5 text-orange-600" />
-                    <span>Requiere Reparación</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="result"
-                      value="baja"
-                      checked={inspectionResult === 'baja'}
-                      onChange={() => setInspectionResult('baja')}
-                    />
-                    <PackageX className="w-5 h-5 text-red-600" />
-                    <span>Dar de Baja</span>
-                  </label>
-                </div>
-              </div>
+              <InspectionResultPicker value={inspectionResult} onChange={setInspectionResult} />
             )}
-
-            <RecordedBy className="mb-4" />
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1388,11 +810,12 @@ const Inventory = () => {
               />
             </div>
 
-            {signatureMeaning && (
-              <div className="mb-4">
-                <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
-              </div>
-            )}
+            {/* Confirmación: firma (incluye al firmante) o, si no aplica, a nombre de quién se registra */}
+            <div className="mb-4">
+              {signatureMeaning
+                ? <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
+                : <RecordedBy />}
+            </div>
 
             {actionError && (
               <Notice tone="error" className="mb-4">{actionError}</Notice>
@@ -1478,7 +901,7 @@ const Inventory = () => {
         <div className="card text-center py-12">
           <PackageX className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-600">
-            {garments.length === 0
+            {!hasActiveFilters
               ? 'No hay prendas en el inventario'
               : 'No se encontraron prendas con ese criterio'}
           </p>
@@ -1489,12 +912,8 @@ const Inventory = () => {
             const StatusIcon = statusLabels[garment.status as GarmentStatus]?.icon || Package
             const availableActions = getAvailableActions(garment.status as GarmentStatus)
             // Contadores de acciones
-            const actions = (garment.actions ?? []) as import('../types').GarmentAction[];
-            const cycleCount = getCycleCount(actions)
-            const reparacionCount = actions.filter((a) =>
-              a.action_type === 'reparacion' ||
-              (a.action_type === 'inspeccion' && a.result === 'reparacion')
-            ).length
+            const cycleCount = garment.wash_count
+            const reparacionCount = garment.repair_count
             const LIFE_LIMIT = 100
             const LIFE_WARN = 80
             const lifeExpired = cycleCount >= LIFE_LIMIT
@@ -1530,22 +949,13 @@ const Inventory = () => {
                       <Pencil className="w-4 h-4" />
                     </button>
                   )}
-                  {isAdministrador && (
-                    <button
-                      onClick={() => openAssignModal(garment)}
-                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Asignar usuarios"
-                    >
-                      <Users className="w-4 h-4" />
-                    </button>
-                  )}
                   {canDeleteGarment && (
                     <button
                       onClick={() => openDeleteModal(garment)}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Archivar"
+                      title="Archivar (retirar un registro duplicado o erróneo)"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Archive className="w-4 h-4" />
                     </button>
                   )}
                 </div>
@@ -1593,13 +1003,6 @@ const Inventory = () => {
                 {/* Nombre */}
                 <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-0.5">{garment.name}</p>
 
-                {/* Cliente */}
-                {garment.client_name && (
-                  <div className="text-xs text-gray-500 mb-2 line-clamp-1">
-                    {garment.client_name}
-                  </div>
-                )}
-
                 {/* Estado */}
                 <div className="mb-3">
                   <StatusBadge tone={garmentStatusTone[garment.status] ?? 'gray'}>
@@ -1622,7 +1025,7 @@ const Inventory = () => {
                 </div>
 
                 {/* Contadores - Grid 2 columnas */}
-                {actions.length > 0 && (
+                {(cycleCount > 0 || reparacionCount > 0) && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="flex items-center gap-2 rounded-lg border border-gray-200 p-2">
                       <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${lifeExpired ? 'bg-red-50 text-red-600' : lifeNearEnd ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}>
@@ -1692,68 +1095,15 @@ const Inventory = () => {
         </div>
       )}
 
-      {/* Paginación */}
-      {!loading && filteredGarments.length > 0 && totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-1">
-          <p className="text-sm text-gray-500">
-            Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredGarments.length)} de {filteredGarments.length} prendas
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setCurrentPage(1)}
-              disabled={currentPage === 1}
-              className="px-2 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              «
-            </button>
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              ‹
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-              .reduce<(number | '...')[]>((acc, p, idx, arr) => {
-                if (idx > 0 && typeof arr[idx - 1] === 'number' && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...')
-                acc.push(p)
-                return acc
-              }, [])
-              .map((p, idx) =>
-                p === '...' ? (
-                  <span key={`ellipsis-${idx}`} className="px-2 py-1 text-sm text-gray-400">…</span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setCurrentPage(p as number)}
-                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-                      currentPage === p
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              ›
-            </button>
-            <button
-              onClick={() => setCurrentPage(totalPages)}
-              disabled={currentPage === totalPages}
-              className="px-2 py-1 rounded text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100 hover:bg-gray-200 text-gray-700"
-            >
-              »
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Paginación (en el servidor) */}
+      <Pagination
+        page={currentPage}
+        pageSize={pageSize}
+        total={totalGarments}
+        onPageChange={(p) => { setCurrentPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+        onPageSizeChange={setPageSize}
+        label="prendas"
+      />
 
       {/* Edit Garment Modal */}
       {showEditModal && editTargetGarment && (
@@ -1795,28 +1145,6 @@ const Inventory = () => {
                   placeholder="Descripción (opcional)"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_name}
-                    onChange={e => setEditForm(f => ({ ...f, client_name: e.target.value }))}
-                    className="input-field"
-                    placeholder="Nombre del cliente"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono del cliente</label>
-                  <input
-                    type="text"
-                    value={editForm.client_phone}
-                    onChange={e => setEditForm(f => ({ ...f, client_phone: e.target.value }))}
-                    className="input-field"
-                    placeholder="Teléfono (opcional)"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea
@@ -1832,7 +1160,7 @@ const Inventory = () => {
                   value={editForm.reason}
                   onChange={e => setEditForm(f => ({ ...f, reason: e.target.value }))}
                   className="input-field min-h-[60px]"
-                  placeholder="Ej. corrección del nombre del cliente"
+                  placeholder="Ej. corrección del nombre"
                 />
                 <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
               </div>

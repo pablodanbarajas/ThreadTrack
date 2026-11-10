@@ -1,28 +1,65 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Waves, Plus, Search, Loader, Pencil, Trash2, PlusCircle, Download } from 'lucide-react'
+import { Waves, Plus, Search, Loader, Pencil, Archive, PlusCircle, Download, Upload, AlertTriangle, Clock } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
-import { useHoseCache } from '../contexts/HoseCacheContext'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
+import Pagination from '../components/ui/Pagination'
 import { hoseService } from '../services/hoseService'
 import RecordedBy from '../components/RecordedBy'
 import { SkeletonList } from '../components/ui/Skeleton'
-import { Notice } from '../components/ui/StatusBadge'
+import { Notice, StatusDot } from '../components/ui/StatusBadge'
+import { lifeTone } from '../lib/tones'
+import ImportEquipmentModal from '../components/ImportEquipmentModal'
+import InventoryFilterBar, { FilterField, type FilterChip, type SortOption } from '../components/InventoryFilterBar'
 import { getHoseLifeStatus } from '../lib/hoseLifeStatus'
 import { generateHoseInventoryExcel } from '../services/reportService'
 import type { HoseLifeStatus } from '../lib/hoseLifeStatus'
-import type { Equipment, HosePositionWithDetails } from '../types'
+import type { Equipment, EquipmentListItem, EquipmentListFilters, EquipmentSort, HosePositionWithDetails, LifeStatus } from '../types'
 
-const lifeStatusStyles: Record<HoseLifeStatus, { label: string; dot: string }> = {
-  verde: { label: 'Verde', dot: 'bg-green-500' },
-  amarillo: { label: 'Amarillo', dot: 'bg-yellow-400' },
-  naranja: { label: 'Naranja', dot: 'bg-orange-500' },
-  rojo: { label: 'Rojo', dot: 'bg-red-500' },
+const lifeLabel: Record<HoseLifeStatus, string> = { verde: 'Verde', amarillo: 'Amarillo', naranja: 'Naranja', rojo: 'Rojo' }
+
+// Chips: vida útil de la manguera más usada del producto, o que requiere atención
+const hoseChips: FilterChip[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'verde', label: 'Verde', tone: 'green' },
+  { value: 'amarillo', label: 'Amarillo', tone: 'yellow' },
+  { value: 'naranja', label: 'Naranja', tone: 'orange' },
+  { value: 'rojo', label: 'Rojo', tone: 'red' },
+  { value: 'atencion', label: 'Sin manguera activa', tone: 'gray' },
+]
+const hoseSortOptions: SortOption[] = [
+  { value: 'recientes', label: 'Más recientes' },
+  { value: 'ciclos', label: 'Más ciclos de uso' },
+  { value: 'inactividad', label: 'Más tiempo sin actividad' },
+  { value: 'codigo', label: 'Código (A–Z)' },
+]
+
+const STORAGE_KEY = 'threadtrack.hoses.filters'
+interface StoredFilters { searchTerm: string; chip: string; caliber: string; idleDays: number; sort: EquipmentSort }
+const defaults: StoredFilters = { searchTerm: '', chip: 'all', caliber: '', idleDays: 0, sort: 'recientes' }
+const readStored = (): StoredFilters => {
+  try { return { ...defaults, ...JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}') } } catch { return defaults }
 }
+const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'sin registros')
 
 const HoseInventory = () => {
   const { canCreateEquipment, canDeleteEquipment, canRegisterHoseAction } = useRole()
-  const { equipmentList, loading, loadEquipment, invalidateEquipment } = useHoseCache()
-  const [searchTerm, setSearchTerm] = useState('')
+  const [stored] = useState(readStored)
+  const [searchTerm, setSearchTerm] = useState(stored.searchTerm)
+  const search = useDebouncedValue(searchTerm)
+  const [chip, setChip] = useState(stored.chip)
+  const [caliber, setCaliber] = useState(stored.caliber)
+  const [idleDays, setIdleDays] = useState(stored.idleDays)
+  const [sort, setSort] = useState<EquipmentSort>(stored.sort)
+  const [showFilters, setShowFilters] = useState(false)
+  const [calibers, setCalibers] = useState<string[]>([])
+  const [showImport, setShowImport] = useState(false)
+  // Página actual de productos (paginada y filtrada en el servidor)
+  const [equipmentList, setEquipmentList] = useState<EquipmentListItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [loading, setLoading] = useState(true)
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -44,9 +81,39 @@ const HoseInventory = () => {
   const [cycleError, setCycleError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
 
+  const filters = useMemo<EquipmentListFilters>(() => ({
+    search,
+    caliber: caliber || null,
+    life: ['verde', 'amarillo', 'naranja', 'rojo'].includes(chip) ? [chip as LifeStatus] : [],
+    attention: chip === 'atencion',
+    idleDays: idleDays || null,
+    sort,
+  }), [search, chip, caliber, idleDays, sort])
+
+  const loadEquipment = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await hoseService.listEquipment(filters, page, pageSize)
+      setEquipmentList(res.rows)
+      setTotal(res.total)
+    } catch (err) {
+      setSearchError((err as Error).message || 'Error al cargar los productos')
+    } finally {
+      setLoading(false)
+    }
+  }, [filters, page, pageSize])
+
+  useEffect(() => { loadEquipment() }, [loadEquipment])
+  useEffect(() => { setPage(1) }, [filters, pageSize])
+  useEffect(() => { hoseService.calibers().then(setCalibers).catch(() => {}) }, [])
   useEffect(() => {
-    loadEquipment()
-  }, [loadEquipment])
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ searchTerm, chip, caliber, idleDays, sort })) } catch { /* sin almacenamiento */ }
+  }, [searchTerm, chip, caliber, idleDays, sort])
+
+  const panelCount = [caliber, idleDays ? 'x' : ''].filter(Boolean).length
+  const canClear = chip !== 'all' || panelCount > 0 || sort !== 'recientes'
+  const clearFilters = () => { setChip('all'); setCaliber(''); setIdleDays(0); setSort('recientes') }
+  const hasFilters = !!search || chip !== 'all' || panelCount > 0
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,15 +137,8 @@ const HoseInventory = () => {
     }
   }
 
-  const filteredEquipment = equipmentList.filter((equipment) => {
-    if (!searchTerm.trim()) return true
-    const term = searchTerm.trim().toLowerCase()
-    const matchesEquipment = equipment.code.toLowerCase().includes(term) || equipment.name.toLowerCase().includes(term)
-    const matchesHoseCode = (equipment.positions || []).some((position) =>
-      (position.history || []).some((hose) => hose.short_code?.toLowerCase().includes(term))
-    )
-    return matchesEquipment || matchesHoseCode
-  })
+  // La página ya viene filtrada desde el servidor (código, nombre o código de manguera)
+  const filteredEquipment = equipmentList
 
   const openEditModal = (equipment: Equipment & { positions?: HosePositionWithDetails[] }) => {
     setEditingEquipment(equipment)
@@ -123,8 +183,7 @@ const HoseInventory = () => {
     setCycleError(null)
     try {
       await hoseService.registerBulkUse(activeHoseIds, { notes: cycleNotes })
-      invalidateEquipment()
-      await loadEquipment({ force: true })
+      await loadEquipment()
       setCycleEquipment(null)
     } catch (err: any) {
       setCycleError(err.message || 'Error al registrar el ciclo')
@@ -137,19 +196,20 @@ const HoseInventory = () => {
     setExporting(true)
     setSearchError(null)
     try {
-      const exportEquipment = await Promise.all(filteredEquipment.map(async (equipment) => {
-        const positions = await Promise.all((equipment.positions || []).map(async (position) => {
-          const historyActions: Record<string, Awaited<ReturnType<typeof hoseService.getHoseActions>>> = {}
-          for (const hose of position.history || []) {
-            historyActions[hose.id] = await hoseService.getHoseActions(hose.id)
-          }
+      const allEquipment = await hoseService.listAllEquipment(filters)
+      const hoseIds = allEquipment.flatMap((e) => e.positions.flatMap((p) => (p.history || []).map((h) => h.id)))
+      const actions = await hoseService.getActionsForHoses(hoseIds)
+      const exportEquipment = allEquipment.map((equipment) => ({
+        ...equipment,
+        positions: equipment.positions.map((position) => {
+          const historyActions: Record<string, (typeof actions)[string]> = {}
+          for (const hose of position.history || []) historyActions[hose.id] = actions[hose.id] || []
           return {
             ...position,
             activeActions: position.activeHose ? historyActions[position.activeHose.id] || [] : [],
             historyActions,
           }
-        }))
-        return { ...equipment, positions }
+        }),
       }))
       await generateHoseInventoryExcel(exportEquipment)
     } catch (err: any) {
@@ -168,8 +228,7 @@ const HoseInventory = () => {
     setDeletingId(confirmDelete.id)
     try {
       await hoseService.archiveEquipment(confirmDelete.id, archiveReason.trim())
-      invalidateEquipment()
-      await loadEquipment({ force: true })
+      await loadEquipment()
       setConfirmDelete(null)
     } catch (err: any) {
       setSearchError(err.message || 'Error al archivar el producto')
@@ -211,8 +270,7 @@ const HoseInventory = () => {
           }, reason))
       )
 
-      invalidateEquipment()
-      await loadEquipment({ force: true })
+      await loadEquipment()
       setEditingEquipment(null)
     } catch (err: any) {
       setEditError(err.message || 'Error al guardar los cambios')
@@ -235,7 +293,13 @@ const HoseInventory = () => {
               Nuevo Producto
             </Link>
           )}
-          <button onClick={handleExport} className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || filteredEquipment.length === 0}>
+          {canCreateEquipment && (
+            <button onClick={() => setShowImport(true)} className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none">
+              <Upload className="w-4 h-4" />
+              Importar
+            </button>
+          )}
+          <button onClick={handleExport} className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || total === 0}>
             {exporting ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Exportar
           </button>
@@ -259,20 +323,57 @@ const HoseInventory = () => {
         {searchError && (
           <p className="mt-2 text-sm text-red-600">{searchError}</p>
         )}
+
+        <InventoryFilterBar
+          chips={hoseChips} chipsLabel="Vida útil" sortOptions={hoseSortOptions}
+          status={chip} onStatus={setChip}
+          sort={sort} onSort={(v) => setSort(v as EquipmentSort)}
+          open={showFilters} onToggle={() => setShowFilters((v) => !v)}
+          activeCount={panelCount}
+          onClear={clearFilters}
+          canClear={canClear}
+        >
+          <FilterField label="Calibre">
+            <select value={caliber} onChange={(e) => setCaliber(e.target.value)} className="input-field py-1.5 text-sm">
+              <option value="">Todos</option>
+              {calibers.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="Sin actividad">
+            <select value={idleDays} onChange={(e) => setIdleDays(Number(e.target.value))} className="input-field py-1.5 text-sm">
+              <option value={0}>Cualquiera</option>
+              <option value={7}>Más de 7 días</option>
+              <option value={30}>Más de 30 días</option>
+              <option value={90}>Más de 90 días</option>
+            </select>
+          </FilterField>
+        </InventoryFilterBar>
       </div>
 
       {loading && equipmentList.length === 0 ? (
         <SkeletonList rows={4} />
       ) : filteredEquipment.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">No hay productos registrados</div>
+        <div className="text-center py-12 text-gray-500">{hasFilters ? 'No hay productos que coincidan con los filtros' : 'No hay productos registrados'}</div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4">
           {filteredEquipment.map((equipment) => (
             <div key={equipment.id} className="card">
               <div className="mb-3 flex items-start justify-between gap-2">
-                <div>
+                <div className="min-w-0">
                   <h2 className="font-semibold text-gray-800">{equipment.name}</h2>
                   <p className="text-sm text-gray-500">{equipment.code}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                    <span className="inline-flex items-center gap-1.5">
+                      <StatusDot tone={lifeTone[equipment.life_status]} />
+                      Máx. {equipment.max_cycle}/200 ciclos
+                    </span>
+                    <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> Última actividad: {fmtDate(equipment.last_action_at)}</span>
+                    {equipment.needs_attention && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                        <AlertTriangle className="h-3 w-3" /> Posición sin manguera activa
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {(canCreateEquipment || canDeleteEquipment) && (
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -289,10 +390,10 @@ const HoseInventory = () => {
                       <button
                         onClick={() => handleDeleteEquipment(equipment.id, equipment.name)}
                         disabled={deletingId === equipment.id}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
+                        className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-50"
                         title="Archivar producto"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Archive className="w-4 h-4" />
                       </button>
                     )}
                   </div>
@@ -302,7 +403,6 @@ const HoseInventory = () => {
                 {(equipment.positions || []).map((position) => {
                   const cycle = position.activeHose?.current_cycle ?? 0
                   const status = getHoseLifeStatus(cycle)
-                  const style = lifeStatusStyles[status]
                   return (
                     <Link
                       key={position.id}
@@ -310,7 +410,8 @@ const HoseInventory = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${style.dot}`} />
+                        <StatusDot tone={lifeTone[status]} />
+                        <span className="sr-only">{lifeLabel[status]}</span>
                         <span className="text-sm font-medium text-gray-700">Calibre {position.caliber}</span>
                         {position.length && (
                           <span className="text-xs text-gray-500">Long: {position.length}</span>
@@ -335,6 +436,16 @@ const HoseInventory = () => {
             </div>
           ))}
         </div>
+      )}
+
+      <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage}
+        onPageSizeChange={setPageSize} pageSizeOptions={[10, 20, 50]} label="productos" />
+
+      {showImport && (
+        <ImportEquipmentModal
+          onClose={() => setShowImport(false)}
+          onImported={() => { loadEquipment(); hoseService.calibers().then(setCalibers).catch(() => {}) }}
+        />
       )}
 
       {cycleEquipment && (

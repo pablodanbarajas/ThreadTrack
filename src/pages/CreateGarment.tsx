@@ -1,12 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import QRCode from 'qrcode.react'
-import { Plus, Download, Copy, RefreshCw, Loader, Users, Check } from 'lucide-react'
+import { Plus, Download, Copy, RefreshCw, Loader } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import { Notice, StatusBadge } from '../components/ui/StatusBadge'
 import { garmentStatusTone, garmentStatusLabel } from '../lib/tones'
-import { userService } from '../services/userService'
-import type { UserProfile } from '../services/userService'
-import { useRole } from '../contexts/AuthContext'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { generateQRUrl } from '../lib/qrGenerator'
 import type { Garment, GarmentInsert } from '../types'
@@ -16,29 +13,14 @@ const CreateGarment = () => {
     code: '',
     name: '',
     description: '',
-    client_name: '',
-    client_phone: '',
     notes: '',
   })
   const [createdGarment, setCreatedGarment] = useState<Garment | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const { isAdministrador } = useRole()
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([])
-  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
-  const [savingAssign, setSavingAssign] = useState(false)
-  const [assignSaved, setAssignSaved] = useState(false)
   const { invalidateGarments } = useGarmentCache()
   const qrRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (isAdministrador) {
-      userService.getAllUsers()
-        .then(users => setAllUsers(users.filter(u => u.role !== 'administrador')))
-        .catch(console.error)
-    }
-  }, [isAdministrador])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -58,34 +40,16 @@ const CreateGarment = () => {
       const garment = await garmentService.create(formData)
       invalidateGarments()
       setCreatedGarment(garment)
-      setAssignedUserIds([])
-      setAssignSaved(false)
       setFormData({
         code: '',
         name: '',
         description: '',
-        client_name: '',
-        client_phone: '',
         notes: '',
       })
     } catch (err: any) {
       setError(err.message || 'Error al crear la prenda')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleAssign = async () => {
-    if (!createdGarment) return
-    setSavingAssign(true)
-    try {
-      await userService.setGarmentAssignments(createdGarment.id, assignedUserIds)
-      invalidateGarments()
-      setAssignSaved(true)
-    } catch (err) {
-      console.error('Error asignando usuarios:', err)
-    } finally {
-      setSavingAssign(false)
     }
   }
 
@@ -165,7 +129,7 @@ const CreateGarment = () => {
                     name="code"
                     value={formData.code}
                     onChange={handleChange}
-                    placeholder="Ej: SHIRT-001"
+                    placeholder="Ej: 202607A-OV-M-BL-001"
                     className="input-field"
                     required
                   />
@@ -200,37 +164,6 @@ const CreateGarment = () => {
                   className="input-field"
                   rows={2}
                 />
-              </div>
-
-              {/* Cliente y Teléfono en dos columnas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cliente
-                  </label>
-                  <input
-                    type="text"
-                    name="client_name"
-                    value={formData.client_name}
-                    onChange={handleChange}
-                    placeholder="Nombre del cliente"
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono del cliente
-                  </label>
-                  <input
-                    type="text"
-                    name="client_phone"
-                    value={formData.client_phone}
-                    onChange={handleChange}
-                    placeholder="Teléfono del cliente"
-                    className="input-field"
-                  />
-                </div>
               </div>
 
               {/* Notas ancho completo */}
@@ -323,50 +256,6 @@ const CreateGarment = () => {
                   <p><strong>Estado:</strong> <StatusBadge tone={garmentStatusTone[createdGarment.status] ?? 'gray'}>{garmentStatusLabel[createdGarment.status] ?? createdGarment.status}</StatusBadge></p>
                 </div>
               </div>
-
-              {isAdministrador && (
-                <div className="mt-6 pt-6 border-t">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-green-600" />
-                    Asignar acceso a usuarios
-                  </h3>
-                  {allUsers.length === 0 ? (
-                    <p className="text-xs text-gray-400">Cargando usuarios...</p>
-                  ) : (
-                    <div className="space-y-1 max-h-48 overflow-y-auto border rounded-lg p-2 mb-3">
-                      {allUsers.map(user => (
-                        <label key={user.id} className="flex items-center gap-3 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={assignedUserIds.includes(user.id)}
-                            onChange={e => setAssignedUserIds(prev =>
-                              e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
-                            )}
-                            className="rounded"
-                          />
-                          <span className="flex-1 text-sm truncate">{user.email}</span>
-                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {assignSaved ? (
-                    <div className="flex items-center gap-2 text-green-700 text-sm py-2">
-                      <Check className="w-4 h-4" />
-                      Acceso asignado a {assignedUserIds.length} usuario{assignedUserIds.length !== 1 ? 's' : ''}
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleAssign}
-                      disabled={savingAssign || assignedUserIds.length === 0}
-                      className="btn-primary w-full flex items-center justify-center gap-2 text-sm"
-                    >
-                      {savingAssign ? <Loader className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
-                      {savingAssign ? 'Asignando...' : `Asignar a ${assignedUserIds.length} usuario${assignedUserIds.length !== 1 ? 's' : ''}`}
-                    </button>
-                  )}
-                </div>
-              )}
 
               <button
                 onClick={() => setCreatedGarment(null)}

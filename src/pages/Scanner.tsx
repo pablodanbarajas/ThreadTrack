@@ -248,18 +248,6 @@ const Scanner = () => {
                   <p className="text-2xl font-bold font-mono tracking-wider text-gray-900">{selectedGarment.short_code}</p>
                 </div>
               )}
-              {selectedGarment.client_name && (
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Cliente</p>
-                  <p className="text-gray-800">{selectedGarment.client_name}</p>
-                </div>
-              )}
-              {selectedGarment.client_phone && (
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">Teléfono del cliente</p>
-                  <p className="text-gray-800">{selectedGarment.client_phone}</p>
-                </div>
-              )}
               {selectedGarment.notes && (
                 <div className="md:col-span-2">
                   <p className="text-sm text-gray-600 font-medium">Notas</p>

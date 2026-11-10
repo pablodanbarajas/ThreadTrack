@@ -5,7 +5,6 @@ import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
 import ActionAuthor from '../components/ActionAuthor'
-import RecordedBy from '../components/RecordedBy'
 import { Skeleton, SkeletonPanel } from '../components/ui/Skeleton'
 import { Notice } from '../components/ui/StatusBadge'
 import SignatureField from '../components/SignatureField'
@@ -319,7 +318,6 @@ const HoseDetail = () => {
             </p>
             {modalError && <Notice tone="error" className="mb-3">{modalError}</Notice>}
             <form onSubmit={handleReplace} className="space-y-3">
-              <RecordedBy />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del reemplazo *</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={2} required />

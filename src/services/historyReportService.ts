@@ -64,7 +64,6 @@ export const historyReportService = {
           'Código': r.code,
           'Código corto': r.short_code,
           'Prenda': r.name,
-          'Cliente': r.client_name,
           'Estado en la fecha': statusLabel(r.status_at),
           'Ciclos de lavado/esterilización a la fecha': Number(r.cycles_at),
           'Última acción': statusLabel(r.last_action),
@@ -97,7 +96,6 @@ export const historyReportService = {
           'Código': r.garments?.code ?? '',
           'Código corto': r.garments?.short_code ?? '',
           'Prenda': r.garments?.name ?? '',
-          'Cliente': r.garments?.client_name ?? '',
           'Acción': statusLabel(r.action_type),
           'Resultado': r.result ?? '',
           'Notas': r.notes ?? '',
@@ -108,6 +106,38 @@ export const historyReportService = {
       }],
       'historial_acciones_prendas',
       { Reporte: 'Historial de acciones de prendas', Desde: fmt(fromIso), Hasta: fmt(toIso), 'Generado por': userEmail, Registros: rows.length }
+    )
+    return rows.length
+  },
+
+  // ---------- Estado de las mangueras en una fecha ----------
+  async exportHoseStatusAt(atIso: string, userEmail: string) {
+    const { data, error } = await supabase.rpc('get_hose_status_at', { p_at: atIso })
+    if (error) throw error
+    const rows = (data || []) as {
+      equipment_code: string; equipment_name: string; caliber: string; length: string | null
+      short_code: string | null; status_at: string; cycles_at: number; installed_at: string | null
+      last_action_at: string | null; last_action: string | null; last_responsible: string | null
+    }[]
+    download(
+      [{
+        name: 'Estado en fecha',
+        rows: rows.map((r) => ({
+          'Producto': r.equipment_code,
+          'Nombre producto': r.equipment_name,
+          'Calibre': r.caliber,
+          'Longitud': r.length ?? '',
+          'Manguera': r.short_code ?? '',
+          'Estado en la fecha': r.status_at,
+          'Ciclos a la fecha': Number(r.cycles_at),
+          'Instalada': fmt(r.installed_at),
+          'Última acción': statusLabel(r.last_action),
+          'Fecha última acción': fmt(r.last_action_at),
+          'Registrado por': r.last_responsible ?? '',
+        })),
+      }],
+      'estado_mangueras',
+      { Reporte: 'Estado de las mangueras en una fecha', 'Al cierre de': fmt(atIso), 'Generado por': userEmail, Registros: rows.length }
     )
     return rows.length
   },

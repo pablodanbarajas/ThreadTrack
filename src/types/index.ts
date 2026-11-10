@@ -200,3 +200,83 @@ export interface EquipmentInsert {
   lengths?: string[]
   team_id?: string
 }
+
+// ------------------------------------------------------------
+// Listas paginadas en el servidor
+// ------------------------------------------------------------
+export type LifeStatus = 'verde' | 'amarillo' | 'naranja' | 'rojo'
+
+/** Prenda en una lista: contadores calculados en la base */
+export interface GarmentListItem extends Garment {
+  wash_count: number
+  repair_count: number
+  life_status: LifeStatus
+  last_action_at?: string | null
+  /** Solo se llena al exportar */
+  actions?: GarmentAction[]
+}
+
+export interface GarmentListFilters {
+  search?: string
+  status?: GarmentStatus | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  garmentType?: string | null
+  color?: string | null
+  size?: string | null
+  batch?: string | null
+  teamId?: string | null
+  life?: LifeStatus[]
+  client?: string | null
+  /** Sin acciones en los últimos N días */
+  idleDays?: number | null
+  sort?: GarmentSort
+}
+
+export type GarmentSort = 'recientes' | 'ciclos' | 'codigo' | 'inactividad'
+
+export interface Paged<T> {
+  rows: T[]
+  total: number
+}
+
+/** Producto de mangueras en una lista: indicadores calculados en la base */
+export interface EquipmentListItem extends Equipment {
+  positions: HosePositionWithDetails[]
+  max_cycle: number
+  life_status: LifeStatus
+  last_action_at?: string | null
+  needs_attention: boolean
+}
+
+export type EquipmentSort = 'recientes' | 'ciclos' | 'codigo' | 'inactividad'
+
+export interface EquipmentListFilters {
+  search?: string
+  caliber?: string | null
+  life?: LifeStatus[]
+  idleDays?: number | null
+  attention?: boolean
+  sort?: EquipmentSort
+}
+
+export interface HoseStats {
+  equipment: number
+  positions: number
+  active: number
+  without_hose: number
+  at_limit: number
+  uses_30d: number
+  replaced_30d: number
+  life: Record<LifeStatus, number>
+}
+
+export interface GarmentStats {
+  active: number
+  disponible: number
+  lavado: number
+  inspeccion: number
+  reparacion: number
+  baja: number
+  life: Record<LifeStatus, number>
+}

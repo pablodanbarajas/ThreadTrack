@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { LucideIcon } from 'lucide-react'
 import { Shirt, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, ChevronRight } from 'lucide-react'
-import { useGarmentCache } from '../contexts/GarmentCacheContext'
-import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifeStatus } from '../lib/lifeStatus'
+import { garmentService } from '../services/garmentService'
+import type { GarmentStats } from '../types'
+import { WASH_STERILIZATION_CYCLE_LIMIT } from '../lib/lifeStatus'
 import { StatusDot } from '../components/ui/StatusBadge'
 import { Skeleton, SkeletonStats } from '../components/ui/Skeleton'
 import type { IndicatorTone } from '../lib/tones'
@@ -35,26 +36,19 @@ const lifeBands: { key: 'verde' | 'amarillo' | 'naranja' | 'rojo'; label: string
 ]
 
 const Home = () => {
-  const { garments, loading, loadGarments } = useGarmentCache()
+  // Totales calculados en la base (una sola consulta, sin descargar las prendas)
+  const [stats, setStats] = useState<GarmentStats | null>(null)
 
   useEffect(() => {
-    loadGarments().catch((error) => console.error('Error cargando datos:', error))
-  }, [loadGarments])
+    garmentService.stats().then(setStats).catch((error) => console.error('Error cargando totales:', error))
+  }, [])
 
-  const count = (status: string) => garments.filter((g) => g.status === status).length
-  const activeGarments = garments.filter((g) => g.status !== 'baja')
-
-  const lifeCounts = activeGarments.reduce(
-    (acc, garment) => {
-      acc[getCycleLifeStatus(getCycleCount(garment.actions || []))] += 1
-      return acc
-    },
-    { verde: 0, amarillo: 0, naranja: 0, rojo: 0 }
-  )
-  const lifeTotal = activeGarments.length
+  const count = (status: keyof GarmentStats) => (stats ? Number(stats[status]) : 0)
+  const lifeCounts = stats?.life ?? { verde: 0, amarillo: 0, naranja: 0, rojo: 0 }
+  const lifeTotal = stats?.active ?? 0
   const pct = (n: number) => (lifeTotal > 0 ? Math.round((n / lifeTotal) * 100) : 0)
 
-  const showSkeleton = loading && garments.length === 0
+  const showSkeleton = stats === null
 
   return (
     <div className="w-full space-y-6">
@@ -70,7 +64,7 @@ const Home = () => {
           <SkeletonStats count={6} />
         ) : (
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-            <Kpi icon={Shirt} label="Prendas activas" value={activeGarments.length} />
+            <Kpi icon={Shirt} label="Prendas activas" value={lifeTotal} />
             <Kpi icon={PackageCheck} label="Disponibles" value={count('disponible')} tone="green" />
             <Kpi icon={Droplets} label="En lavado" value={count('lavado')} tone="blue" />
             <Kpi icon={ClipboardCheck} label="En inspección" value={count('inspeccion')} tone="yellow" />

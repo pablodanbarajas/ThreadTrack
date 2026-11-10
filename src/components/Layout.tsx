@@ -64,7 +64,10 @@ const Layout = () => {
     }] : []),
     ...(canViewMangueras ? [{
       title: 'Mangueras',
-      items: [{ path: '/mangueras', label: 'Equipos y mangueras', icon: Waves, match: ['/mangueras/'] }],
+      items: [
+        { path: '/mangueras/inicio', label: 'Inicio', icon: Home },
+        { path: '/mangueras', label: 'Equipos y mangueras', icon: Waves, match: ['/mangueras/posicion/', '/mangueras/nuevo-equipo'] },
+      ],
     }] : []),
     ...((canViewReports || role === 'administrador') ? [{
       title: 'Gestión',

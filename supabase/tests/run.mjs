@@ -395,5 +395,101 @@ await expectErr('un jefe no cambia nombres de otros', () => as('jefeA', `SELECT 
   console.log(nm.full_name === 'Juan Pérez García' ? '  ✔ nombre actualizado' : '  ✘ ' + nm.full_name); nm.full_name === 'Juan Pérez García' ? pass++ : fail++
 }
 
+console.log('\n— Consultas paginadas')
+{
+  // 30 prendas extra en el equipo A, con distintos ciclos de lavado
+  await db.exec(`ALTER TABLE garment_actions DISABLE TRIGGER stamp_recorder_garment_actions`)
+  for (let i = 1; i <= 30; i++) {
+    const id = `bbbbbbbb-0000-0000-0000-${String(i).padStart(12, '0')}`
+    await db.query(`INSERT INTO garments (id, code, name, team_id, short_code, status) VALUES
+      ('${id}', '202607A-${i % 2 ? 'FI' : 'PA'}-L-NE-${String(i).padStart(3, '0')}', 'Prenda ${i}',
+       '00000000-0000-0000-0000-0000000000a1', 'P${i}', '${i % 5 === 0 ? 'reparacion' : 'disponible'}')`)
+    const washes = i <= 3 ? 80 : i <= 6 ? 30 : 1
+    await db.query(`INSERT INTO garment_actions (garment_id, action_type, performed_by)
+      SELECT '${id}', 'lavado', 'x' FROM generate_series(1, ${washes})`)
+  }
+  await db.exec(`ALTER TABLE garment_actions ENABLE TRIGGER stamp_recorder_garment_actions`)
+
+  const page = (sql) => as('jefeA', sql).then((r) => r.rows)
+  let rows = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 0)`)
+  const total = Number(rows[0]?.total_count)
+  console.log(rows.length === 10 && total >= 31 ? `  ✔ primera página de 10 con total ${total}` : '  ✘ ' + rows.length + '/' + total); rows.length === 10 ? pass++ : fail++
+  const p4 = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 10, 30)`)
+  console.log(p4.length === total - 30 ? '  ✔ última página con el resto' : '  ✘ ' + p4.length); p4.length === total - 30 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments('p12', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 5, 0)`)
+  console.log(rows[0]?.short_code === 'P12' ? '  ✔ búsqueda por código corto: coincidencia exacta primero' : '  ✘ ' + rows[0]?.short_code); rows[0]?.short_code === 'P12' ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ARRAY['rojo'], 50, 0)`)
+  const okLife = rows.length === 3 && rows.every((r) => r.life_status === 'rojo' && Number(r.wash_count) === 80)
+  console.log(okLife ? '  ✔ filtro de vida útil (rojo) calculado en la base' : '  ✘ ' + JSON.stringify(rows.map((r) => [r.code, r.wash_count]))); okLife ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(NULL, 'reparacion', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 50, 0)`)
+  console.log(rows.length >= 6 && rows.every((r) => r.status === 'reparacion') ? '  ✔ filtro por estado' : '  ✘ ' + rows.length); rows.length >= 6 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(NULL, NULL, NULL, NULL, 'PA', NULL, NULL, NULL, NULL, NULL, 50, 0)`)
+  console.log(rows.length === 15 && rows.every((r) => r.code.split('-')[1] === 'PA') ? '  ✔ filtro por tipo de prenda (segmento del código)' : '  ✘ ' + rows.length); rows.length === 15 ? pass++ : fail++
+  rows = await as('jefeB', `SELECT * FROM list_garments(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 100, 0)`).then((r) => r.rows)
+  console.log(rows.every((r) => r.organization_id !== rows.find(() => false)) && !rows.some((r) => r.code.startsWith('202607A-')) ? '  ✔ otra empresa no ve estas prendas' : '  ✘ ' + rows.length); !rows.some((r) => r.code.startsWith('202607A-')) ? pass++ : fail++
+  await expectRows('usuario sin módulo Prendas no lista prendas', () =>
+    as('adminx@x.test', `SELECT * FROM list_garments()`), 0)
+
+  // Ordenamiento, cliente, inactividad
+  rows = await page(`SELECT * FROM list_garments(p_sort => 'ciclos', p_limit => 3)`)
+  console.log(rows.length === 3 && rows.every((r) => Number(r.wash_count) === 80) ? '  ✔ ordenar por más ciclos' : '  ✘ ' + JSON.stringify(rows.map((r) => r.wash_count))); rows.length === 3 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(p_sort => 'codigo', p_limit => 50)`)
+  const codes = rows.map((r) => r.code)
+  const sortedOk = codes.every((c, i) => i === 0 || codes[i - 1] <= c)
+  console.log(sortedOk ? '  ✔ ordenar por código' : '  ✘ orden'); sortedOk ? pass++ : fail++
+  await db.query(`UPDATE garments SET client_name = 'Hospital Norte' WHERE short_code IN ('P1', 'P2')`)
+  rows = await page(`SELECT * FROM list_garments(p_client => 'norte', p_limit => 50)`)
+  console.log(rows.length === 2 ? '  ✔ filtro por cliente' : '  ✘ ' + rows.length); rows.length === 2 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(p_idle_days => 30, p_limit => 50)`)
+  const idleOk = rows.length === 1 && rows[0].code === 'G-A-2'
+  console.log(idleOk ? '  ✔ sin actividad en 30 días: detecta la prenda con última acción en mayo' : '  ✘ ' + JSON.stringify(rows.map((r) => r.code))); idleOk ? pass++ : fail++
+  const ex = (await as('jefeA', `SELECT array_agg(c) a FROM existing_garment_codes(ARRAY['202607A-FI-L-NE-001', 'NO-EXISTE']) c`)).rows[0].a
+  console.log(JSON.stringify(ex) === '["202607A-FI-L-NE-001"]' ? '  ✔ detecta códigos ya existentes para importar' : '  ✘ ' + JSON.stringify(ex)); ex ? pass++ : fail++
+  await expectRows('operador no consulta códigos existentes', () => as('opA', `SELECT * FROM existing_garment_codes(ARRAY['202607A-FI-L-NE-001'])`), 0)
+
+  const st = (await as('jefeA', `SELECT garment_stats() s`)).rows[0].s
+  const okStats = st.life.rojo === 3 && st.life.naranja === 0 && st.life.amarillo === 3 && st.reparacion >= 6
+  console.log(okStats ? `  ✔ totales de Inicio en la base (activas ${st.active}, rojo ${st.life.rojo}, amarillo ${st.life.amarillo})` : '  ✘ ' + JSON.stringify(st)); okStats ? pass++ : fail++
+
+  await db.query(`INSERT INTO equipment (id, code, name, team_id) VALUES ('eeeeeeee-0000-0000-0000-000000000002', 'EQ-B2', 'Equipo dos', '00000000-0000-0000-0000-0000000000a1')`)
+  rows = await page(`SELECT * FROM list_equipment(NULL, 10, 0)`)
+  console.log(rows.length >= 1 && Array.isArray(rows[0].positions) ? `  ✔ equipos paginados con posiciones (${rows.length}, total ${rows[0].total_count})` : '  ✘ ' + JSON.stringify(rows[0])); rows.length >= 1 ? pass++ : fail++
+
+  // Mangueras: alta, filtros, totales, estado a una fecha e importación
+  await expectErr('operador no crea productos de mangueras', () =>
+    as('opA', `SELECT create_equipment('EQ-OP', 'No', ARRAY['1/2"'])`), /Sin permisos/)
+  await expectErr('calibres repetidos rechazados', () =>
+    as('jefeA', `SELECT create_equipment('EQ-R', 'Rep', ARRAY['1/2"', '1/2"'])`), /repetir/)
+  const eqNew = (await as('jefeA', `SELECT create_equipment('EQ-N', 'Nuevo', ARRAY['1/2"', '3/4"'], NULL, ARRAY['6m', '']) r`)).rows[0].r
+  await expectErr('código de producto duplicado', () =>
+    as('jefeA', `SELECT create_equipment('EQ-N', 'Otro', ARRAY['1'])`), /Ya existe/)
+  const nh2 = (await one(`SELECT h.id FROM hoses h JOIN hose_positions p ON p.id = h.position_id WHERE p.equipment_id = '${eqNew.id}' AND p.caliber = '1/2"'`)).id
+  await db.query(`UPDATE hoses SET current_cycle = 120 WHERE id = '${nh2}'`)
+  await as('opA', `SELECT * FROM register_hose_action('${nh2}', 'uso', 'x')`)
+  rows = await page(`SELECT * FROM list_equipment(p_life => ARRAY['naranja'])`)
+  const okHl = rows.length === 1 && rows[0].code === 'EQ-N' && rows[0].max_cycle === 121
+  console.log(okHl ? '  ✔ filtro de vida útil de mangueras (naranja, 121 ciclos)' : '  ✘ ' + JSON.stringify(rows.map((r) => [r.code, r.max_cycle]))); okHl ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_equipment(p_caliber => '3/4"')`)
+  console.log(rows.length === 1 && rows[0].code === 'EQ-N' ? '  ✔ filtro por calibre' : '  ✘ ' + rows.length); rows.length === 1 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_equipment(p_sort => 'ciclos')`)
+  console.log(rows[0]?.code === 'EQ-N' ? '  ✔ orden por más ciclos' : '  ✘ ' + rows[0]?.code); rows[0]?.code === 'EQ-N' ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_equipment(p_attention => true)`)
+  console.log(rows.length === 1 && rows[0].code === 'EQ-B2' ? '  ✔ equipos que requieren atención (sin manguera activa)' : '  ✘ ' + JSON.stringify(rows.map((r) => r.code))); rows.length === 1 ? pass++ : fail++
+  const cal = (await as('jefeA', `SELECT array_agg(c) a FROM hose_calibers() c`)).rows[0].a
+  console.log(cal?.includes('3/4"') ? '  ✔ catálogo de calibres' : '  ✘ ' + JSON.stringify(cal)); cal?.includes('3/4"') ? pass++ : fail++
+  const hst = (await as('jefeA', `SELECT hose_stats() s`)).rows[0].s
+  const okHst = hst.active >= 2 && hst.life.naranja === 1 && hst.uses_30d >= 1
+  console.log(okHst ? `  ✔ totales de mangueras (activas ${hst.active}, naranja ${hst.life.naranja}, usos 30 días ${hst.uses_30d})` : '  ✘ ' + JSON.stringify(hst)); okHst ? pass++ : fail++
+  await expectRows('otra empresa no ve productos ajenos', () => as('jefeB', `SELECT * FROM list_equipment(p_search => 'EQ-N')`), 0)
+  rows = await page(`SELECT * FROM get_hose_status_at(now())`)
+  const st1 = rows.find((r) => r.equipment_code === 'EQ-N' && r.caliber === '1/2"')
+  console.log(st1?.status_at === 'Activa' && st1?.cycles_at === 121 ? '  ✔ estado de mangueras a una fecha (ciclos del historial)' : '  ✘ ' + JSON.stringify(st1)); st1 ? pass++ : fail++
+  rows = await page(`SELECT * FROM get_hose_status_at(now() - interval '10 years')`)
+  console.log(rows.length === 0 ? '  ✔ antes de instalarse no aparecen' : '  ✘ ' + rows.length); rows.length === 0 ? pass++ : fail++
+  await expectErr('operador no consulta estado histórico de mangueras', () => as('opA', `SELECT * FROM get_hose_status_at(now())`), /Sin permisos/)
+  const exE = (await as('jefeA', `SELECT array_agg(c) a FROM existing_equipment_codes(ARRAY['EQ-N', 'NUEVO-1']) c`)).rows[0].a
+  console.log(JSON.stringify(exE) === '["EQ-N"]' ? '  ✔ detecta productos ya existentes para importar' : '  ✘ ' + JSON.stringify(exE)); exE ? pass++ : fail++
+}
+
 console.log(`\nResultado: ${pass} OK, ${fail} fallas`)
 process.exit(fail ? 1 : 0)

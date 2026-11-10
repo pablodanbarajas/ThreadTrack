@@ -15,6 +15,7 @@ import AdminUsers from './pages/AdminUsers'
 import Login from './pages/Login'
 import BatchActions from './pages/BatchActions'
 import HoseInventory from './pages/HoseInventory'
+import HoseHome from './pages/HoseHome'
 import HoseDetail from './pages/HoseDetail'
 import CreateEquipment from './pages/CreateEquipment'
 import Reports from './pages/Reports'
@@ -47,6 +48,7 @@ function App() {
             <Route path="crear-prenda" element={<ProtectedRoute requiredModule="prendas"><CreateGarment /></ProtectedRoute>} />
             <Route path="lote" element={<ProtectedRoute requiredModule="prendas"><BatchActions /></ProtectedRoute>} />
             <Route path="prenda/:id" element={<ProtectedRoute requiredModule="prendas"><GarmentDetail /></ProtectedRoute>} />
+            <Route path="mangueras/inicio" element={<ProtectedRoute requiredModule="mangueras"><HoseHome /></ProtectedRoute>} />
             <Route path="mangueras" element={<ProtectedRoute requiredModule="mangueras"><HoseInventory /></ProtectedRoute>} />
             <Route path="mangueras/nuevo-equipo" element={<ProtectedRoute requiredModule="mangueras"><CreateEquipment /></ProtectedRoute>} />
             <Route path="mangueras/posicion/:positionId" element={<ProtectedRoute requiredModule="mangueras"><HoseDetail /></ProtectedRoute>} />
