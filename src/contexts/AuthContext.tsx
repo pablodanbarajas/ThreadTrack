@@ -4,14 +4,25 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { accessService } from '../services/accessService'
 
+// 'administrador' es el rol efectivo también del superadmin (Grupo CSCI);
+// lo que distingue al superadmin es isSuperadmin.
 export type UserRole = 'jefe' | 'supervisor' | 'operador' | 'administrador'
 export type AccessModule = 'prendas' | 'mangueras' | 'ambos'
+export type AppModule = 'prendas' | 'mangueras'
+export const ALL_MODULES: AppModule[] = ['prendas', 'mangueras']
+export const moduleLabels: Record<AppModule, string> = { prendas: 'Prendas', mangueras: 'Mangueras' }
 
 interface AuthContextType {
   user: User | null
   session: Session | null
   role: UserRole | null
   accessModule: AccessModule | null
+  modules: AppModule[]
+  isSuperadmin: boolean
+  organizationId: string | null
+  mustChangePassword: boolean
+  passwordChangeReason: 'temporal' | 'expirada' | null
+  refreshProfile: () => Promise<void>
   loading: boolean
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signOut: () => Promise<void>
@@ -29,12 +40,13 @@ export const useAuth = () => {
 
 // Hook para verificar permisos
 export const useRole = () => {
-  const { role, accessModule } = useAuth()
-  const isAdministrador = role === 'administrador'
+  const { role, accessModule, modules, isSuperadmin } = useAuth()
 
   return {
     role,
     accessModule,
+    modules,
+    isSuperadmin,
     isJefe: role === 'jefe',
     isSupervisor: role === 'supervisor',
     isOperador: role === 'operador',
@@ -53,8 +65,8 @@ export const useRole = () => {
     canDeleteEquipment: role === 'jefe' || role === 'administrador',
     canRegisterHoseAction: role !== null,
     canReplaceHose: role === 'jefe' || role === 'supervisor' || role === 'administrador',
-    canViewPrendas: isAdministrador || accessModule !== 'mangueras',
-    canViewMangueras: isAdministrador || accessModule !== 'prendas'
+    canViewPrendas: isSuperadmin || modules.includes('prendas'),
+    canViewMangueras: isSuperadmin || modules.includes('mangueras')
   }
 }
 
@@ -62,8 +74,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<UserRole | null>(null)
-  const [accessModule, setAccessModule] = useState<AccessModule | null>(null)
+  const [modules, setModules] = useState<AppModule[]>([])
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
+  const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [mustChangePassword, setMustChangePassword] = useState(false)
+  const [passwordChangeReason, setPasswordChangeReason] = useState<'temporal' | 'expirada' | null>(null)
   const [loading, setLoading] = useState(true)
+
+  const accessModule: AccessModule | null = modules.length === 0
+    ? null
+    : modules.includes('prendas') && modules.includes('mangueras') ? 'ambos' : modules[0]
+
+  const clearProfile = () => {
+    setRole(null)
+    setModules([])
+    setIsSuperadmin(false)
+    setOrganizationId(null)
+    setMustChangePassword(false)
+    setPasswordChangeReason(null)
+  }
 
   useEffect(() => {
     // Obtener sesión actual
@@ -84,8 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (session?.user) {
         loadUserRole(session.user.id)
       } else {
-        setRole(null)
-        setAccessModule(null)
+        clearProfile()
         setLoading(false)
       }
     })
@@ -97,30 +125,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('role, access_module, is_active')
+        .select('role, modules, organization_id, is_active')
         .eq('id', userId)
         .single()
 
-      if (error) {
-        console.error('Error cargando rol:', error)
-        setRole(null)
-        setAccessModule(null)
-      } else if (data && data.is_active === false) {
+      if (error || !data) {
+        console.error('Error cargando perfil:', error)
+        clearProfile()
+      } else if (data.is_active === false) {
         // Usuario desactivado con una sesión abierta: cerrarla
         await supabase.auth.signOut()
-        setRole(null)
-        setAccessModule(null)
+        clearProfile()
       } else {
-        setRole(data?.role || 'operador')
-        setAccessModule(data?.access_module || 'ambos')
+        const superadmin = data.role === 'superadmin'
+        setIsSuperadmin(superadmin)
+        setRole(superadmin ? 'administrador' : (data.role as UserRole))
+        setModules(superadmin ? ALL_MODULES : ((data.modules ?? []) as AppModule[]))
+        setOrganizationId(data.organization_id ?? null)
+
+        // Contraseña temporal o caducada => debe cambiarla antes de continuar
+        const { data: pwd } = await supabase.rpc('get_my_password_status')
+        setMustChangePassword(!!pwd?.must_change)
+        setPasswordChangeReason(pwd?.reason ?? null)
       }
     } catch (error) {
       console.error('Error:', error)
-      setRole(null)
-      setAccessModule(null)
+      clearProfile()
     } finally {
       setLoading(false)
     }
+  }
+
+  const refreshProfile = async () => {
+    const { data } = await supabase.auth.getUser()
+    if (data.user) await loadUserRole(data.user.id)
   }
 
   const signIn = async (email: string, password: string) => {
@@ -158,12 +196,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     await supabase.auth.signOut()
-    setRole(null)
-    setAccessModule(null)
+    clearProfile()
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, role, accessModule, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{
+      user, session, role, accessModule, modules, isSuperadmin, organizationId,
+      mustChangePassword, passwordChangeReason, refreshProfile, loading, signIn, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   )
