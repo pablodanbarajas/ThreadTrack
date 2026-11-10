@@ -352,7 +352,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
         <div className="px-4 pb-4 shrink-0">
           <button
             onClick={handleClose}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
           >
             {continuous ? (
               <><CheckCircle2 className="w-5 h-5" /> Listo - cerrar camara</>

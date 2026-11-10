@@ -271,7 +271,7 @@ const BatchActions = () => {
     <div className="w-full pb-20 md:pb-0">
       {/* Title */}
       <div className="flex items-center gap-3 mb-4">
-        <ScanBarcode className="w-8 h-8 text-indigo-600" />
+        <ScanBarcode className="w-8 h-8 text-blue-600" />
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Acciones en Lote</h1>
           <p className="text-sm text-gray-500">Escanea varias prendas y aplica una acción a todas</p>
@@ -301,7 +301,7 @@ const BatchActions = () => {
               <button
                 onClick={() => setShowScanner(true)}
                 disabled={applying}
-                className="sm:hidden px-3 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg transition-colors"
+                className="sm:hidden px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
                 title="Usar cámara"
               >
                 <Camera className="w-5 h-5" />
@@ -357,7 +357,7 @@ const BatchActions = () => {
                       {item.applyStatus === 'success' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
                       {item.applyStatus === 'error'   && <AlertCircle  className="w-4 h-4 text-red-500"   />}
                       {item.applyStatus === 'skipped' && <AlertCircle  className="w-4 h-4 text-gray-400"  />}
-                      {item.applyStatus === 'pending' && applying && <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />}
+                      {item.applyStatus === 'pending' && applying && <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />}
                       {item.applyStatus === 'pending' && !applying && <div className="w-4 h-4 rounded-full border-2 border-gray-300" />}
                     </div>
 
@@ -367,7 +367,7 @@ const BatchActions = () => {
                       {item.garmentId && (
                         <div className="flex items-center gap-1.5 min-w-0">
                           {item.shortCode && (
-                            <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-700 border border-indigo-100">
+                            <span className="shrink-0 rounded bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-gray-900 border border-gray-200">
                               {item.shortCode}
                             </span>
                           )}

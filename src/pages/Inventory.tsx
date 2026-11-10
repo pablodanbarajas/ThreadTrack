@@ -956,8 +956,8 @@ const Inventory = () => {
               onClick={() => setShowLifeStatusFilter((prev) => !prev)}
               className={`w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm whitespace-nowrap ${
                 filterLifeStatuses.length > 0
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                  : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
             >
               Vida útil{filterLifeStatuses.length > 0 ? ` (${filterLifeStatuses.length})` : ''}
@@ -1471,7 +1471,7 @@ const Inventory = () => {
                         <p className="text-xs text-gray-500 mt-1">Capturó: {action.recorded_by_email}</p>
                       )}
                       {action.signature_id && (
-                        <p className="text-xs text-indigo-600 font-medium mt-1">Firmado electrónicamente</p>
+                        <p className="text-xs text-blue-600 font-medium mt-1">Firmado electrónicamente</p>
                       )}
                       <p className="text-xs text-gray-400 mt-2">{formatDate(action.created_at)}</p>
                     </div>
@@ -1531,7 +1531,7 @@ const Inventory = () => {
                 <div className="flex justify-end gap-1 mb-3 pb-3 border-b">
                   <button
                     onClick={() => openQRModal(garment)}
-                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                    className="p-1.5 text-blue-600 hover:bg-gray-100 rounded-lg transition-colors"
                     title="Ver QR"
                   >
                     <ScanBarcode className="w-4 h-4" />
@@ -1576,7 +1576,7 @@ const Inventory = () => {
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="font-mono text-sm font-semibold text-gray-800 truncate">{garment.code}</div>
                   {garment.short_code && (
-                    <span className="shrink-0 font-mono font-bold text-base tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">
+                    <span className="shrink-0 font-mono font-bold text-base tracking-wider text-gray-900 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-lg">
                       {garment.short_code}
                     </span>
                   )}
@@ -1880,7 +1880,7 @@ const Inventory = () => {
                   includeMargin={true}
                 />
                 {selectedGarment.short_code && (
-                  <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                  <p className="text-3xl font-bold font-mono tracking-widest text-gray-900 mt-1">
                     {selectedGarment.short_code}
                   </p>
                 )}

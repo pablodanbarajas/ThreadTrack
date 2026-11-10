@@ -286,7 +286,7 @@ const CreateGarment = () => {
                     includeMargin={true}
                   />
                   {createdGarment.short_code && (
-                    <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                    <p className="text-3xl font-bold font-mono tracking-widest text-gray-900 mt-1">
                       {createdGarment.short_code}
                     </p>
                   )}

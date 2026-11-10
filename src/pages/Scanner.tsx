@@ -245,7 +245,7 @@ const Scanner = () => {
               {selectedGarment.short_code && (
                 <div>
                   <p className="text-sm text-gray-600 font-medium">Código Corto</p>
-                  <p className="text-2xl font-bold font-mono tracking-wider text-indigo-700">{selectedGarment.short_code}</p>
+                  <p className="text-2xl font-bold font-mono tracking-wider text-gray-900">{selectedGarment.short_code}</p>
                 </div>
               )}
               {selectedGarment.client_name && (
@@ -394,7 +394,7 @@ const Scanner = () => {
                   includeMargin={true}
                 />
                 {selectedGarment.short_code && (
-                  <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                  <p className="text-3xl font-bold font-mono tracking-widest text-gray-900 mt-1">
                     {selectedGarment.short_code}
                   </p>
                 )}

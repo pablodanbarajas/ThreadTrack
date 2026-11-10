@@ -284,7 +284,7 @@ const GarmentDetail = () => {
               if (!parsed.valid) return null
               return (
                 <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5">
-                  <h3 className="font-semibold text-indigo-900 text-sm md:text-base mb-2">Información del Código</h3>
+                  <h3 className="font-semibold text-gray-900 text-sm md:text-base mb-2">Información del Código</h3>
                   <div className="grid grid-cols-3 md:grid-cols-2 gap-1.5 md:gap-3">
                     <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
                       <p className="text-xs text-gray-500 font-medium">Prenda</p>
@@ -468,7 +468,7 @@ const GarmentDetail = () => {
                         <p className="text-xs text-gray-400">Capturó: {action.recorded_by_email}</p>
                       )}
                       {action.signature_id && (
-                        <p className="text-xs text-indigo-600 font-medium">Firmado electrónicamente</p>
+                        <p className="text-xs text-blue-600 font-medium">Firmado electrónicamente</p>
                       )}
                     </div>
                   ))}

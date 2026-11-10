@@ -32,7 +32,7 @@ const ActionRow = ({ action }: { action: HoseAction }) => (
     <div className="text-right text-gray-500">
       <div>{action.performed_by}</div>
       {action.recorded_by_email && <div className="text-xs">Capturó: {action.recorded_by_email}</div>}
-      {action.signature_id && <div className="text-xs text-indigo-600 font-medium">Firmado electrónicamente</div>}
+      {action.signature_id && <div className="text-xs text-blue-600 font-medium">Firmado electrónicamente</div>}
       <div>{new Date(action.created_at).toLocaleString()}</div>
     </div>
   </li>
