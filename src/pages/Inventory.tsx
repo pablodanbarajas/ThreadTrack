@@ -55,9 +55,7 @@ interface InventoryFilters {
   filterColor: Color | ''
   filterSize: Size | ''
   filterBatch: string
-  filterTeamId: string
   filterLifeStatuses: CycleLifeStatus[]
-  filterClient: string
   filterIdleDays: number
   sortBy: GarmentSort
 }
@@ -71,9 +69,7 @@ const defaultInventoryFilters: InventoryFilters = {
   filterColor: '',
   filterSize: '',
   filterBatch: '',
-  filterTeamId: 'all',
   filterLifeStatuses: [],
-  filterClient: '',
   filterIdleDays: 0,
   sortBy: 'recientes',
 }
@@ -128,7 +124,6 @@ const Inventory = () => {
   const [filterColor, setFilterColor] = useState<Color | ''>(storedFilters.filterColor)
   const [filterSize, setFilterSize] = useState<Size | ''>(storedFilters.filterSize)
   const [filterBatch, setFilterBatch] = useState(storedFilters.filterBatch)
-  const [filterClient, setFilterClient] = useState(storedFilters.filterClient)
   const [filterIdleDays, setFilterIdleDays] = useState<number>(storedFilters.filterIdleDays)
   const [sortBy, setSortBy] = useState<GarmentSort>(storedFilters.sortBy)
   const [showFilters, setShowFilters] = useState(false)
@@ -136,7 +131,6 @@ const Inventory = () => {
   // Descarga masiva de QR
   const [downloadingQRs, setDownloadingQRs] = useState(false)
   const [downloadingReport, setDownloadingReport] = useState(false)
-  const [filterTeamId, setFilterTeamId] = useState<string>(storedFilters.filterTeamId)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [filterLifeStatuses, setFilterLifeStatuses] = useState<CycleLifeStatus[]>(storedFilters.filterLifeStatuses)
   // Paginación
@@ -241,14 +235,12 @@ const Inventory = () => {
       filterColor,
       filterSize,
       filterBatch,
-      filterTeamId,
       filterLifeStatuses,
-      filterClient,
       filterIdleDays,
       sortBy,
     }
     try { sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters)) } catch { /* sin almacenamiento */ }
-  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses, filterClient, filterIdleDays, sortBy])
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays, sortBy])
 
   useEffect(() => {
     if (isAdministrador) {
@@ -257,7 +249,6 @@ const Inventory = () => {
   }, [isAdministrador])
 
   const debouncedSearch = useDebouncedValue(searchTerm)
-  const debouncedClient = useDebouncedValue(filterClient)
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE)
 
   const listFilters = useMemo<GarmentListFilters>(() => ({
@@ -269,11 +260,9 @@ const Inventory = () => {
     color: filterColor || null,
     size: filterSize || null,
     batch: filterBatch || null,
-    teamId: isAdministrador && filterTeamId !== 'all' ? filterTeamId : null,
     life: filterLifeStatuses as LifeStatus[],
-    client: debouncedClient || null,
     idleDays: filterIdleDays || null,
-  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, isAdministrador, filterTeamId, filterLifeStatuses, debouncedClient, filterIdleDays])
+  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays])
   const listQuery = useMemo(() => ({ ...listFilters, sort: sortBy }), [listFilters, sortBy])
 
   useEffect(() => {
@@ -295,11 +284,11 @@ const Inventory = () => {
 
   const hasActiveFilters = Object.values(listFilters).some((v) => (Array.isArray(v) ? v.length > 0 : !!v))
   // Filtros del panel (sin contar la búsqueda ni el estado, que están a la vista)
-  const panelFilterCount = [filterGarmentType, filterSize, filterColor, filterBatch, filterClient, filterDateFrom, filterDateTo,
-    filterIdleDays ? 'x' : '', isAdministrador && filterTeamId !== 'all' ? 'x' : '', filterLifeStatuses.length ? 'x' : ''].filter(Boolean).length
+  const panelFilterCount = [filterGarmentType, filterSize, filterColor, filterBatch, filterDateFrom, filterDateTo,
+    filterIdleDays ? 'x' : '', filterLifeStatuses.length ? 'x' : ''].filter(Boolean).length
   const clearFilters = () => {
     setFilterStatus('all'); setFilterGarmentType(''); setFilterSize(''); setFilterColor(''); setFilterBatch('')
-    setFilterClient(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterIdleDays(0); setFilterTeamId('all')
+    setFilterDateFrom(''); setFilterDateTo(''); setFilterIdleDays(0)
     setFilterLifeStatuses([]); setSortBy('recientes')
   }
 
@@ -308,7 +297,7 @@ const Inventory = () => {
   const paginatedGarments = garments
 
   // Resetear página al cambiar filtros
-  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, debouncedClient, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterLifeStatuses])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -670,9 +659,6 @@ const Inventory = () => {
           <FilterField label="Lote">
             <input value={filterBatch} onChange={(e) => setFilterBatch(e.target.value.toUpperCase().trim())} placeholder="Ej. 202607A" className="input-field py-1.5 text-sm" />
           </FilterField>
-          <FilterField label="Cliente">
-            <input value={filterClient} onChange={(e) => setFilterClient(e.target.value)} placeholder="Nombre del cliente" className="input-field py-1.5 text-sm" />
-          </FilterField>
           <FilterField label="Vida útil">
             <div className="flex flex-wrap gap-1.5">
               {(Object.entries(lifeStatusStyles) as [CycleLifeStatus, typeof lifeStatusStyles['verde']][]).map(([key, style]) => {
@@ -695,21 +681,13 @@ const Inventory = () => {
               <option value={90}>Más de 90 días</option>
             </select>
           </FilterField>
-          <FilterField label="Actualizada entre">
-            <div className="flex items-center gap-1.5">
-              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="input-field py-1.5 text-sm" aria-label="Desde" />
+          <FilterField label="Actualizada entre" className="sm:col-span-2">
+            <div className="flex items-center gap-2">
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="input-field min-w-0 flex-1 py-1.5 text-sm" aria-label="Desde" />
               <span className="text-gray-400">–</span>
-              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="input-field py-1.5 text-sm" aria-label="Hasta" />
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="input-field min-w-0 flex-1 py-1.5 text-sm" aria-label="Hasta" />
             </div>
           </FilterField>
-          {isAdministrador && teams.length > 0 && (
-            <FilterField label="Equipo">
-              <select value={filterTeamId} onChange={(e) => setFilterTeamId(e.target.value)} className="input-field py-1.5 text-sm">
-                <option value="all">Todos</option>
-                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </FilterField>
-          )}
         </InventoryFilterBar>
       </div>
 

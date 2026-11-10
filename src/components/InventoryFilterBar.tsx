@@ -20,8 +20,8 @@ const sortOptions: { value: GarmentSort; label: string }[] = [
   { value: 'codigo', label: 'Código (A–Z)' },
 ]
 
-export const FilterField = ({ label, children }: { label: string; children: ReactNode }) => (
-  <div>
+export const FilterField = ({ label, children, className = '' }: { label: string; children: ReactNode; className?: string }) => (
+  <div className={`min-w-0 ${className}`}>
     <p className="mb-1 text-xs font-medium text-gray-500">{label}</p>
     {children}
   </div>
