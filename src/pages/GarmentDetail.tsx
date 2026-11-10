@@ -481,18 +481,18 @@ const GarmentDetail = () => {
               <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h2 className="font-semibold text-gray-800 text-sm md:text-base flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-purple-600" />
+                    <ShieldCheck className="w-4 h-4 text-gray-500" />
                     Audit trail {auditTrail && `(${auditTrail.length})`}
                   </h2>
                   <div className="flex gap-2">
                     {!auditTrail ? (
-                      <button onClick={loadAuditTrail} disabled={auditLoading} className="text-xs px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50">
+                      <button onClick={loadAuditTrail} disabled={auditLoading} className="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                         {auditLoading ? 'Cargando...' : 'Ver cambios'}
                       </button>
                     ) : (
                       <button
                         onClick={() => historyReportService.exportGarmentAuditTrail(garment.code, auditTrail, user?.email ?? '')}
-                        className="text-xs px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center gap-1"
+                        className="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-1"
                       >
                         <FileSpreadsheet className="w-3 h-3" /> Exportar
                       </button>
@@ -506,7 +506,7 @@ const GarmentDetail = () => {
                   ) : (
                     <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                       {[...auditTrail].reverse().map((e) => (
-                        <div key={e.id} className="p-2 bg-purple-50/50 rounded-lg text-xs">
+                        <div key={e.id} className="p-2 border border-gray-100 rounded-lg text-xs">
                           <div className="flex justify-between gap-2">
                             <span className="font-semibold text-gray-800">
                               {auditOpLabel[e.operation]} · {auditTableLabel[e.table_name] ?? e.table_name}
