@@ -12,10 +12,17 @@
 // Respuesta: { ok: true, temporary_password, user_id? } | { ok: false, error }
 import { createClient } from 'npm:@supabase/supabase-js@2.93.1'
 
+// supabase-js envía además X-Supabase-Client-Platform/Runtime(-Version);
+// si un encabezado no está permitido, el navegador bloquea la petición.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': [
+    'authorization', 'apikey', 'content-type', 'x-client-info', 'x-region',
+    'x-supabase-client-platform', 'x-supabase-client-platform-version',
+    'x-supabase-client-runtime', 'x-supabase-client-runtime-version',
+  ].join(', '),
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
 
 const json = (body: unknown, status = 200) =>
@@ -36,7 +43,13 @@ function temporaryPassword(): string {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  if (req.method === 'OPTIONS') {
+    // Permitir también cualquier encabezado que el cliente declare en el preflight
+    const requested = req.headers.get('Access-Control-Request-Headers')
+    return new Response('ok', {
+      headers: requested ? { ...corsHeaders, 'Access-Control-Allow-Headers': requested } : corsHeaders,
+    })
+  }
   if (req.method !== 'POST') return json({ ok: false, error: 'Método no permitido' }, 405)
 
   const authHeader = req.headers.get('Authorization')
