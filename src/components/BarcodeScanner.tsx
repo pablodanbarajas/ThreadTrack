@@ -333,9 +333,9 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
 
               <div className="h-14 mt-2 flex items-center justify-center">
                 {lastCode ? (
-                  <div className="w-full text-center px-2 py-1.5 bg-green-100 rounded-lg">
-                    <p className="text-green-700 text-xs font-semibold truncate">✓ {lastCode}</p>
-                    <p className="text-green-500 text-xs">
+                  <div className="w-full text-center px-2 py-1.5 bg-white/95 border border-gray-200 rounded-lg">
+                    <p className="text-gray-900 text-xs font-semibold truncate flex items-center justify-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />{lastCode}</p>
+                    <p className="text-gray-500 text-xs">
                       {mode === 'qr' ? 'QR detectado' : 'Codigo detectado'}
                     </p>
                   </div>
@@ -352,7 +352,7 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
         <div className="px-4 pb-4 shrink-0">
           <button
             onClick={handleClose}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-colors bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-sm transition-colors bg-blue-600 hover:bg-blue-700 text-white"
           >
             {continuous ? (
               <><CheckCircle2 className="w-5 h-5" /> Listo - cerrar camara</>

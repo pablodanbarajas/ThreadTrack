@@ -4,6 +4,10 @@ import { ArrowLeft, Waves, Replace, ChevronDown, ChevronUp, Loader2, Download } 
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import ActionAuthor from '../components/ActionAuthor'
+import RecordedBy from '../components/RecordedBy'
+import { Skeleton, SkeletonPanel } from '../components/ui/Skeleton'
+import { Notice } from '../components/ui/StatusBadge'
 import SignatureField from '../components/SignatureField'
 import { signatureService } from '../services/accessService'
 import { getHoseLifePercent, getHoseLifeStatus } from '../lib/hoseLifeStatus'
@@ -28,9 +32,12 @@ const ActionRow = ({ action }: { action: HoseAction }) => (
       {action.notes && <span className="text-gray-500"> — {action.notes}</span>}
     </div>
     <div className="text-right text-gray-500">
-      <div>{action.performed_by}</div>
-      {action.recorded_by_email && <div className="text-xs">Capturó: {action.recorded_by_email}</div>}
-      {action.signature_id && <div className="text-xs text-indigo-600 font-medium">Firmado electrónicamente</div>}
+      <ActionAuthor
+        performedBy={action.performed_by}
+        recordedByName={action.recorded_by_name}
+        recordedByEmail={action.recorded_by_email}
+        signed={!!action.signature_id}
+      />
       <div>{new Date(action.created_at).toLocaleString()}</div>
     </div>
   </li>
@@ -52,7 +59,6 @@ const HoseDetail = () => {
   const [showFullActiveHistory, setShowFullActiveHistory] = useState(false)
 
   const [showReplaceModal, setShowReplaceModal] = useState(false)
-  const [responsible, setResponsible] = useState('')
   const [notes, setNotes] = useState('')
   const [signaturePassword, setSignaturePassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -85,7 +91,6 @@ const HoseDetail = () => {
   }, [positionId])
 
   const openModal = (type: 'use' | 'replace') => {
-    setResponsible('')
     setNotes(type === 'use' ? 'Lavado y Esterilización' : '')
     setModalError(null)
     setSignaturePassword('')
@@ -100,7 +105,7 @@ const HoseDetail = () => {
     try {
       if (!notes.trim()) throw new Error('Indica el motivo del reemplazo')
       const signatureToken = await signatureService.sign(signaturePassword)
-      await hoseService.replaceHose(position.id, notes, responsible, signatureToken)
+      await hoseService.replaceHose(position.id, notes, signatureToken)
       setSignaturePassword('')
       invalidateEquipment()
       setShowReplaceModal(false)
@@ -148,7 +153,15 @@ const HoseDetail = () => {
     }
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-500">Cargando...</div>
+  if (loading) {
+    return (
+      <div className="w-full space-y-4">
+        <Skeleton className="h-4 w-36" />
+        <SkeletonPanel lines={3} />
+        <SkeletonPanel lines={6} />
+      </div>
+    )
+  }
   if (error || !position) return <div className="text-center py-12 text-red-600">{error || 'Posición no encontrada'}</div>
 
   const activeHose = position.activeHose
@@ -164,7 +177,7 @@ const HoseDetail = () => {
         <Link to="/mangueras" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Volver a Mangueras
         </Link>
-        <button onClick={handleExport} className="btn-secondary flex items-center gap-2" disabled={exporting}>
+        <button onClick={handleExport} className="btn-excel flex items-center gap-2" disabled={exporting}>
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           Exportar
         </button>
@@ -276,8 +289,8 @@ const HoseDetail = () => {
                   {isExpanded && (
                     <div className="mt-2 pl-3 border-l-2 border-gray-200">
                       {loadingHistoryId === hose.id ? (
-                        <div className="flex items-center gap-2 text-gray-500 py-2">
-                          <Loader2 className="w-4 h-4 animate-spin" /> Cargando ciclos...
+                        <div className="space-y-2 py-2">
+                          <Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" />
                         </div>
                       ) : !cycles || cycles.length === 0 ? (
                         <p className="text-gray-500 py-2">Sin registros de ciclos para esta manguera</p>
@@ -304,12 +317,9 @@ const HoseDetail = () => {
             <p className="text-sm text-gray-500 mb-3">
               La manguera actual quedará dada de baja conservando su historial. Se creará una manguera nueva en esta posición con el ciclo en 0.
             </p>
-            {modalError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{modalError}</div>}
+            {modalError && <Notice tone="error" className="mb-3">{modalError}</Notice>}
             <form onSubmit={handleReplace} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
-                <input value={responsible} onChange={(e) => setResponsible(e.target.value)} className="input-field" required />
-              </div>
+              <RecordedBy />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del reemplazo *</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={2} required />
@@ -321,7 +331,7 @@ const HoseDetail = () => {
               />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowReplaceModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                <button type="submit" className="btn-primary flex items-center justify-center gap-2 flex-1" disabled={submitting || !responsible.trim() || !notes.trim() || !signaturePassword}>
+                <button type="submit" className="btn-primary flex items-center justify-center gap-2 flex-1" disabled={submitting || !notes.trim() || !signaturePassword}>
                   <Replace className="w-4 h-4" /> {submitting ? 'Reemplazando...' : 'Firmar y reemplazar'}
                 </button>
               </div>

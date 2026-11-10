@@ -92,8 +92,8 @@ export const roleDescriptions: Record<UserRole, string> = {
  * Etiquetas de rol para mostrar en UI
  */
 export const roleBadges: Record<UserRole, { label: string; color: string }> = {
-  jefe: { label: 'Jefe', color: 'bg-red-100 text-red-800' },
-  supervisor: { label: 'Supervisor', color: 'bg-blue-100 text-blue-800' },
-  operador: { label: 'Operador', color: 'bg-green-100 text-green-800' },
-  administrador: { label: 'Administrador', color: 'bg-purple-100 text-purple-800' }
+  jefe: { label: 'Jefe', color: 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20' },
+  supervisor: { label: 'Supervisor', color: 'bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-600/20' },
+  operador: { label: 'Operador', color: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/20' },
+  administrador: { label: 'Administrador', color: 'bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-600/20' }
 }

@@ -1,6 +1,10 @@
 import { useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { FileSpreadsheet, CalendarClock, History, ShieldCheck, KeyRound, Loader2, Waves } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
+import { useFeedback } from '../components/ui/feedback-context'
+import { IconTile } from '../components/ui/StatusBadge'
+import type { IndicatorTone } from '../lib/tones'
 import { historyReportService, startOfDay, endOfDay } from '../services/historyReportService'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -8,118 +12,163 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString()
 
 type Job = 'status' | 'actions' | 'hoses' | 'audit' | 'access'
 
+interface RangeReport {
+  job: Job
+  icon: LucideIcon
+  title: string
+  description: string
+  adminOnly?: boolean
+  tone: IndicatorTone
+  run: (fromIso: string, toIso: string, email: string) => Promise<number>
+}
+
 const Reports = () => {
   const { user } = useAuth()
   const { isAdministrador, canViewReports, canViewPrendas, canViewMangueras } = useRole()
   const email = user?.email ?? ''
+  const feedback = useFeedback()
 
   const [statusDate, setStatusDate] = useState(today())
   const [from, setFrom] = useState(daysAgo(30))
   const [to, setTo] = useState(today())
   const [running, setRunning] = useState<Job | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   if (!canViewReports) {
-    return <div className="card p-6 text-center text-gray-600">No tienes permisos para consultar reportes históricos.</div>
+    return <div className="card text-center text-gray-600">No tienes permisos para consultar reportes históricos.</div>
   }
 
   const run = async (job: Job, fn: () => Promise<number>) => {
     setRunning(job)
-    setMessage(null)
     try {
       const n = await fn()
-      setMessage({ type: 'ok', text: `Reporte generado (${n} registros).` })
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Error generando el reporte' })
+      feedback.success(`Reporte generado (${n} registros)`)
+    } catch (err) {
+      feedback.error((err as Error).message || 'Error generando el reporte')
     } finally {
       setRunning(null)
     }
   }
 
-  const rangeValid = from && to && from <= to
+  const rangeValid = !!from && !!to && from <= to
 
-  const Btn = ({ job, onClick, disabled }: { job: Job; onClick: () => void; disabled?: boolean }) => (
-    <button onClick={onClick} disabled={!!running || disabled} className="btn-primary flex items-center justify-center gap-2 disabled:opacity-50">
-      {running === job ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
+  const ExportButton = ({ job, onClick, disabled }: { job: Job; onClick: () => void; disabled?: boolean }) => (
+    <button
+      onClick={onClick}
+      disabled={!!running || disabled}
+      className="btn-excel flex shrink-0 items-center justify-center gap-2 text-sm disabled:opacity-50"
+    >
+      {running === job ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
       Exportar Excel
     </button>
   )
 
+  const rangeReports: RangeReport[] = [
+    ...(canViewPrendas ? [{
+      job: 'actions' as Job, icon: History, title: 'Historial de acciones de prendas', tone: 'blue' as IndicatorTone,
+      description: 'Lavados/esterilizaciones, inspecciones, reparaciones y bajas, con responsable, usuario que capturó y firma.',
+      run: historyReportService.exportGarmentActions.bind(historyReportService),
+    }] : []),
+    ...(canViewMangueras ? [{
+      job: 'hoses' as Job, icon: Waves, title: 'Historial de acciones de mangueras', tone: 'blue' as IndicatorTone,
+      description: 'Usos (ciclos), inspecciones, reemplazos y bajas por equipo y calibre.',
+      run: historyReportService.exportHoseActions.bind(historyReportService),
+    }] : []),
+    ...(isAdministrador ? [
+      {
+        job: 'audit' as Job, icon: ShieldCheck, title: 'Audit trail', adminOnly: true, tone: 'purple' as IndicatorTone,
+        description: 'Todos los cambios: usuario, fecha y hora, valor anterior, valor nuevo y motivo.',
+        run: historyReportService.exportAuditTrail.bind(historyReportService),
+      },
+      {
+        job: 'access' as Job, icon: KeyRound, title: 'Bitácora de accesos y firmas', adminOnly: true, tone: 'purple' as IndicatorTone,
+        description: 'Intentos de inicio de sesión (exitosos y fallidos) y firmas electrónicas emitidas.',
+        run: historyReportService.exportAccessLog.bind(historyReportService),
+      },
+    ] : []),
+  ]
+
   return (
-    <div className="w-full pb-20 md:pb-0 space-y-6">
-      <div className="flex items-center gap-3">
-        <History className="w-8 h-8 text-blue-600" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Reportes históricos</h1>
-          <p className="text-sm text-gray-500">Generados a partir del historial inmutable. Cada archivo incluye quién lo generó y cuándo.</p>
-        </div>
+    <div className="w-full space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Reportes históricos</h1>
+        <p className="text-sm text-gray-500">
+          Se generan del historial inmutable. Cada archivo incluye quién lo generó, cuándo y con qué filtros.
+        </p>
       </div>
 
-      {message && (
-        <div className={`p-3 rounded-lg text-sm border ${message.type === 'ok' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          {message.text}
-        </div>
-      )}
-
+      {/* Reporte a una fecha */}
       {canViewPrendas && (
-        <section className="card p-5 space-y-3">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2"><CalendarClock className="w-5 h-5 text-blue-600" /> Estado del inventario en una fecha</h2>
-          <p className="text-sm text-gray-500">Estado de cada prenda y ciclos de lavado/esterilización acumulados al cierre del día seleccionado.</p>
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-            <label className="text-sm text-gray-700">
-              Fecha
-              <input type="date" value={statusDate} max={today()} onChange={(e) => setStatusDate(e.target.value)} className="input-field mt-1" />
-            </label>
-            <Btn job="status" disabled={!statusDate} onClick={() => run('status', () => historyReportService.exportInventoryStatusAt(endOfDay(statusDate), email))} />
+        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <IconTile icon={CalendarClock} tone="green" />
+            <div className="min-w-0">
+              <h2 className="font-semibold text-gray-900">Estado del inventario en una fecha</h2>
+              <p className="text-sm text-gray-500">Estado de cada prenda y ciclos acumulados al cierre del día elegido.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              aria-label="Fecha del reporte"
+              value={statusDate}
+              max={today()}
+              onChange={(e) => setStatusDate(e.target.value)}
+              className="input-field w-auto py-1.5 text-sm"
+            />
+            <ExportButton job="status" disabled={!statusDate}
+              onClick={() => run('status', () => historyReportService.exportInventoryStatusAt(endOfDay(statusDate), email))} />
           </div>
         </section>
       )}
 
-      <section className="card p-5 space-y-3">
-        <h2 className="font-semibold text-gray-800">Periodo para los reportes siguientes</h2>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <label className="text-sm text-gray-700">
-            Desde
-            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="input-field mt-1" />
-          </label>
-          <label className="text-sm text-gray-700">
-            Hasta
-            <input type="date" value={to} min={from} max={today()} onChange={(e) => setTo(e.target.value)} className="input-field mt-1" />
-          </label>
-        </div>
-        {!rangeValid && <p className="text-sm text-red-600">La fecha inicial debe ser anterior o igual a la final.</p>}
-      </section>
+      {/* Reportes por periodo */}
+      {rangeReports.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="card-header flex-col md:flex-row md:items-center">
+            <div>
+              <h2 className="font-semibold text-gray-900">Reportes por periodo</h2>
+              <p className="text-xs text-gray-500">El rango de fechas se aplica a todos los reportes de esta lista.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+              <label className="flex items-center gap-2">
+                Desde
+                <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} className="input-field w-auto bg-white py-1.5 text-sm" />
+              </label>
+              <label className="flex items-center gap-2">
+                hasta
+                <input type="date" value={to} min={from} max={today()} onChange={(e) => setTo(e.target.value)} className="input-field w-auto bg-white py-1.5 text-sm" />
+              </label>
+            </div>
+          </div>
+          {!rangeValid && (
+            <p className="border-b border-gray-200 px-4 py-2 text-sm text-gray-600">
+              La fecha inicial debe ser anterior o igual a la final.
+            </p>
+          )}
 
-      {canViewPrendas && (
-        <section className="card p-5 space-y-3">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2"><History className="w-5 h-5 text-blue-600" /> Historial de acciones de prendas</h2>
-          <p className="text-sm text-gray-500">Lavados/esterilizaciones, inspecciones, reparaciones y bajas, con responsable, usuario que capturó y firma electrónica.</p>
-          <Btn job="actions" disabled={!rangeValid} onClick={() => run('actions', () => historyReportService.exportGarmentActions(startOfDay(from), endOfDay(to), email))} />
+          <ul className="divide-y divide-gray-100">
+            {rangeReports.map((r) => (
+              <li key={r.job} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <IconTile icon={r.icon} tone={r.tone} />
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
+                      {r.title}
+                      {r.adminOnly && (
+                        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-600/20">
+                          Solo administrador
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-500">{r.description}</p>
+                  </div>
+                </div>
+                <ExportButton job={r.job} disabled={!rangeValid}
+                  onClick={() => run(r.job, () => r.run(startOfDay(from), endOfDay(to), email))} />
+              </li>
+            ))}
+          </ul>
         </section>
-      )}
-
-      {canViewMangueras && (
-        <section className="card p-5 space-y-3">
-          <h2 className="font-semibold text-gray-800 flex items-center gap-2"><Waves className="w-5 h-5 text-blue-600" /> Historial de acciones de mangueras</h2>
-          <p className="text-sm text-gray-500">Usos (ciclos), inspecciones, reemplazos y bajas por equipo y calibre.</p>
-          <Btn job="hoses" disabled={!rangeValid} onClick={() => run('hoses', () => historyReportService.exportHoseActions(startOfDay(from), endOfDay(to), email))} />
-        </section>
-      )}
-
-      {isAdministrador && (
-        <>
-          <section className="card p-5 space-y-3 border-l-4 border-purple-400">
-            <h2 className="font-semibold text-gray-800 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-purple-600" /> Audit trail del sistema</h2>
-            <p className="text-sm text-gray-500">Todos los cambios: usuario, fecha y hora, valor anterior, valor nuevo y motivo.</p>
-            <Btn job="audit" disabled={!rangeValid} onClick={() => run('audit', () => historyReportService.exportAuditTrail(startOfDay(from), endOfDay(to), email))} />
-          </section>
-
-          <section className="card p-5 space-y-3 border-l-4 border-purple-400">
-            <h2 className="font-semibold text-gray-800 flex items-center gap-2"><KeyRound className="w-5 h-5 text-purple-600" /> Bitácora de accesos y firmas electrónicas</h2>
-            <p className="text-sm text-gray-500">Intentos de inicio de sesión (exitosos y fallidos) y firmas electrónicas emitidas.</p>
-            <Btn job="access" disabled={!rangeValid} onClick={() => run('access', () => historyReportService.exportAccessLog(startOfDay(from), endOfDay(to), email))} />
-          </section>
-        </>
       )}
     </div>
   )

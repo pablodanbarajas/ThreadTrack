@@ -96,7 +96,7 @@ export async function generateReportExcel(garments: any[]) {
           'Nombre': garment.name || '',
           'Tipo accion': formatActionType(action.action_type),
           'Resultado': action.result || '',
-          'Responsable': action.performed_by || '',
+          'Registrado por': action.recorded_by_name || action.performed_by || '',
           'Fecha': formatDate(action.created_at),
           'Notas': action.notes || '',
         })
@@ -107,7 +107,7 @@ export async function generateReportExcel(garments: any[]) {
             'Codigo': garment.code || '',
             'Nombre': garment.name || '',
             'Origen': formatActionType(action.action_type),
-            'Responsable': action.performed_by || '',
+            'Registrado por': action.recorded_by_name || action.performed_by || '',
             'Fecha': formatDate(action.created_at),
             'Notas': action.notes || '',
           })
@@ -217,7 +217,7 @@ export async function generateHoseInventoryExcel(equipmentList: HoseExportEquipm
             'Ciclos': hose.current_cycle,
             'Limite ciclos': 200,
             'Ultima accion': formatHoseAction(lastAction),
-            'Responsable ultima accion': lastAction?.performed_by || '',
+            'Registro ultima accion': lastAction?.recorded_by_name || lastAction?.performed_by || '',
             'Fecha ultima accion': formatDate(lastAction?.created_at),
             'Fecha instalacion': formatDate(hose.installed_at),
             'Motivo baja': hose.baja_reason || '',
@@ -235,7 +235,7 @@ export async function generateHoseInventoryExcel(equipmentList: HoseExportEquipm
               'Codigo manguera': hose.short_code || '',
               'Tipo': formatHoseAction(action),
               'Ciclo': action.cycle_after ?? '',
-              'Responsable': action.performed_by,
+              'Registrado por': action.recorded_by_name || action.performed_by,
               'Fecha': formatDate(action.created_at),
               'Notas': action.notes || '',
               'Manguera actual': hose.id === position.activeHose?.id ? 'Si' : 'No',
@@ -250,7 +250,7 @@ export async function generateHoseInventoryExcel(equipmentList: HoseExportEquipm
               'Longitud': position.length || '',
               'Manguera reemplazada': hose.short_code || '',
               'Ciclos al reemplazo': action.cycle_after ?? hose.current_cycle,
-              'Responsable': action.performed_by,
+              'Registrado por': action.recorded_by_name || action.performed_by,
               'Fecha reemplazo': formatDate(action.created_at),
               'Motivo': action.notes || hose.baja_reason || '',
               'Manguera actual': 'No',
@@ -328,7 +328,7 @@ export function generateHoseDetailExcel(
           'Codigo manguera': hose.short_code || '',
           'Tipo': formatHoseAction(action),
           'Ciclo': action.cycle_after ?? '',
-          'Responsable': action.performed_by,
+          'Registrado por': action.recorded_by_name || action.performed_by,
           'Fecha': formatDate(action.created_at),
           'Notas': action.notes || '',
         })
@@ -337,7 +337,7 @@ export function generateHoseDetailExcel(
         replacementRows.push({
           'Codigo manguera': hose.short_code || '',
           'Ciclos al reemplazo': action.cycle_after ?? hose.current_cycle,
-          'Responsable': action.performed_by,
+          'Registrado por': action.recorded_by_name || action.performed_by,
           'Fecha reemplazo': formatDate(action.created_at),
           'Motivo': action.notes || hose.baja_reason || '',
         })

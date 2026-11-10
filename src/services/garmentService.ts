@@ -115,20 +115,13 @@ export const garmentService = {
     options?: {
       result?: InspectionResult
       notes?: string
-      responsible?: string
-      performedBy?: string
       signatureToken?: string // requerido para bajas y resultados de inspección
     }
   ): Promise<GarmentAction> {
-    const responsible = options?.responsible?.trim() || options?.performedBy?.trim()
-    if (!responsible) {
-      throw new Error('El campo RESPONSABLE es obligatorio')
-    }
-
     const { data, error } = await supabase.rpc('register_garment_action', {
       p_garment_id: garmentId,
       p_action_type: actionType,
-      p_responsible: responsible,
+      p_responsible: null, // lo fija la base: usuario en sesión
       p_result: options?.result ?? null,
       p_notes: options?.notes ?? null,
       p_signature_token: options?.signatureToken ?? null,

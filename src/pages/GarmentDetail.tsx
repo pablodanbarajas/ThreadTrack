@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Loader, AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, AlertTriangle, ShieldCheck, FileSpreadsheet } from 'lucide-react'
+import { AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
+import ActionAuthor from '../components/ActionAuthor'
+import RecordedBy from '../components/RecordedBy'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
 import { getCycleCount } from '../lib/lifeStatus'
 import { useRole, useAuth } from '../contexts/AuthContext'
+import { StatusBadge, StatusDot, Notice } from '../components/ui/StatusBadge'
+import { Skeleton, SkeletonPanel } from '../components/ui/Skeleton'
+import { garmentStatusTone, garmentStatusLabel } from '../lib/tones'
 import { historyReportService, describeChanges } from '../services/historyReportService'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { Garment, Document, GarmentAction, ActionType, InspectionResult, AuditLogEntry } from '../types'
@@ -36,7 +41,6 @@ const GarmentDetail = () => {
   const [actionType, setActionType] = useState<ActionType>('lavado')
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
-  const [actionResponsible, setActionResponsible] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [signaturePassword, setSignaturePassword] = useState('')
@@ -100,21 +104,10 @@ const GarmentDetail = () => {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      disponible: 'bg-green-100 text-green-800',
-      lavado: 'bg-blue-100 text-blue-800',
-      inspeccion: 'bg-yellow-100 text-yellow-800',
-      reparacion: 'bg-orange-100 text-orange-800',
-      baja: 'bg-red-100 text-red-800',
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
-  }
 
   const openActionModal = (type: ActionType) => {
     setActionType(type)
     setActionNotes('')
-    setActionResponsible('')
     setInspectionResult('aprobado')
     setActionError(null)
     setSignaturePassword('')
@@ -170,7 +163,6 @@ const GarmentDetail = () => {
       await garmentService.registerAction(garment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
-        responsible: actionResponsible,
         signatureToken,
       })
       invalidateGarments()
@@ -187,10 +179,15 @@ const GarmentDetail = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <Loader className="w-12 h-12 text-blue-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Cargando prenda...</p>
+      <div className="w-full space-y-4">
+        <Skeleton className="h-4 w-20" />
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="mt-2 h-4 w-40" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <SkeletonPanel lines={5} />
+          <SkeletonPanel lines={5} />
         </div>
       </div>
     )
@@ -198,8 +195,8 @@ const GarmentDetail = () => {
 
   if (error || !garment) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full">
+      <div className="flex items-center justify-center py-16">
+        <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-md w-full">
           <div className="flex items-center gap-3 mb-4">
             <AlertCircle className="w-6 h-6 text-red-600" />
             <h1 className="text-xl font-bold text-gray-800">Error</h1>
@@ -218,37 +215,37 @@ const GarmentDetail = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-2 md:p-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="w-full">
+      <div className="max-w-6xl">
         {/* Back link */}
         <div className="mb-2 md:mb-4">
-          <Link to="/" className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 transition-colors text-sm">
+          <Link to="/inventory" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 transition-colors text-sm">
             <ArrowLeft className="w-4 h-4" />
             Volver
           </Link>
         </div>
 
         {/* Header card – full width */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden mb-2 md:mb-4">
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 md:p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-2 md:mb-4">
+          <div className="p-3 md:p-6 bg-gradient-to-r from-blue-50/70 to-white border-b border-gray-100">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <h1 className="text-lg md:text-3xl font-bold leading-tight break-words">{garment.name}</h1>
-                <p className="text-blue-100 text-xs md:text-sm mt-0.5">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
+                <h1 className="text-lg md:text-2xl font-bold leading-tight break-words text-gray-900">{garment.name}</h1>
+                <p className="text-gray-500 text-xs md:text-sm mt-0.5">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
                 {garment.short_code && (
-                  <p className="text-blue-100 text-xs mt-1">
-                    Código corto: <span className="font-mono font-bold text-white bg-white/20 px-2 py-0.5 rounded-md tracking-wider">{garment.short_code}</span>
+                  <p className="text-gray-500 text-xs mt-1">
+                    Código corto: <span className="font-mono font-bold text-blue-700 bg-white ring-1 ring-inset ring-blue-200 px-2 py-0.5 rounded-md tracking-wider">{garment.short_code}</span>
                   </p>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${getStatusColor(garment.status)}`}>
-                  {garment.status.charAt(0).toUpperCase() + garment.status.slice(1)}
-                </span>
+                <StatusBadge tone={garmentStatusTone[garment.status] ?? 'gray'}>
+                  {garmentStatusLabel[garment.status] ?? garment.status}
+                </StatusBadge>
                 {canEditGarment && (
                   <button
                     onClick={openEditModal}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-colors text-xs font-medium"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg transition-colors text-xs font-medium"
                     title="Editar prenda"
                   >
                     <Pencil className="w-3.5 h-3.5" />
@@ -258,7 +255,7 @@ const GarmentDetail = () => {
               </div>
             </div>
             {garment.client_name && (
-              <div className="mt-2 pt-2 border-t border-blue-400 flex flex-wrap gap-x-6 gap-y-1">
+              <div className="mt-2 pt-2 border-t border-gray-100 flex flex-wrap gap-x-6 gap-y-1 text-gray-600">
                 <div className="flex items-center gap-1.5">
                   <span className="text-blue-200 text-xs">Cliente:</span>
                   <span className="text-white text-xs font-semibold">{garment.client_name}</span>
@@ -285,36 +282,36 @@ const GarmentDetail = () => {
               const parsed = parseGarmentCode(garment.code)
               if (!parsed.valid) return null
               return (
-                <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
-                  <h3 className="font-semibold text-indigo-900 text-sm md:text-base mb-2">Información del Código</h3>
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
+                  <h3 className="font-semibold text-gray-900 text-sm md:text-base mb-2">Información del Código</h3>
                   <div className="grid grid-cols-3 md:grid-cols-2 gap-1.5 md:gap-3">
-                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-indigo-500 font-medium">Prenda</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Prenda</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.garmentName}</p>
                       <p className="text-xs text-gray-400">{parsed.garmentType}</p>
                     </div>
-                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-indigo-500 font-medium">Talla</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Talla</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.sizeName}</p>
                       <p className="text-xs text-gray-400">{parsed.size}</p>
                     </div>
-                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-indigo-500 font-medium">Color</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Color</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.colorName}</p>
                       <p className="text-xs text-gray-400">{parsed.color}</p>
                     </div>
-                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-indigo-500 font-medium">Lote</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Lote</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.batchCode} <span className="text-gray-400">#{parsed.sequenceNumber.toString().padStart(3, '0')}</span></p>
                     </div>
-                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-indigo-500 font-medium">Mes del Lote</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Mes del Lote</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">
                         {new Date(parsed.batchYear, parsed.batchMonth - 1).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                       </p>
                     </div>
-                    <div className="bg-indigo-50 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-indigo-500 font-medium">Código</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Código</p>
                       <p className="text-xs font-mono font-semibold text-gray-800 break-all leading-tight">{parsed.fullCode}</p>
                     </div>
                   </div>
@@ -331,29 +328,17 @@ const GarmentDetail = () => {
               const lifeExpired = cycleCount >= LIFE_LIMIT
               const lifeNearEnd = !lifeExpired && cycleCount >= LIFE_WARN
               return (
-              <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
                 {/* Banner advertencia fin de vida */}
                 {lifeExpired && (
-                  <div className="flex items-start gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-red-700">Fin de vida útil alcanzado</p>
-                      <p className="text-xs text-red-600">
-                        {cycleCount} ciclos de lavado y esterilización. Se recomienda dar de baja.
-                      </p>
-                    </div>
-                  </div>
+                  <Notice tone="error" title="Fin de vida útil alcanzado" className="mb-3">
+                    {cycleCount} ciclos de lavado y esterilización. Se recomienda dar de baja.
+                  </Notice>
                 )}
                 {lifeNearEnd && (
-                  <div className="flex items-start gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-orange-700">Próximo a fin de vida útil</p>
-                      <p className="text-xs text-orange-600">
-                        {cycleCount}/100 ciclos de lavado y esterilización
-                      </p>
-                    </div>
-                  </div>
+                  <Notice tone="warning" title="Próximo a fin de vida útil" className="mb-3">
+                    {cycleCount}/100 ciclos de lavado y esterilización
+                  </Notice>
                 )}
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="font-semibold text-gray-800 text-sm md:text-base">Registrar Acción</h2>
@@ -397,7 +382,7 @@ const GarmentDetail = () => {
 
             {/* Descripción y Notas */}
             {(garment.description || garment.notes) && (
-              <div className="bg-white rounded-xl shadow-lg p-3 md:p-5 space-y-2 md:space-y-3">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5 space-y-2 md:space-y-3">
                 {garment.description && (
                   <div>
                     <p className="text-sm font-medium text-gray-600 mb-1">Descripción</p>
@@ -418,7 +403,7 @@ const GarmentDetail = () => {
           <div className="space-y-2 md:space-y-4">
 
             {/* Estadísticas — solo desktop (en mobile se muestran inline en la tarjeta de acciones) */}
-            <div className="hidden md:block bg-white rounded-xl shadow-lg p-5">
+            <div className="hidden md:block bg-white rounded-xl border border-gray-200 p-5">
               <h2 className="font-semibold text-gray-800 mb-3">Resumen de Ciclos</h2>
               <div className="grid grid-cols-2 gap-3">
                 {(() => {
@@ -427,19 +412,20 @@ const GarmentDetail = () => {
                   const L = 100, W = 80
                   return (
                     <>
-                      <div className={`p-4 rounded-lg text-center ${cycleCount >= L ? 'bg-red-100' : cycleCount >= W ? 'bg-orange-100' : 'bg-blue-50'}`}>
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <Droplets className={`w-5 h-5 ${cycleCount >= L ? 'text-red-600' : cycleCount >= W ? 'text-orange-500' : 'text-blue-600'}`} />
-                          <span className={`text-2xl font-bold ${cycleCount >= L ? 'text-red-600' : cycleCount >= W ? 'text-orange-600' : 'text-blue-600'}`}>{cycleCount}</span>
+                      <div className="p-4 rounded-lg border border-gray-200 text-center">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${cycleCount >= L ? 'bg-red-50 text-red-600' : cycleCount >= W ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}><Droplets className="w-4 h-4" /></span>
+                          <span className="text-2xl font-bold text-gray-900">{cycleCount}</span>
+                          {cycleCount >= W && <StatusDot tone={cycleCount >= L ? 'red' : 'orange'} />}
                         </div>
-                        <p className={`text-xs font-medium ${cycleCount >= L ? 'text-red-700' : cycleCount >= W ? 'text-orange-700' : 'text-blue-700'}`}>Lavado y esterilización{cycleCount >= L ? ' ⚠' : ''}</p>
+                        <p className="text-xs font-medium text-gray-500">Lavado y esterilización</p>
                       </div>
-                      <div className="p-4 bg-orange-50 rounded-lg text-center">
-                        <div className="flex items-center justify-center gap-1 mb-1">
-                          <Scissors className="w-5 h-5 text-orange-600" />
-                          <span className="text-2xl font-bold text-orange-600">{rc}</span>
+                      <div className="p-4 rounded-lg border border-gray-200 text-center">
+                        <div className="flex items-center justify-center gap-2 mb-1">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><Scissors className="w-4 h-4" /></span>
+                          <span className="text-2xl font-bold text-gray-900">{rc}</span>
                         </div>
-                        <p className="text-xs text-orange-700 font-medium">Reparaciones</p>
+                        <p className="text-xs text-blue-700/80 font-medium">Reparaciones</p>
                       </div>
                     </>
                   )
@@ -448,7 +434,7 @@ const GarmentDetail = () => {
             </div>
 
             {/* Historial de acciones */}
-            <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
               <h2 className="font-semibold text-gray-800 text-sm md:text-base mb-2">
                 Historial de Acciones {actions.length > 0 && `(${actions.length})`}
               </h2>
@@ -474,15 +460,13 @@ const GarmentDetail = () => {
                       {action.notes && (
                         <p className="text-xs text-gray-500">Notas: {action.notes}</p>
                       )}
-                      {action.performed_by && (
-                        <p className="text-xs text-gray-500">Responsable: {action.performed_by}</p>
-                      )}
-                      {action.recorded_by_email && (
-                        <p className="text-xs text-gray-400">Capturó: {action.recorded_by_email}</p>
-                      )}
-                      {action.signature_id && (
-                        <p className="text-xs text-indigo-600 font-medium">Firmado electrónicamente</p>
-                      )}
+                      <ActionAuthor
+                        performedBy={action.performed_by}
+                        recordedByName={action.recorded_by_name}
+                        recordedByEmail={action.recorded_by_email}
+                        signed={!!action.signature_id}
+                        className="mt-1"
+                      />
                     </div>
                   ))}
                 </div>
@@ -491,21 +475,21 @@ const GarmentDetail = () => {
 
             {/* Audit trail (supervisor / jefe / administrador) */}
             {canViewReports && garment && (
-              <div className="bg-white rounded-xl shadow-lg p-3 md:p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h2 className="font-semibold text-gray-800 text-sm md:text-base flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-purple-600" />
+                    <ShieldCheck className="w-4 h-4 text-violet-600" />
                     Audit trail {auditTrail && `(${auditTrail.length})`}
                   </h2>
                   <div className="flex gap-2">
                     {!auditTrail ? (
-                      <button onClick={loadAuditTrail} disabled={auditLoading} className="text-xs px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50">
+                      <button onClick={loadAuditTrail} disabled={auditLoading} className="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50">
                         {auditLoading ? 'Cargando...' : 'Ver cambios'}
                       </button>
                     ) : (
                       <button
                         onClick={() => historyReportService.exportGarmentAuditTrail(garment.code, auditTrail, user?.email ?? '')}
-                        className="text-xs px-3 py-1 rounded-lg bg-purple-50 text-purple-700 hover:bg-purple-100 flex items-center gap-1"
+                        className="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center gap-1"
                       >
                         <FileSpreadsheet className="w-3 h-3" /> Exportar
                       </button>
@@ -519,7 +503,7 @@ const GarmentDetail = () => {
                   ) : (
                     <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
                       {[...auditTrail].reverse().map((e) => (
-                        <div key={e.id} className="p-2 bg-purple-50/50 rounded-lg text-xs">
+                        <div key={e.id} className="p-2 border border-gray-100 rounded-lg text-xs">
                           <div className="flex justify-between gap-2">
                             <span className="font-semibold text-gray-800">
                               {auditOpLabel[e.operation]} · {auditTableLabel[e.table_name] ?? e.table_name}
@@ -539,7 +523,7 @@ const GarmentDetail = () => {
 
             {/* Documentos */}
             {documents.length > 0 && (
-              <div className="bg-white rounded-xl shadow-lg p-5">
+              <div className="bg-white rounded-xl border border-gray-200 p-5">
                 <h2 className="font-semibold text-gray-800 mb-3">Documentos ({documents.length})</h2>
                 <div className="space-y-2">
                   {documents.map((doc) => (
@@ -563,7 +547,7 @@ const GarmentDetail = () => {
             )}
 
             {/* Timestamps */}
-            <div className="bg-white rounded-xl shadow-lg p-2 md:p-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
+            <div className="bg-white rounded-xl border border-gray-200 p-2 md:p-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
               <span>Creado: {new Date(garment.created_at).toLocaleString()}</span>
               <span>Actualizado: {new Date(garment.updated_at).toLocaleString()}</span>
             </div>
@@ -660,7 +644,7 @@ const GarmentDetail = () => {
             </div>
 
             {editError && (
-              <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{editError}</div>
+              <Notice tone="error" className="mb-3">{editError}</Notice>
             )}
 
             <div className="flex gap-3">
@@ -702,20 +686,15 @@ const GarmentDetail = () => {
               const willExpire = !alreadyExpired && newCycleCount >= 100
               if (!willExpire && !alreadyExpired) return null
               return (
-                <div className={`mb-4 p-3 rounded-lg border flex gap-3 ${alreadyExpired ? 'bg-red-50 border-red-300' : 'bg-orange-50 border-orange-300'}`}>
-                  <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-500'}`} />
-                  <div>
-                    <p className={`text-sm font-bold ${alreadyExpired ? 'text-red-700' : 'text-orange-700'}`}>
-                      {alreadyExpired ? 'Esta prenda ya superó su vida útil' : 'Esta acción alcanzará el límite de vida útil'}
-                    </p>
-                    <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
-                      {alreadyExpired
-                        ? `Tiene ${cycleCount} ciclos de lavado y esterilización. Se recomienda darla de baja.`
-                        : `Alcanzará ${newCycleCount} ciclos de lavado y esterilización. Considera darla de baja.`
-                      }
-                    </p>
-                  </div>
-                </div>
+                <Notice
+                  tone={alreadyExpired ? 'error' : 'warning'}
+                  title={alreadyExpired ? 'Esta prenda ya superó su vida útil' : 'Esta acción alcanzará el límite de vida útil'}
+                  className="mb-4"
+                >
+                  {alreadyExpired
+                    ? `Tiene ${cycleCount} ciclos de lavado y esterilización. Se recomienda darla de baja.`
+                    : `Alcanzará ${newCycleCount} ciclos de lavado y esterilización. Considera darla de baja.`}
+                </Notice>
               )
             })()}
 
@@ -742,16 +721,7 @@ const GarmentDetail = () => {
               </div>
             )}
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
-              <input
-                type="text"
-                value={actionResponsible}
-                onChange={(e) => setActionResponsible(e.target.value)}
-                className="input-field"
-                placeholder="Nombre de quien ejecuta la acción"
-              />
-            </div>
+            <RecordedBy className="mb-4" />
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -772,7 +742,7 @@ const GarmentDetail = () => {
             )}
 
             {actionError && (
-              <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{actionError}</div>
+              <Notice tone="error" className="mb-4">{actionError}</Notice>
             )}
 
             <div className="flex gap-3">
@@ -782,7 +752,7 @@ const GarmentDetail = () => {
               <button
                 onClick={handleAction}
                 className="btn-primary flex-1"
-                disabled={actionLoading || !actionResponsible.trim() || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes) || (!!signatureMeaning && !signaturePassword)}
+                disabled={actionLoading || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes) || (!!signatureMeaning && !signaturePassword)}
               >
                 {actionLoading ? 'Guardando...' : signatureMeaning ? 'Firmar y confirmar' : 'Confirmar'}
               </button>

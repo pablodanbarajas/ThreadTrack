@@ -6,8 +6,10 @@ import {
 import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
+import RecordedBy from '../components/RecordedBy'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
+import { StatusDot } from '../components/ui/StatusBadge'
 import { extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { ActionType, InspectionResult, GarmentStatus } from '../types'
@@ -28,7 +30,6 @@ interface PersistedBatchState {
   selectedAction: ActionType
   inspectionResult: InspectionResult
   notes: string
-  responsible: string
   cameraScanCount: number
   done: boolean
 }
@@ -40,7 +41,6 @@ const defaultBatchState: PersistedBatchState = {
   selectedAction: 'lavado',
   inspectionResult: 'aprobado',
   notes: '',
-  responsible: '',
   cameraScanCount: 0,
   done: false,
 }
@@ -64,7 +64,6 @@ const getStoredBatchState = (): PersistedBatchState => {
       selectedAction: isActionType(parsed.selectedAction) ? parsed.selectedAction : defaultBatchState.selectedAction,
       inspectionResult: isInspectionResult(parsed.inspectionResult) ? parsed.inspectionResult : defaultBatchState.inspectionResult,
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
-      responsible: typeof parsed.responsible === 'string' ? parsed.responsible : '',
       cameraScanCount: typeof parsed.cameraScanCount === 'number' ? parsed.cameraScanCount : 0,
       done: typeof parsed.done === 'boolean' ? parsed.done : false,
     }
@@ -90,7 +89,6 @@ const BatchActions = () => {
   const [selectedAction, setSelectedAction] = useState<ActionType>(storedBatchState.selectedAction)
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>(storedBatchState.inspectionResult)
   const [notes, setNotes] = useState(storedBatchState.notes)
-  const [responsible, setResponsible] = useState(storedBatchState.responsible)
 
   const [applying, setApplying] = useState(false)
   const [signaturePassword, setSignaturePassword] = useState('') // nunca se guarda en sessionStorage
@@ -124,12 +122,11 @@ const BatchActions = () => {
       selectedAction,
       inspectionResult,
       notes,
-      responsible,
       cameraScanCount,
       done,
     }
     sessionStorage.setItem(BATCH_ACTIONS_STORAGE_KEY, JSON.stringify(state))
-  }, [items, selectedAction, inspectionResult, notes, responsible, cameraScanCount, done])
+  }, [items, selectedAction, inspectionResult, notes, cameraScanCount, done])
 
   const resolveGarmentFromCode = useCallback(async (raw: string) => {
     const trimmed = raw.trim()
@@ -203,7 +200,6 @@ const BatchActions = () => {
   const reset = () => {
     setItems([])
     setNotes('')
-    setResponsible('')
     setDone(false)
     setInputValue('')
     setCameraScanCount(0)
@@ -216,7 +212,7 @@ const BatchActions = () => {
   const signatureMeaning = garmentSignatureMeaning(selectedAction, selectedAction === 'inspeccion' ? inspectionResult : undefined)
 
   const applyToAll = async () => {
-    if (pendingCount === 0 || !responsible.trim()) return
+    if (pendingCount === 0) return
     setApplying(true)
     setDone(false)
 
@@ -240,7 +236,6 @@ const BatchActions = () => {
         await garmentService.registerAction(item.garmentId, selectedAction, {
           result: selectedAction === 'inspeccion' ? inspectionResult : undefined,
           notes: notes || undefined,
-          responsible,
           signatureToken,
         })
         setItems(prev =>
@@ -270,7 +265,7 @@ const BatchActions = () => {
     <div className="w-full pb-20 md:pb-0">
       {/* Title */}
       <div className="flex items-center gap-3 mb-4">
-        <ScanBarcode className="w-8 h-8 text-indigo-600" />
+        <ScanBarcode className="w-8 h-8 text-blue-600" />
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Acciones en Lote</h1>
           <p className="text-sm text-gray-500">Escanea varias prendas y aplica una acción a todas</p>
@@ -300,7 +295,7 @@ const BatchActions = () => {
               <button
                 onClick={() => setShowScanner(true)}
                 disabled={applying}
-                className="sm:hidden px-3 py-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg transition-colors"
+                className="sm:hidden px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
                 title="Usar cámara"
               >
                 <Camera className="w-5 h-5" />
@@ -310,17 +305,9 @@ const BatchActions = () => {
             <div className="mt-2 h-8 overflow-hidden">
               {toast && (
                 <div
-                  className={`h-8 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-opacity duration-300 ${
-                    toast.type === 'error'
-                      ? 'bg-red-50 border-red-200 text-red-600'
-                      : toast.type === 'success'
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-yellow-50 border-yellow-200 text-yellow-700'
-                  }`}
+                  className="h-8 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 transition-opacity duration-300"
                 >
-                  {toast.type === 'success'
-                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <StatusDot tone={toast.type === 'error' ? 'red' : toast.type === 'success' ? 'green' : 'yellow'} />
                   <span className="truncate">{toast.message}</span>
                 </div>
               )}
@@ -353,15 +340,9 @@ const BatchActions = () => {
                     key={item.uid}
                     className={`flex items-center gap-2 p-2 rounded-lg border transition-all duration-300 ${
                       lastAdded === item.garmentId
-                        ? 'bg-green-50 border-green-300 scale-[1.01]'
-                        : item.applyStatus === 'success'
-                        ? 'bg-green-50 border-green-200'
-                        : item.applyStatus === 'error'
-                        ? 'bg-red-50 border-red-200'
-                        : item.applyStatus === 'duplicate'
-                        ? 'bg-yellow-50 border-yellow-200'
+                        ? 'bg-white border-blue-300 scale-[1.01]'
                         : item.applyStatus === 'skipped'
-                        ? 'bg-gray-50 border-gray-200 opacity-60'
+                        ? 'bg-white border-gray-200 opacity-60'
                         : 'bg-white border-gray-200'
                     }`}
                   >
@@ -370,7 +351,7 @@ const BatchActions = () => {
                       {item.applyStatus === 'success' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
                       {item.applyStatus === 'error'   && <AlertCircle  className="w-4 h-4 text-red-500"   />}
                       {item.applyStatus === 'skipped' && <AlertCircle  className="w-4 h-4 text-gray-400"  />}
-                      {item.applyStatus === 'pending' && applying && <Loader2 className="w-4 h-4 text-indigo-500 animate-spin" />}
+                      {item.applyStatus === 'pending' && applying && <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />}
                       {item.applyStatus === 'pending' && !applying && <div className="w-4 h-4 rounded-full border-2 border-gray-300" />}
                     </div>
 
@@ -380,7 +361,7 @@ const BatchActions = () => {
                       {item.garmentId && (
                         <div className="flex items-center gap-1.5 min-w-0">
                           {item.shortCode && (
-                            <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-indigo-700 border border-indigo-100">
+                            <span className="shrink-0 rounded bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-gray-900 border border-gray-200">
                               {item.shortCode}
                             </span>
                           )}
@@ -471,20 +452,9 @@ const BatchActions = () => {
 
         </div>
 
-        {/* ── RIGHT: responsible + notes + apply ── */}
+        {/* ── RIGHT: notes + apply ── */}
         <div className="space-y-3">
-          {/* Responsable */}
-          <div className="card">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Responsable *</label>
-            <input
-              type="text"
-              value={responsible}
-              onChange={e => setResponsible(e.target.value)}
-              className="input-field text-sm"
-              placeholder="Nombre de quien ejecuta la acción"
-              disabled={applying}
-            />
-          </div>
+          <RecordedBy />
 
           {/* Notes */}
           <div className="card">
@@ -513,11 +483,13 @@ const BatchActions = () => {
           {/* Apply button */}
           <button
             onClick={applyToAll}
-            disabled={applying || pendingCount === 0 || !responsible.trim() || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes) || (!!signatureMeaning && !signaturePassword)}
+            disabled={applying || pendingCount === 0 || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes) || (!!signatureMeaning && !signaturePassword)}
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base transition-all shadow-sm ${
               applying || pendingCount === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : `${cfg.bg} ${cfg.border} border-2 ${cfg.color} hover:opacity-90`
+                : selectedAction === 'inspeccion'
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
             {applying ? (
@@ -529,13 +501,13 @@ const BatchActions = () => {
 
           {/* Results summary */}
           {done && (
-            <div className={`rounded-xl p-4 border-2 ${errorCount === 0 ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-300'}`}>
-              <p className={`font-bold text-sm mb-1 ${errorCount === 0 ? 'text-green-700' : 'text-yellow-700'}`}>
-                {errorCount === 0 ? '¡Lote completado!' : 'Lote procesado con errores'}
+            <div className="rounded-xl p-4 border border-gray-200 bg-white">
+              <p className="flex items-center gap-2 font-semibold text-sm mb-1 text-gray-900">
+                <StatusDot tone={errorCount === 0 ? 'green' : 'yellow'} />
+                {errorCount === 0 ? 'Lote completado' : 'Lote procesado con errores'}
               </p>
               <p className="text-xs text-gray-600">
-                ✅ {successCount} exitosas &nbsp;
-                {errorCount > 0 && <span>❌ {errorCount} con error</span>}
+                {successCount} exitosas{errorCount > 0 && ` · ${errorCount} con error`}
               </p>
               <button
                 onClick={reset}

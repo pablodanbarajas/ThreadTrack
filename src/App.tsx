@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { FeedbackProvider } from './components/ui/FeedbackProvider'
 import { GarmentCacheProvider } from './contexts/GarmentCacheContext'
 import { HoseCacheProvider } from './contexts/HoseCacheContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -21,6 +22,7 @@ import ChangePassword from './pages/ChangePassword'
 
 function App() {
   return (
+    <FeedbackProvider>
     <AuthProvider>
       <Router>
         <Routes>
@@ -55,6 +57,7 @@ function App() {
         </Routes>
       </Router>
     </AuthProvider>
+    </FeedbackProvider>
   )
 }
 

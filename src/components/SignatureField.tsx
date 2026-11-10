@@ -13,16 +13,17 @@ interface SignatureFieldProps {
  * La contraseña se verifica en el servidor (signatureService.sign).
  */
 const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) => {
-  const { user } = useAuth()
+  const { user, displayName } = useAuth()
 
   return (
-    <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-indigo-800">
-        <PenLine className="w-4 h-4" />
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <PenLine className="w-4 h-4 text-blue-600" />
         Firma electrónica
       </div>
-      <p className="mt-1 text-xs text-indigo-900">
-        <span className="font-medium">{user?.email}</span> — {meaning}
+      <p className="mt-1 text-xs text-gray-700">
+        <span className="font-semibold text-gray-900">{displayName}</span>
+        {displayName !== user?.email && <span className="text-gray-400"> ({user?.email})</span>} — {meaning}
       </p>
       <input
         type="password"
@@ -32,7 +33,7 @@ const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) =>
         placeholder="Tu contraseña para firmar"
         className="input-field mt-2"
       />
-      <p className="mt-1 text-[11px] text-indigo-700">
+      <p className="mt-1 text-[11px] text-gray-500">
         Al firmar, confirmas esta acción con la misma validez que tu firma autógrafa. Queda registrada con fecha y hora.
       </p>
     </div>

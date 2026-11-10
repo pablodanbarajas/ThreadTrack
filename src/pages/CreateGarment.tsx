@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import QRCode from 'qrcode.react'
 import { Plus, Download, Copy, RefreshCw, Loader, Users, Check } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
+import { Notice, StatusBadge } from '../components/ui/StatusBadge'
+import { garmentStatusTone, garmentStatusLabel } from '../lib/tones'
 import { userService } from '../services/userService'
 import type { UserProfile } from '../services/userService'
 import { useRole } from '../contexts/AuthContext'
@@ -148,9 +150,7 @@ const CreateGarment = () => {
             </h2>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {error}
-              </div>
+              <Notice tone="error" className="mb-4">{error}</Notice>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -286,7 +286,7 @@ const CreateGarment = () => {
                     includeMargin={true}
                   />
                   {createdGarment.short_code && (
-                    <p className="text-3xl font-bold font-mono tracking-widest text-indigo-700 mt-1">
+                    <p className="text-3xl font-bold font-mono tracking-widest text-gray-900 mt-1">
                       {createdGarment.short_code}
                     </p>
                   )}
@@ -320,7 +320,7 @@ const CreateGarment = () => {
                   <p><strong>ID:</strong> <span className="font-mono">{createdGarment.id}</span></p>
                   <p><strong>Código:</strong> {createdGarment.code}</p>
                   <p><strong>Nombre:</strong> {createdGarment.name}</p>
-                  <p><strong>Estado:</strong> <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">{createdGarment.status}</span></p>
+                  <p><strong>Estado:</strong> <StatusBadge tone={garmentStatusTone[createdGarment.status] ?? 'gray'}>{garmentStatusLabel[createdGarment.status] ?? createdGarment.status}</StatusBadge></p>
                 </div>
               </div>
 

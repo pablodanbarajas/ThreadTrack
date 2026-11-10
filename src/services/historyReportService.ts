@@ -69,7 +69,7 @@ export const historyReportService = {
           'Ciclos de lavado/esterilización a la fecha': Number(r.cycles_at),
           'Última acción': statusLabel(r.last_action),
           'Fecha última acción': fmt(r.last_action_at),
-          'Responsable última acción': r.last_responsible,
+          'Registró la última acción': r.last_responsible,
         })),
       }],
       'estado_inventario',
@@ -83,7 +83,7 @@ export const historyReportService = {
     const rows = await fetchAll<any>((a, b) =>
       supabase
         .from('garment_actions')
-        .select('created_at, action_type, result, notes, performed_by, recorded_by_email, signature_id, garments(code, short_code, name, client_name)')
+        .select('created_at, action_type, result, notes, performed_by, recorded_by_email, recorded_by_name, signature_id, garments(code, short_code, name, client_name)')
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
         .order('created_at', { ascending: true })
@@ -101,8 +101,8 @@ export const historyReportService = {
           'Acción': statusLabel(r.action_type),
           'Resultado': r.result ?? '',
           'Notas': r.notes ?? '',
-          'Responsable': r.performed_by ?? '',
-          'Capturado por (usuario)': r.recorded_by_email ?? '',
+          'Registrado por': r.recorded_by_name ?? r.performed_by ?? '',
+          'Correo del usuario': r.recorded_by_email ?? '',
           'Firma electrónica': r.signature_id ? 'Sí' : '',
         })),
       }],
@@ -116,7 +116,7 @@ export const historyReportService = {
     const rows = await fetchAll<any>((a, b) =>
       supabase
         .from('hose_actions')
-        .select('created_at, action_type, cycle_after, notes, performed_by, recorded_by_email, signature_id, hoses(short_code, hose_positions(caliber, equipment(code, name)))')
+        .select('created_at, action_type, cycle_after, notes, performed_by, recorded_by_email, recorded_by_name, signature_id, hoses(short_code, hose_positions(caliber, equipment(code, name)))')
         .gte('created_at', fromIso)
         .lte('created_at', toIso)
         .order('created_at', { ascending: true })
@@ -134,8 +134,8 @@ export const historyReportService = {
           'Acción': statusLabel(r.action_type),
           'Ciclo después': r.cycle_after ?? '',
           'Notas': r.notes ?? '',
-          'Responsable': r.performed_by ?? '',
-          'Capturado por (usuario)': r.recorded_by_email ?? '',
+          'Registrado por': r.recorded_by_name ?? r.performed_by ?? '',
+          'Correo del usuario': r.recorded_by_email ?? '',
           'Firma electrónica': r.signature_id ? 'Sí' : '',
         })),
       }],
@@ -198,7 +198,8 @@ export const historyReportService = {
           name: 'Firmas electrónicas',
           rows: signatures.map((r) => ({
             'Fecha y hora': fmt(r.signed_at),
-            'Firmante': r.user_email,
+            'Firmante': r.user_name ?? r.user_email,
+            'Correo del firmante': r.user_email,
             'Rol': r.user_role,
             'Significado': r.meaning,
             'Registro firmado': `${r.table_name}:${r.record_id}`,

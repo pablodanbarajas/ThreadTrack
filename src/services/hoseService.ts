@@ -192,17 +192,12 @@ export const hoseService = {
   async registerHoseAction(
     hoseId: string,
     actionType: Exclude<HoseActionType, 'reemplazo'>,
-    options?: { notes?: string; performedBy?: string; signatureToken?: string }
+    options?: { notes?: string; signatureToken?: string }
   ): Promise<HoseAction> {
-    const performedBy = options?.performedBy?.trim()
-    if (!performedBy) {
-      throw new Error('El campo RESPONSABLE es obligatorio')
-    }
-
     const { data, error } = await supabase.rpc('register_hose_action', {
       p_hose_id: hoseId,
       p_action_type: actionType,
-      p_responsible: performedBy,
+      p_responsible: null, // lo fija la base
       p_notes: options?.notes ?? null,
       p_signature_token: options?.signatureToken ?? null,
     })
@@ -212,15 +207,10 @@ export const hoseService = {
   },
 
   // Registrar un ciclo de uso a varias mangueras a la vez (todo o nada)
-  async registerBulkUse(hoseIds: string[], options: { notes?: string; performedBy?: string }): Promise<HoseAction[]> {
-    const performedBy = options?.performedBy?.trim()
-    if (!performedBy) {
-      throw new Error('El campo RESPONSABLE es obligatorio')
-    }
-
+  async registerBulkUse(hoseIds: string[], options: { notes?: string }): Promise<HoseAction[]> {
     const { data, error } = await supabase.rpc('register_bulk_hose_use', {
       p_hose_ids: hoseIds,
-      p_responsible: performedBy,
+      p_responsible: null, // lo fija la base
       p_notes: options?.notes ?? null,
     })
 
@@ -229,16 +219,12 @@ export const hoseService = {
   },
 
   // Reemplazar la manguera activa de una posición (vía RPC, atómico)
-  async replaceHose(positionId: string, reason: string, performedBy: string, signatureToken: string): Promise<Hose> {
-    if (!performedBy?.trim()) {
-      throw new Error('El campo RESPONSABLE es obligatorio')
-    }
-
+  async replaceHose(positionId: string, reason: string, signatureToken: string): Promise<Hose> {
     const { data, error } = await supabase
       .rpc('replace_hose', {
         p_position_id: positionId,
         p_reason: reason,
-        p_performed_by: performedBy,
+        p_performed_by: null, // lo fija la base
         p_signature_token: signatureToken,
       })
 

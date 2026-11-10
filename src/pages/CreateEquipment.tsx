@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import { Notice } from '../components/ui/StatusBadge'
 import { userService } from '../services/userService'
 import type { Team } from '../types'
 
@@ -78,7 +79,7 @@ const CreateEquipment = () => {
 
       <div className="card">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+          <Notice tone="error" className="mb-4">{error}</Notice>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">

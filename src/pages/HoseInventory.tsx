@@ -4,6 +4,9 @@ import { Waves, Plus, Search, Loader, Pencil, Trash2, PlusCircle, Download } fro
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import RecordedBy from '../components/RecordedBy'
+import { SkeletonList } from '../components/ui/Skeleton'
+import { Notice } from '../components/ui/StatusBadge'
 import { getHoseLifeStatus } from '../lib/hoseLifeStatus'
 import { generateHoseInventoryExcel } from '../services/reportService'
 import type { HoseLifeStatus } from '../lib/hoseLifeStatus'
@@ -36,7 +39,6 @@ const HoseInventory = () => {
   const [editError, setEditError] = useState<string | null>(null)
 
   const [cycleEquipment, setCycleEquipment] = useState<(Equipment & { positions?: HosePositionWithDetails[] }) | null>(null)
-  const [cycleResponsible, setCycleResponsible] = useState('')
   const [cycleNotes, setCycleNotes] = useState('')
   const [cycleSubmitting, setCycleSubmitting] = useState(false)
   const [cycleError, setCycleError] = useState<string | null>(null)
@@ -101,7 +103,6 @@ const HoseInventory = () => {
 
   const openCycleModal = (equipment: Equipment & { positions?: HosePositionWithDetails[] }) => {
     setCycleEquipment(equipment)
-    setCycleResponsible('')
     setCycleNotes('Lavado y Esterilización')
     setCycleError(null)
   }
@@ -121,7 +122,7 @@ const HoseInventory = () => {
     setCycleSubmitting(true)
     setCycleError(null)
     try {
-      await hoseService.registerBulkUse(activeHoseIds, { performedBy: cycleResponsible, notes: cycleNotes })
+      await hoseService.registerBulkUse(activeHoseIds, { notes: cycleNotes })
       invalidateEquipment()
       await loadEquipment({ force: true })
       setCycleEquipment(null)
@@ -234,7 +235,7 @@ const HoseInventory = () => {
               Nuevo Producto
             </Link>
           )}
-          <button onClick={handleExport} className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || filteredEquipment.length === 0}>
+          <button onClick={handleExport} className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || filteredEquipment.length === 0}>
             {exporting ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Exportar
           </button>
@@ -261,7 +262,7 @@ const HoseInventory = () => {
       </div>
 
       {loading && equipmentList.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">Cargando productos...</div>
+        <SkeletonList rows={4} />
       ) : filteredEquipment.length === 0 ? (
         <div className="text-center py-12 text-gray-500">No hay productos registrados</div>
       ) : (
@@ -343,19 +344,16 @@ const HoseInventory = () => {
             <p className="text-sm text-gray-500 mb-4">
               Se sumará 1 ciclo a las {(cycleEquipment.positions || []).filter((p) => p.activeHose).length} mangueras activas de "{cycleEquipment.name}".
             </p>
-            {cycleError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{cycleError}</div>}
+            {cycleError && <Notice tone="error" className="mb-3">{cycleError}</Notice>}
             <form onSubmit={handleRegisterCycle} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
-                <input value={cycleResponsible} onChange={(e) => setCycleResponsible(e.target.value)} className="input-field" required />
-              </div>
+              <RecordedBy />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea value={cycleNotes} onChange={(e) => setCycleNotes(e.target.value)} className="input-field" rows={2} />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setCycleEquipment(null)} className="btn-secondary flex-1">Cancelar</button>
-                <button type="submit" className="btn-primary flex-1" disabled={cycleSubmitting || !cycleResponsible.trim()}>
+                <button type="submit" className="btn-primary flex-1" disabled={cycleSubmitting}>
                   {cycleSubmitting ? 'Registrando...' : 'Registrar'}
                 </button>
               </div>
@@ -368,7 +366,7 @@ const HoseInventory = () => {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">Editar producto</h2>
-            {editError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{editError}</div>}
+            {editError && <Notice tone="error" className="mb-3">{editError}</Notice>}
             <form onSubmit={handleSaveEdit} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Código del producto *</label>
