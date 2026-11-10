@@ -42,8 +42,8 @@ const Reports = () => {
     try {
       const n = await fn()
       feedback.success(`Reporte generado (${n} registros)`)
-    } catch (err: any) {
-      feedback.error(err.message || 'Error generando el reporte')
+    } catch (err) {
+      feedback.error((err as Error).message || 'Error generando el reporte')
     } finally {
       setRunning(null)
     }
