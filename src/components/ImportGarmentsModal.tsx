@@ -10,8 +10,6 @@ import { StatusBadge } from './ui/StatusBadge'
 interface Props {
   onClose: () => void
   onImported: () => void
-  /** Equipos disponibles (solo administradores pueden elegir) */
-  teams?: { id: string; name: string }[]
 }
 
 type RowStatus = 'valido' | 'invalido' | 'duplicado' | 'existe'
@@ -20,7 +18,6 @@ interface ImportRow {
   line: number
   code: string
   name: string
-  client: string
   notes: string
   status: RowStatus
   error?: string
@@ -38,19 +35,18 @@ const MAX_ROWS = 2000
 // Encabezados aceptados (sin acentos ni mayúsculas)
 const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
 const CODE_HEADERS = ['codigo', 'code', 'codigo de prenda']
-const CLIENT_HEADERS = ['cliente', 'client']
 const NOTES_HEADERS = ['notas', 'nota', 'notes', 'observaciones']
 
 const downloadImportTemplate = () => {
   const wb = XLSX.utils.book_new()
 
   const prendas = XLSX.utils.aoa_to_sheet([
-    ['Código', 'Cliente', 'Notas'],
-    ['202607A-OV-M-BL-001', 'Planta Norte', ''],
-    ['202607A-OV-L-BL-002', 'Planta Norte', ''],
-    ['202607A-FI-S-AC-003', '', 'Área de llenado'],
+    ['Código', 'Notas'],
+    ['202607A-OV-M-BL-001', ''],
+    ['202607A-OV-L-BL-002', ''],
+    ['202607A-FI-S-AC-003', 'Área de llenado'],
   ])
-  prendas['!cols'] = [{ wch: 26 }, { wch: 22 }, { wch: 30 }]
+  prendas['!cols'] = [{ wch: 26 }, { wch: 40 }]
   XLSX.utils.book_append_sheet(wb, prendas, 'Prendas')
 
   const instrucciones = XLSX.utils.aoa_to_sheet([
@@ -61,7 +57,7 @@ const downloadImportTemplate = () => {
     ['   • LOTE: año (4) + mes (2) + letra opcional. Ej. 202607A'],
     ['   • PRENDA, TALLA y COLOR: usa las claves de la hoja "Catálogos".'],
     ['   • NNN: consecutivo de 3 dígitos.'],
-    ['3. "Cliente" y "Notas" son opcionales. Si dejas el cliente vacío se usa el que elijas al importar.'],
+    ['3. "Notas" es opcional.'],
     ['4. El nombre de la prenda se genera automáticamente a partir del código.'],
     ['5. No cambies los nombres de las columnas. Máximo 2,000 prendas por archivo.'],
   ])
@@ -88,13 +84,11 @@ const downloadImportTemplate = () => {
   saveAs(new Blob([buf], { type: 'application/octet-stream' }), 'plantilla_importar_prendas.xlsx')
 }
 
-const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
+const ImportGarmentsModal = ({ onClose, onImported }: Props) => {
   const feedback = useFeedback()
   const inputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [rows, setRows] = useState<ImportRow[]>([])
-  const [defaultClient, setDefaultClient] = useState('')
-  const [teamId, setTeamId] = useState('')
   const [reading, setReading] = useState(false)
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -116,7 +110,6 @@ const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
       const header = (matrix[0] as unknown[]).map(norm)
       const codeCol = header.findIndex((h) => CODE_HEADERS.includes(h))
       if (codeCol === -1) throw new Error('No se encontró la columna "Código". Usa la plantilla.')
-      const clientCol = header.findIndex((h) => CLIENT_HEADERS.includes(h))
       const notesCol = header.findIndex((h) => NOTES_HEADERS.includes(h))
 
       const data = matrix.slice(1).filter((r) => String((r as unknown[])[codeCol] ?? '').trim() !== '')
@@ -129,7 +122,6 @@ const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
         const parsed = parseGarmentCode(raw)
         const base = {
           line: i + 2,
-          client: clientCol >= 0 ? String(cells[clientCol] ?? '').trim() : '',
           notes: notesCol >= 0 ? String(cells[notesCol] ?? '').trim() : '',
         }
         if (!parsed.valid) {
@@ -164,9 +156,7 @@ const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
         await garmentService.create({
           code: r.code,
           name: r.name,
-          client_name: r.client || defaultClient.trim() || undefined,
           notes: r.notes || undefined,
-          team_id: teamId || undefined,
         })
         ok++
       } catch (err) {
@@ -233,23 +223,6 @@ const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
             {reading && <p className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-600"><Loader2 className="h-4 w-4 animate-spin" /> Leyendo y validando…</p>}
           </div>
 
-          {/* Opciones para todo el archivo */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm font-medium text-gray-700">
-              Cliente por defecto <span className="font-normal text-gray-400">(si la fila no trae)</span>
-              <input value={defaultClient} onChange={(e) => setDefaultClient(e.target.value)} className="input-field mt-1" placeholder="Opcional" />
-            </label>
-            {teams.length > 0 && (
-              <label className="text-sm font-medium text-gray-700">
-                Equipo <span className="font-normal text-gray-400">(opcional)</span>
-                <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className="input-field mt-1">
-                  <option value="">Sin equipo</option>
-                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </label>
-            )}
-          </div>
-
           {/* Vista previa */}
           {rows.length > 0 && (
             <div className="overflow-hidden rounded-lg border border-gray-200">
@@ -267,7 +240,7 @@ const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
                       <th className="px-3 py-2">Fila</th>
                       <th className="px-3 py-2">Código</th>
                       <th className="px-3 py-2">Prenda</th>
-                      <th className="px-3 py-2">Cliente</th>
+                      <th className="px-3 py-2">Notas</th>
                       <th className="px-3 py-2">Estado</th>
                     </tr>
                   </thead>
@@ -277,7 +250,7 @@ const ImportGarmentsModal = ({ onClose, onImported, teams = [] }: Props) => {
                         <td className="px-3 py-1.5 text-gray-400">{r.line}</td>
                         <td className="px-3 py-1.5 font-mono text-xs text-gray-900">{r.code}</td>
                         <td className="px-3 py-1.5 text-gray-700">{r.name || <span className="text-xs text-red-600">{r.error}</span>}</td>
-                        <td className="px-3 py-1.5 text-gray-600">{r.client || defaultClient || '—'}</td>
+                        <td className="px-3 py-1.5 text-gray-600">{r.notes || '—'}</td>
                         <td className="px-3 py-1.5"><StatusBadge tone={statusInfo[r.status].tone}>{statusInfo[r.status].label}</StatusBadge></td>
                       </tr>
                     ))}

@@ -13,8 +13,6 @@ const CreateGarment = () => {
     code: '',
     name: '',
     description: '',
-    client_name: '',
-    client_phone: '',
     notes: '',
   })
   const [createdGarment, setCreatedGarment] = useState<Garment | null>(null)
@@ -46,8 +44,6 @@ const CreateGarment = () => {
         code: '',
         name: '',
         description: '',
-        client_name: '',
-        client_phone: '',
         notes: '',
       })
     } catch (err: any) {
@@ -133,7 +129,7 @@ const CreateGarment = () => {
                     name="code"
                     value={formData.code}
                     onChange={handleChange}
-                    placeholder="Ej: SHIRT-001"
+                    placeholder="Ej: 202607A-OV-M-BL-001"
                     className="input-field"
                     required
                   />
@@ -168,37 +164,6 @@ const CreateGarment = () => {
                   className="input-field"
                   rows={2}
                 />
-              </div>
-
-              {/* Cliente y Teléfono en dos columnas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cliente
-                  </label>
-                  <input
-                    type="text"
-                    name="client_name"
-                    value={formData.client_name}
-                    onChange={handleChange}
-                    placeholder="Nombre del cliente"
-                    className="input-field"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Teléfono del cliente
-                  </label>
-                  <input
-                    type="text"
-                    name="client_phone"
-                    value={formData.client_phone}
-                    onChange={handleChange}
-                    placeholder="Teléfono del cliente"
-                    className="input-field"
-                  />
-                </div>
               </div>
 
               {/* Notas ancho completo */}

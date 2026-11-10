@@ -693,7 +693,6 @@ const Inventory = () => {
 
       {showImport && (
         <ImportGarmentsModal
-          teams={isAdministrador ? teams : []}
           onClose={() => setShowImport(false)}
           onImported={() => loadGarments()}
         />
