@@ -15,13 +15,14 @@ fecha, descripción y revisión.
 |---|---|---|---|
 | 2026-11-10 | `20261110120000` a `20261110120400` | SQL Editor (manual), en orden | Respaldo previo en el esquema `backup_20261110`. Verificado con prueba transaccional revertida (inmutabilidad, cascada, audit trail, acceso anon) y Security Advisor. |
 | 2026-11-10 | `20261110140000` | SQL Editor (manual) | Usuarios activos, bloqueo por intentos, firma electrónica y estado en fecha. Verificado: tablas, funciones, permisos de `anon` (solo login) y pgcrypto. Frontend desplegado en `eb29cb0`. |
+| 2026-11-10 | `20261110160000` + Edge Function `admin-users` | SQL Editor + Dashboard (manual) | Empresas y licencias (SOPHIA 5 usuarios), superadmin, administrador por módulo, política de contraseñas. Verificado: datos migrados sin registros huérfanos, función activa con verificación JWT. |
 
 Como se aplicaron a mano, el historial de migraciones de Supabase no las
 registra. La primera vez que se use el CLI contra producción, márcalas como
 aplicadas para que `db push` no intente repetirlas:
 
 ```bash
-supabase migration repair --status applied 20261110120000 20261110120100 20261110120200 20261110120300 20261110120400 20261110140000
+supabase migration repair --status applied 20261110120000 20261110120100 20261110120200 20261110120300 20261110120400 20261110140000 20261110160000
 ```
 
 ## Fase 0 — Línea base (hacer una sola vez)
