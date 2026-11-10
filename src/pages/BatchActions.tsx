@@ -8,6 +8,7 @@ import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
+import { StatusDot } from '../components/ui/StatusBadge'
 import { extractGarmentIdFromUrl } from '../lib/qrGenerator'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { ActionType, InspectionResult, GarmentStatus } from '../types'
@@ -310,17 +311,9 @@ const BatchActions = () => {
             <div className="mt-2 h-8 overflow-hidden">
               {toast && (
                 <div
-                  className={`h-8 flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-opacity duration-300 ${
-                    toast.type === 'error'
-                      ? 'bg-red-50 border-red-200 text-red-600'
-                      : toast.type === 'success'
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-yellow-50 border-yellow-200 text-yellow-700'
-                  }`}
+                  className="h-8 flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-medium text-gray-700 transition-opacity duration-300"
                 >
-                  {toast.type === 'success'
-                    ? <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <StatusDot tone={toast.type === 'error' ? 'red' : toast.type === 'success' ? 'green' : 'yellow'} />
                   <span className="truncate">{toast.message}</span>
                 </div>
               )}
@@ -353,15 +346,9 @@ const BatchActions = () => {
                     key={item.uid}
                     className={`flex items-center gap-2 p-2 rounded-lg border transition-all duration-300 ${
                       lastAdded === item.garmentId
-                        ? 'bg-green-50 border-green-300 scale-[1.01]'
-                        : item.applyStatus === 'success'
-                        ? 'bg-green-50 border-green-200'
-                        : item.applyStatus === 'error'
-                        ? 'bg-red-50 border-red-200'
-                        : item.applyStatus === 'duplicate'
-                        ? 'bg-yellow-50 border-yellow-200'
+                        ? 'bg-white border-blue-300 scale-[1.01]'
                         : item.applyStatus === 'skipped'
-                        ? 'bg-gray-50 border-gray-200 opacity-60'
+                        ? 'bg-white border-gray-200 opacity-60'
                         : 'bg-white border-gray-200'
                     }`}
                   >
@@ -426,13 +413,13 @@ const BatchActions = () => {
                     disabled={applying}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${
                       active
-                        ? `${c.bg} ${c.border} ${c.color} font-semibold`
+                        ? 'bg-white border-blue-500 text-gray-900 font-semibold'
                         : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 shrink-0 ${active ? c.color : 'text-gray-400'}`} />
+                    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`} />
                     <span className="text-sm">{c.label}</span>
-                    {active && <CheckCircle2 className="w-4 h-4 ml-auto" />}
+                    {active && <CheckCircle2 className="w-4 h-4 ml-auto text-blue-600" />}
                   </button>
                 )
               })}
@@ -517,7 +504,7 @@ const BatchActions = () => {
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base transition-all shadow-sm ${
               applying || pendingCount === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : `${cfg.bg} ${cfg.border} border-2 ${cfg.color} hover:opacity-90`
+                : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >
             {applying ? (
@@ -529,13 +516,13 @@ const BatchActions = () => {
 
           {/* Results summary */}
           {done && (
-            <div className={`rounded-xl p-4 border-2 ${errorCount === 0 ? 'bg-green-50 border-green-300' : 'bg-yellow-50 border-yellow-300'}`}>
-              <p className={`font-bold text-sm mb-1 ${errorCount === 0 ? 'text-green-700' : 'text-yellow-700'}`}>
-                {errorCount === 0 ? '¡Lote completado!' : 'Lote procesado con errores'}
+            <div className="rounded-xl p-4 border border-gray-200 bg-white">
+              <p className="flex items-center gap-2 font-semibold text-sm mb-1 text-gray-900">
+                <StatusDot tone={errorCount === 0 ? 'green' : 'yellow'} />
+                {errorCount === 0 ? 'Lote completado' : 'Lote procesado con errores'}
               </p>
               <p className="text-xs text-gray-600">
-                ✅ {successCount} exitosas &nbsp;
-                {errorCount > 0 && <span>❌ {errorCount} con error</span>}
+                {successCount} exitosas{errorCount > 0 && ` · ${errorCount} con error`}
               </p>
               <button
                 onClick={reset}

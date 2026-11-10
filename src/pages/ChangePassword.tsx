@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { KeyRound, Loader2, Check, X, LogOut } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
+import { Notice } from '../components/ui/StatusBadge'
 
 // Debe coincidir con change_my_password() en la base de datos
 const rules = [
@@ -58,7 +59,7 @@ const ChangePassword = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="card w-full max-w-md">
         <div className="flex items-center gap-3 mb-4">
           <KeyRound className="w-8 h-8 text-blue-600" />
@@ -69,21 +70,19 @@ const ChangePassword = () => {
         </div>
 
         {mustChangePassword && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          <Notice tone="warning" className="mb-4">
             {passwordChangeReason === 'expirada'
               ? 'Tu contraseña caducó (vigencia de 90 días). Debes crear una nueva para continuar.'
               : 'Tienes una contraseña temporal asignada por el administrador. Crea tu propia contraseña para continuar; nadie más la conocerá.'}
-          </div>
+          </Notice>
         )}
 
         {done && (
-          <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
-            Contraseña actualizada. Redirigiendo…
-          </div>
+          <Notice tone="success" className="mb-4">Contraseña actualizada. Redirigiendo…</Notice>
         )}
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
+          <Notice tone="error" className="mb-4">{error}</Notice>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3">

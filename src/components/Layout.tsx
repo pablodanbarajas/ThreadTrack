@@ -1,158 +1,212 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { useState } from 'react'
-import { Home, Package, Menu, X, PackageX, LogOut, Plus, Layers, Users, UserCircle, Waves, History, KeyRound } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import {
+  Home, Package, PackageX, LogOut, Plus, Layers, Users, Waves, History, KeyRound,
+  ChevronsLeft, ChevronsRight, Menu, X, UserCircle,
+} from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
+interface NavItem {
+  path: string
+  label: string
+  icon: LucideIcon
+  /** Rutas hijas que también marcan el elemento como activo */
+  match?: string[]
+}
+
+interface NavSection {
+  title?: string
+  items: NavItem[]
+}
+
+const STORAGE_KEY = 'threadtrack.sidebar.collapsed'
+
+const readCollapsed = () => {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 const Layout = () => {
   const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
   const { user, signOut, role, isSuperadmin } = useAuth()
-  const { canViewPrendas, canViewMangueras, canViewReports } = useRole()
+  const { canViewPrendas, canViewMangueras, canViewReports, canCreateGarment } = useRole()
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [mobileOpen, setMobileOpen] = useState(false)
 
-  const navItems = [
-    ...(canViewPrendas ? [
-      { path: '/', label: 'Inicio', shortLabel: 'Inicio', icon: Home },
-      { path: '/inventory', label: 'Inventario', shortLabel: 'Inventario', icon: Package },
-      { path: '/bajas', label: 'Bajas', shortLabel: 'Bajas', icon: PackageX },
-      { path: '/lote', label: 'Acciones en Lote', shortLabel: 'En Lote', icon: Layers },
-      { path: '/crear-prenda', label: 'Crear Prenda', shortLabel: 'Crear', icon: Plus },
-    ] : []),
-    ...(canViewMangueras ? [{ path: '/mangueras', label: 'Mangueras', shortLabel: 'Mangueras', icon: Waves }] : []),
-    ...(canViewReports ? [{ path: '/reportes', label: 'Reportes', shortLabel: 'Reportes', icon: History }] : []),
-    ...(role === 'administrador' ? [{ path: '/admin/usuarios', label: 'Gestionar Usuarios', shortLabel: 'Usuarios', icon: Users }] : []),
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0')
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, [collapsed])
+
+  const sections: NavSection[] = [
+    ...(canViewPrendas ? [{
+      title: 'Prendas',
+      items: [
+        { path: '/', label: 'Inicio', icon: Home },
+        { path: '/inventory', label: 'Inventario', icon: Package, match: ['/prenda/', '/scanner'] },
+        { path: '/lote', label: 'Acciones en lote', icon: Layers },
+        ...(canCreateGarment ? [{ path: '/crear-prenda', label: 'Crear prenda', icon: Plus }] : []),
+        { path: '/bajas', label: 'Bajas', icon: PackageX },
+      ],
+    }] : []),
+    ...(canViewMangueras ? [{
+      title: 'Mangueras',
+      items: [{ path: '/mangueras', label: 'Equipos y mangueras', icon: Waves, match: ['/mangueras/'] }],
+    }] : []),
+    ...((canViewReports || role === 'administrador') ? [{
+      title: 'Gestión',
+      items: [
+        ...(canViewReports ? [{ path: '/reportes', label: 'Reportes', icon: History }] : []),
+        ...(role === 'administrador' ? [{ path: '/admin/usuarios', label: 'Usuarios', icon: Users }] : []),
+      ],
+    }] : []),
   ]
 
-  const isActive = (path: string) => location.pathname === path
+  const isActive = (item: NavItem) =>
+    location.pathname === item.path || (item.match ?? []).some((m) => location.pathname.startsWith(m))
+
+  const roleLabel = isSuperadmin ? 'Superadmin' : role ? role.charAt(0).toUpperCase() + role.slice(1) : ''
+
+  const sidebar = (isMobile: boolean) => {
+    const compact = collapsed && !isMobile
+    return (
+      <div className="flex h-full flex-col bg-slate-900 text-slate-300">
+        {/* Marca */}
+        <div className={`flex items-center border-b border-white/10 ${compact ? 'justify-center px-2 py-4' : 'justify-between px-4 py-4'}`}>
+          <Link to="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 min-w-0">
+            <img src={Logo} alt="ThreadTrack" className="h-8 w-auto shrink-0" />
+            {!compact && (
+              <div className="min-w-0 leading-tight">
+                <p className="truncate text-sm font-bold text-white">ThreadTrack</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400">Trazabilidad · v{APP_VERSION}</p>
+              </div>
+            )}
+          </Link>
+          {isMobile ? (
+            <button onClick={() => setMobileOpen(false)} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Cerrar menú">
+              <X className="h-5 w-5" />
+            </button>
+          ) : !compact && (
+            <button onClick={() => setCollapsed(true)} className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white" title="Contraer menú">
+              <ChevronsLeft className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Usuario */}
+        <div className={`border-b border-white/10 ${compact ? 'flex justify-center py-3' : 'px-4 py-3'}`}>
+          {compact ? (
+            <span title={`${user?.email} · ${roleLabel}`}><UserCircle className="h-5 w-5 text-slate-400" /></span>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <UserCircle className="h-5 w-5 shrink-0 text-slate-400" />
+              <div className="min-w-0">
+                <p className="truncate text-xs text-slate-200">{user?.email}</p>
+                <span className="mt-0.5 inline-block rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
+                  {roleLabel}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Navegación */}
+        <nav className="flex-1 overflow-y-auto px-2 py-3">
+          {sections.map((section, si) => (
+            <div key={si} className={si > 0 ? 'mt-4' : ''}>
+              {section.title && !compact && (
+                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">{section.title}</p>
+              )}
+              {section.title && compact && si > 0 && <div className="mx-3 mb-2 border-t border-white/10" />}
+              {section.items.map((item) => {
+                const active = isActive(item)
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    title={compact ? item.label : undefined}
+                    onClick={() => setMobileOpen(false)}
+                    className={`mb-0.5 flex items-center rounded-lg text-sm transition-colors ${
+                      compact ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2'
+                    } ${active ? 'bg-blue-600 font-medium text-white' : 'hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <item.icon className="h-[18px] w-[18px] shrink-0" />
+                    {!compact && <span className="truncate">{item.label}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Pie */}
+        <div className="border-t border-white/10 px-2 py-2">
+          <Link
+            to="/cambiar-contrasena"
+            title={compact ? 'Cambiar contraseña' : undefined}
+            onClick={() => setMobileOpen(false)}
+            className={`flex items-center rounded-lg text-sm hover:bg-white/5 hover:text-white ${compact ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2'}`}
+          >
+            <KeyRound className="h-[18px] w-[18px] shrink-0" />
+            {!compact && 'Cambiar contraseña'}
+          </Link>
+          <button
+            onClick={signOut}
+            title={compact ? 'Cerrar sesión' : undefined}
+            className={`flex w-full items-center rounded-lg text-sm hover:bg-white/5 hover:text-white ${compact ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2'}`}
+          >
+            <LogOut className="h-[18px] w-[18px] shrink-0" />
+            {!compact && 'Cerrar sesión'}
+          </button>
+          {compact && !isMobile && (
+            <button onClick={() => setCollapsed(false)} className="mt-1 flex w-full justify-center rounded-lg px-2 py-2.5 text-slate-400 hover:bg-white/5 hover:text-white" title="Expandir menú">
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-blue-600 text-white shadow-lg">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center space-x-2">
-              <img src={Logo} alt="ThreadTrack Logo" className="h-8 w-auto" />
-              <span className="text-xl font-bold">ThreadTrack</span>
-              <span className="hidden xl:inline ml-2 text-xs font-semibold bg-blue-800 text-blue-100 px-2 py-1 rounded-lg">v{APP_VERSION}</span>
-            </Link>
+      {/* Menú lateral (escritorio) */}
+      <aside className={`fixed inset-y-0 left-0 z-40 hidden transition-[width] duration-200 md:block ${collapsed ? 'w-[72px]' : 'w-64'}`}>
+        {sidebar(false)}
+      </aside>
 
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center px-2 py-2 rounded-lg transition-colors duration-200 text-sm ${
-                    isActive(item.path)
-                      ? 'bg-blue-700 text-white'
-                      : 'hover:bg-blue-500'
-                  }`}
-                >
-                  <item.icon className="w-5 h-5 mr-1.5" />
-                  <span className="xl:hidden">{item.shortLabel}</span>
-                  <span className="hidden xl:inline">{item.label}</span>
-                </Link>
-              ))}
-              {/* Usuario logueado */}
-              <div className="flex items-center gap-2 px-2 py-1.5 bg-blue-700 rounded-lg text-sm ml-1">
-                <UserCircle className="w-4 h-4 flex-shrink-0 text-blue-200" />
-                <div className="flex flex-col leading-tight">
-                  <span className="hidden xl:block font-medium truncate max-w-[130px] text-white text-xs">{user?.email}</span>
-                  <span className="text-blue-300 text-xs capitalize">{isSuperadmin ? 'superadmin' : role}</span>
-                </div>
-              </div>
-              <Link
-                to="/cambiar-contrasena"
-                className="flex items-center px-2 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
-                title="Cambiar contraseña"
-              >
-                <KeyRound className="w-5 h-5" />
-              </Link>
-              <button
-                onClick={signOut}
-                className="flex items-center px-2 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
-                title="Cerrar sesión"
-              >
-                <LogOut className="w-5 h-5" />
-                <span className="hidden xl:inline ml-2">Salir</span>
-              </button>
-            </nav>
-
-            {/* Mobile Menu Button */}
-            <button
-              className="md:hidden p-2"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              {menuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
-          </div>
-
-          {/* Mobile Navigation */}
-          {menuOpen && (
-            <nav className="md:hidden pb-4">
-              {navItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setMenuOpen(false)}
-                  className={`flex items-center px-4 py-2 rounded-lg mb-1 ${
-                    isActive(item.path)
-                      ? 'bg-blue-700 text-white'
-                      : 'hover:bg-blue-500'
-                  }`}
-                >
-                  <item.icon className="w-5 h-5 mr-2" />
-                  {item.label}
-                </Link>
-              ))}
-              <Link
-                to="/cambiar-contrasena"
-                onClick={() => setMenuOpen(false)}
-                className="flex items-center px-4 py-2 rounded-lg mt-2 hover:bg-blue-500 border-t border-blue-500 pt-3"
-              >
-                <KeyRound className="w-5 h-5 mr-2" />
-                Cambiar contraseña
-              </Link>
-              <button
-                onClick={signOut}
-                className="flex items-center w-full px-4 py-2 rounded-lg hover:bg-blue-500"
-              >
-                <LogOut className="w-5 h-5 mr-2" />
-                Cerrar Sesión ({user?.email})
-              </button>
-            </nav>
-          )}
+      {/* Menú lateral (móvil) */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-slate-900/50" onClick={() => setMobileOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-xl">{sidebar(true)}</aside>
         </div>
+      )}
+
+      {/* Barra superior móvil */}
+      <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-3 md:hidden">
+        <button onClick={() => setMobileOpen(true)} className="rounded-lg p-1.5 text-gray-700 hover:bg-gray-100" aria-label="Abrir menú">
+          <Menu className="h-5 w-5" />
+        </button>
+        <img src={Logo} alt="" className="h-6 w-auto" />
+        <span className="font-semibold text-gray-900">ThreadTrack</span>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        <Outlet />
-      </main>
-
-      {/* Bottom Navigation for Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg">
-        <div className="flex justify-around">
-          {navItems.map((item) => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex flex-col items-center py-2 flex-1 min-w-0 ${
-                isActive(item.path) ? 'text-blue-600' : 'text-gray-500'
-              }`}
-            >
-              <item.icon className="w-6 h-6 shrink-0" />
-              <span className="text-[10px] mt-0.5 leading-tight text-center w-full truncate px-1">{item.shortLabel}</span>
-            </Link>
-          ))}
+      {/* Contenido */}
+      <main className={`transition-[padding] duration-200 ${collapsed ? 'md:pl-[72px]' : 'md:pl-64'}`}>
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+          <Outlet />
         </div>
-      </nav>
+      </main>
     </div>
   )
 }

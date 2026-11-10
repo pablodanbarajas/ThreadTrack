@@ -333,9 +333,9 @@ const BarcodeScanner = ({ onScan, onClose, mode = 'auto', continuous = false, sc
 
               <div className="h-14 mt-2 flex items-center justify-center">
                 {lastCode ? (
-                  <div className="w-full text-center px-2 py-1.5 bg-green-100 rounded-lg">
-                    <p className="text-green-700 text-xs font-semibold truncate">✓ {lastCode}</p>
-                    <p className="text-green-500 text-xs">
+                  <div className="w-full text-center px-2 py-1.5 bg-white/95 border border-gray-200 rounded-lg">
+                    <p className="text-gray-900 text-xs font-semibold truncate flex items-center justify-center gap-1.5"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />{lastCode}</p>
+                    <p className="text-gray-500 text-xs">
                       {mode === 'qr' ? 'QR detectado' : 'Codigo detectado'}
                     </p>
                   </div>

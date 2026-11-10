@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { ScanBarcode, Camera, ClipboardList, Lightbulb, AlertCircle, Loader, File, ArrowRight, Download, Copy, X } from 'lucide-react'
+import { ScanBarcode, Camera, ClipboardList, Lightbulb, Loader, File, ArrowRight, Download, Copy, X } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
+import { StatusBadge, Notice } from '../components/ui/StatusBadge'
+import { SkeletonPanel } from '../components/ui/Skeleton'
+import { garmentStatusTone, garmentStatusLabel } from '../lib/tones'
 import { documentService } from '../services/documentService'
 import { extractGarmentId, generateQRUrl } from '../lib/qrGenerator'
 import type { Garment, Document, Movement } from '../types'
@@ -97,16 +100,6 @@ const Scanner = () => {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      disponible: 'bg-green-100 text-green-800',
-      lavado: 'bg-blue-100 text-blue-800',
-      inspeccion: 'bg-yellow-100 text-yellow-800',
-      reparacion: 'bg-orange-100 text-orange-800',
-      baja: 'bg-red-100 text-red-800',
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800'
-  }
 
   const downloadQR = () => {
     if (!selectedGarment || !qrRef.current) return
@@ -220,15 +213,7 @@ const Scanner = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="card mb-6 bg-red-50 border border-red-200">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="font-semibold text-red-800">Error</h3>
-              <p className="text-sm text-red-700 mt-1">{error}</p>
-            </div>
-          </div>
-        </div>
+        <Notice tone="error" title="Error" className="mb-6">{error}</Notice>
       )}
 
       {/* Garment Details */}
@@ -241,9 +226,9 @@ const Scanner = () => {
                 <h2 className="text-2xl font-bold text-gray-800">{selectedGarment.name}</h2>
                 <p className="text-sm text-gray-500 mt-1">ID: {selectedGarment.id}</p>
               </div>
-              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusColor(selectedGarment.status)}`}>
-                {selectedGarment.status.charAt(0).toUpperCase() + selectedGarment.status.slice(1)}
-              </span>
+              <StatusBadge tone={garmentStatusTone[selectedGarment.status] ?? 'gray'}>
+                {garmentStatusLabel[selectedGarment.status] ?? selectedGarment.status}
+              </StatusBadge>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
@@ -350,8 +335,8 @@ const Scanner = () => {
 
       {/* Loading State */}
       {loading && (
-        <div className="card flex items-center justify-center py-8">
-          <Loader className="w-8 h-8 text-blue-600 animate-spin" />
+        <div>
+          <SkeletonPanel lines={4} />
         </div>
       )}
 

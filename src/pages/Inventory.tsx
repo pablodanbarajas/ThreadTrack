@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, AlertTriangle, Search, ChevronDown } from 'lucide-react'
+import { Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, Trash2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, Search, ChevronDown } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { useRole } from '../contexts/AuthContext'
+import { useFeedback } from '../components/ui/feedback-context'
+import { StatusBadge, StatusDot, Notice } from '../components/ui/StatusBadge'
+import { SkeletonList } from '../components/ui/Skeleton'
+import { garmentStatusTone, lifeTone } from '../lib/tones'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
@@ -129,6 +133,7 @@ const getStoredInventoryFilters = (): InventoryFilters => {
 const Inventory = () => {
   const { canCreateGarment, canDeleteGarment, canRecordAction, canEditGarment, isAdministrador } = useRole()
   const { garments, loading, loadGarments: loadCachedGarments, refreshGarments } = useGarmentCache()
+  const feedback = useFeedback()
   const storedFilters = useRef(getStoredInventoryFilters()).current
   const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm)
   const [filterStatus] = useState<string>(storedFilters.filterStatus)
@@ -411,7 +416,7 @@ const Inventory = () => {
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
-      alert('No tienes permisos para crear prendas')
+      feedback.error('No tienes permisos para crear prendas')
       return
     }
     if (!newGarment.code || !newGarment.name) return
@@ -428,7 +433,7 @@ const Inventory = () => {
       loadGarments(true)
     } catch (error: any) {
       if (error.code === '23505') {
-        alert('Ya existe una prenda con ese código')
+        feedback.error('Ya existe una prenda con ese código')
       } else {
         console.error('Error creando prenda:', error)
       }
@@ -600,7 +605,7 @@ const Inventory = () => {
 
   const downloadFilteredQRs = async () => {
     if (filteredGarments.length === 0) {
-      alert('No hay prendas para descargar')
+      feedback.toast('No hay prendas para descargar', 'warning')
       return
     }
 
@@ -660,10 +665,10 @@ const Inventory = () => {
 
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       saveAs(zipBlob, `${zipName}_${new Date().toISOString().split('T')[0]}.zip`)
-      alert(`Descargados ${filteredGarments.length} QR en formato ZIP`)
+      feedback.success(`Descargados ${filteredGarments.length} QR en formato ZIP`)
     } catch (error) {
       console.error('Error descargando QR:', error)
-      alert('Error al descargar QR')
+      feedback.error('Error al descargar QR')
     } finally {
       setDownloadingQRs(false)
     }
@@ -671,7 +676,7 @@ const Inventory = () => {
 
   const downloadFilteredReport = async () => {
     if (filteredGarments.length === 0) {
-      alert('No hay prendas para reportar')
+      feedback.toast('No hay prendas para reportar', 'warning')
       return
     }
     try {
@@ -679,7 +684,7 @@ const Inventory = () => {
       await generateReportExcel(filteredGarments)
     } catch (error) {
       console.error('Error generando reporte:', error)
-      alert('Error al generar el reporte Excel')
+      feedback.error('Error al generar el reporte Excel')
     } finally {
       setDownloadingReport(false)
     }
@@ -758,12 +763,12 @@ const Inventory = () => {
     const validGarments = bulkGarments.filter((g) => g.valid)
 
     if (validGarments.length === 0) {
-      alert('No hay prendas válidas para crear')
+      feedback.toast('No hay prendas válidas para crear', 'warning')
       return
     }
 
     if (!canCreateGarment) {
-      alert('No tienes permisos para crear prendas')
+      feedback.error('No tienes permisos para crear prendas')
       return
     }
 
@@ -790,7 +795,7 @@ const Inventory = () => {
         }
       }
 
-      alert(`Creadas ${successCount} prendas. Errores: ${errorCount}`)
+      feedback.toast(`Creadas ${successCount} prendas${errorCount ? `. Errores: ${errorCount}` : ''}`, errorCount ? 'warning' : 'success')
       setBulkInput('')
       setBulkClientName('')
       setBulkTeamId('')
@@ -799,7 +804,7 @@ const Inventory = () => {
       loadGarments(true)
     } catch (error) {
       console.error('Error en ingreso masivo:', error)
-      alert('Error al crear prendas')
+      feedback.error('Error al crear prendas')
     } finally {
       setBulkLoading(false)
     }
@@ -812,8 +817,8 @@ const Inventory = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm">
             <div className="text-center">
-              <div className="mx-auto w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <Trash2 className="w-6 h-6 text-red-600" />
+              <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <Trash2 className="w-6 h-6 text-gray-600" />
               </div>
               <h3 className="text-lg font-semibold text-gray-800 mb-2">¿Archivar prenda?</h3>
               <p className="text-gray-600 mb-2">Dejará de aparecer en el inventario. Su historial se conserva para trazabilidad.</p>
@@ -831,7 +836,7 @@ const Inventory = () => {
                 />
               </div>
               {deleteError && (
-                <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{deleteError}</div>
+                <Notice tone="error" className="mb-4">{deleteError}</Notice>
               )}
             </div>
             <div className="flex gap-3">
@@ -1117,7 +1122,7 @@ const Inventory = () => {
                     </thead>
                     <tbody>
                       {bulkGarments.map((garment, idx) => (
-                        <tr key={idx} className={garment.valid ? 'bg-green-50' : 'bg-red-50'}>
+                        <tr key={idx} className={garment.valid ? '' : 'text-gray-400'}>
                           <td className="border border-gray-300 px-2 py-1 font-mono">{garment.code}</td>
                           <td className="border border-gray-300 px-2 py-1">
                             {garment.valid ? garment.parsed.garmentName : '-'}
@@ -1158,7 +1163,7 @@ const Inventory = () => {
                     Asignar acceso a usuarios
                   </label>
                   {allUsersForAssign.length === 0 ? (
-                    <p className="text-xs text-gray-400">Cargando usuarios...</p>
+                    <p className="text-xs text-gray-400 animate-pulse">Cargando usuarios…</p>
                   ) : (
                     <div className="space-y-1 max-h-40 overflow-y-auto border rounded-lg p-2">
                       {allUsersForAssign.map(user => (
@@ -1317,20 +1322,15 @@ const Inventory = () => {
               const willExpire = !alreadyExpired && newCycleCount >= 100
               if (!willExpire && !alreadyExpired) return null
               return (
-                <div className={`mb-4 p-3 rounded-lg border flex gap-3 ${alreadyExpired ? 'bg-red-50 border-red-300' : 'bg-orange-50 border-orange-300'}`}>
-                  <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-500'}`} />
-                  <div>
-                    <p className={`text-sm font-bold ${alreadyExpired ? 'text-red-700' : 'text-orange-700'}`}>
-                      {alreadyExpired ? 'Esta prenda ya superó su vida útil' : 'Esta acción alcanzará el límite de vida útil'}
-                    </p>
-                    <p className={`text-xs mt-0.5 ${alreadyExpired ? 'text-red-600' : 'text-orange-600'}`}>
-                      {alreadyExpired
-                        ? `Tiene ${cycleCount} ciclos de lavado y esterilización. Se recomienda darla de baja.`
-                        : `Alcanzará ${newCycleCount} ciclos de lavado y esterilización. Considera darla de baja.`
-                      }
-                    </p>
-                  </div>
-                </div>
+                <Notice
+                  tone={alreadyExpired ? 'error' : 'warning'}
+                  title={alreadyExpired ? 'Esta prenda ya superó su vida útil' : 'Esta acción alcanzará el límite de vida útil'}
+                  className="mb-4"
+                >
+                  {alreadyExpired
+                    ? `Tiene ${cycleCount} ciclos de lavado y esterilización. Se recomienda darla de baja.`
+                    : `Alcanzará ${newCycleCount} ciclos de lavado y esterilización. Considera darla de baja.`}
+                </Notice>
               )
             })()}
 
@@ -1405,7 +1405,7 @@ const Inventory = () => {
             )}
 
             {actionError && (
-              <div className="mb-4 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{actionError}</div>
+              <Notice tone="error" className="mb-4">{actionError}</Notice>
             )}
 
             <div className="flex gap-3">
@@ -1484,11 +1484,8 @@ const Inventory = () => {
       )}
 
       {/* Garment List */}
-      {loading ? (
-        <div className="card text-center py-12">
-          <Loader2 className="w-12 h-12 text-blue-600 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600">Cargando prendas...</p>
-        </div>
+      {loading && garments.length === 0 ? (
+        <SkeletonList rows={6} />
       ) : filteredGarments.length === 0 ? (
         <div className="card text-center py-12">
           <PackageX className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -1518,29 +1515,17 @@ const Inventory = () => {
             const cycleLifePercent = getCycleLifePercent(cycleCount)
             const cycleLifeStyle = lifeStatusStyles[cycleLifeStatus]
             return (
-              <div key={garment.id} className={`card p-4 ${lifeExpired ? 'border-2 border-red-400' : lifeNearEnd ? 'border-2 border-orange-300' : ''}`}>
+              <div key={garment.id} className="rounded-xl border border-gray-200 bg-white p-4">
                 {/* Banner fin de vida útil */}
                 {lifeExpired && (
-                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-red-700">Fin de vida útil alcanzado</p>
-                      <p className="text-xs text-red-600">
-                        {cycleCount} ciclos de lavado y esterilización
-                      </p>
-                    </div>
-                  </div>
+                  <Notice tone="error" title="Fin de vida útil alcanzado" className="mb-3 text-xs">
+                    {cycleCount} ciclos de lavado y esterilización
+                  </Notice>
                 )}
                 {lifeNearEnd && (
-                  <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-orange-50 border border-orange-200 rounded-lg">
-                    <AlertTriangle className="w-4 h-4 text-orange-500 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-orange-700">Próximo a fin de vida útil</p>
-                      <p className="text-xs text-orange-600">
-                        {cycleCount}/100 ciclos de lavado y esterilización
-                      </p>
-                    </div>
-                  </div>
+                  <Notice tone="warning" title="Próximo a fin de vida útil" className="mb-3 text-xs">
+                    {cycleCount}/{WASH_STERILIZATION_CYCLE_LIMIT} ciclos de lavado y esterilización
+                  </Notice>
                 )}
                 {/* Botones de acción */}
                 <div className="flex justify-end gap-1 mb-3 pb-3 border-b">
@@ -1625,18 +1610,18 @@ const Inventory = () => {
 
                 {/* Estado */}
                 <div className="mb-3">
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusLabels[garment.status as GarmentStatus]?.color || 'bg-gray-100'}`}>
-                    <StatusIcon className="w-3 h-3" />
+                  <StatusBadge tone={garmentStatusTone[garment.status] ?? 'gray'}>
+                    <StatusIcon className="w-3 h-3 text-gray-500" />
                     {statusLabels[garment.status as GarmentStatus]?.label || garment.status}
-                  </span>
+                  </StatusBadge>
                 </div>
 
                 {/* Semáforo de vida útil por ciclos */}
                 <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5">
                   <div className="inline-flex items-center gap-1.5 min-w-0">
-                    <span className={`h-2.5 w-2.5 rounded-full ${cycleLifeStyle.dot}`} />
+                    <StatusDot tone={lifeTone[cycleLifeStatus]} />
                     <p className="text-xs font-semibold text-gray-600">
-                      Vida útil: <span className={cycleLifeStyle.text}>{cycleLifeStyle.label}</span>
+                      Vida útil: <span className="text-gray-800">{cycleLifeStyle.label}</span>
                     </p>
                   </div>
                   <p className="text-xs font-semibold whitespace-nowrap text-gray-500">
@@ -1647,19 +1632,16 @@ const Inventory = () => {
                 {/* Contadores - Grid 2 columnas */}
                 {actions.length > 0 && (
                   <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className={`p-2 rounded text-center ${cycleCount >= LIFE_LIMIT ? 'bg-red-100' : cycleCount >= LIFE_WARN ? 'bg-orange-100' : 'bg-blue-50'}`}>
-                      <div className="flex justify-center mb-0.5">
-                        <Droplets className={`w-3 h-3 ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-500' : 'text-blue-600'}`} />
-                      </div>
-                      <p className={`text-sm font-bold ${cycleCount >= LIFE_LIMIT ? 'text-red-600' : cycleCount >= LIFE_WARN ? 'text-orange-600' : 'text-blue-600'}`}>{cycleCount}</p>
-                      <p className={`text-xs ${cycleCount >= LIFE_LIMIT ? 'text-red-700' : cycleCount >= LIFE_WARN ? 'text-orange-700' : 'text-blue-700'}`}>Lavados y Esterilizaciones</p>
+                    <div className="p-2 rounded-lg border border-gray-200 text-center">
+                      <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-gray-900">
+                        {(lifeExpired || lifeNearEnd) && <StatusDot tone={lifeExpired ? 'red' : 'orange'} />}
+                        {cycleCount}
+                      </p>
+                      <p className="text-xs text-gray-500">Lavados y esterilizaciones</p>
                     </div>
-                    <div className="p-2 bg-orange-50 rounded text-center">
-                      <div className="flex justify-center mb-0.5">
-                        <Scissors className="w-3 h-3 text-orange-600" />
-                      </div>
-                      <p className="text-sm font-bold text-orange-600">{reparacionCount}</p>
-                      <p className="text-xs text-orange-700">Reparaciones</p>
+                    <div className="p-2 rounded-lg border border-gray-200 text-center">
+                      <p className="text-sm font-bold text-gray-900">{reparacionCount}</p>
+                      <p className="text-xs text-gray-500">Reparaciones</p>
                     </div>
                   </div>
                 )}
@@ -1855,7 +1837,7 @@ const Inventory = () => {
             </div>
 
             {editError && (
-              <div className="mb-3 px-3 py-2 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">{editError}</div>
+              <Notice tone="error" className="mb-3">{editError}</Notice>
             )}
 
             <div className="flex gap-3">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { Notice } from '../components/ui/StatusBadge'
 import { Loader2, Mail, Lock } from 'lucide-react'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
@@ -38,7 +39,7 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="card">
           {/* Logo */}
@@ -53,9 +54,7 @@ const Login = () => {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-                {error}
-              </div>
+              <Notice tone="error">{error}</Notice>
             )}
 
             <div>

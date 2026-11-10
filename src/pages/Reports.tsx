@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { FileSpreadsheet, CalendarClock, History, ShieldCheck, KeyRound, Loader2, Waves } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
+import { useFeedback } from '../components/ui/feedback-context'
 import { historyReportService, startOfDay, endOfDay } from '../services/historyReportService'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -17,7 +18,7 @@ const Reports = () => {
   const [from, setFrom] = useState(daysAgo(30))
   const [to, setTo] = useState(today())
   const [running, setRunning] = useState<Job | null>(null)
-  const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
+  const feedback = useFeedback()
 
   if (!canViewReports) {
     return <div className="card p-6 text-center text-gray-600">No tienes permisos para consultar reportes históricos.</div>
@@ -25,12 +26,11 @@ const Reports = () => {
 
   const run = async (job: Job, fn: () => Promise<number>) => {
     setRunning(job)
-    setMessage(null)
     try {
       const n = await fn()
-      setMessage({ type: 'ok', text: `Reporte generado (${n} registros).` })
+      feedback.success(`Reporte generado (${n} registros)`)
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Error generando el reporte' })
+      feedback.error(err.message || 'Error generando el reporte')
     } finally {
       setRunning(null)
     }
@@ -55,11 +55,6 @@ const Reports = () => {
         </div>
       </div>
 
-      {message && (
-        <div className={`p-3 rounded-lg text-sm border ${message.type === 'ok' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-700'}`}>
-          {message.text}
-        </div>
-      )}
 
       {canViewPrendas && (
         <section className="card p-5 space-y-3">

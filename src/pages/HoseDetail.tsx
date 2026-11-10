@@ -4,6 +4,8 @@ import { ArrowLeft, Waves, Replace, ChevronDown, ChevronUp, Loader2, Download } 
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import { Skeleton, SkeletonPanel } from '../components/ui/Skeleton'
+import { Notice } from '../components/ui/StatusBadge'
 import SignatureField from '../components/SignatureField'
 import { signatureService } from '../services/accessService'
 import { getHoseLifePercent, getHoseLifeStatus } from '../lib/hoseLifeStatus'
@@ -148,7 +150,15 @@ const HoseDetail = () => {
     }
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-500">Cargando...</div>
+  if (loading) {
+    return (
+      <div className="w-full space-y-4">
+        <Skeleton className="h-4 w-36" />
+        <SkeletonPanel lines={3} />
+        <SkeletonPanel lines={6} />
+      </div>
+    )
+  }
   if (error || !position) return <div className="text-center py-12 text-red-600">{error || 'Posición no encontrada'}</div>
 
   const activeHose = position.activeHose
@@ -276,8 +286,8 @@ const HoseDetail = () => {
                   {isExpanded && (
                     <div className="mt-2 pl-3 border-l-2 border-gray-200">
                       {loadingHistoryId === hose.id ? (
-                        <div className="flex items-center gap-2 text-gray-500 py-2">
-                          <Loader2 className="w-4 h-4 animate-spin" /> Cargando ciclos...
+                        <div className="space-y-2 py-2">
+                          <Skeleton className="h-3 w-2/3" /><Skeleton className="h-3 w-1/2" />
                         </div>
                       ) : !cycles || cycles.length === 0 ? (
                         <p className="text-gray-500 py-2">Sin registros de ciclos para esta manguera</p>
@@ -304,7 +314,7 @@ const HoseDetail = () => {
             <p className="text-sm text-gray-500 mb-3">
               La manguera actual quedará dada de baja conservando su historial. Se creará una manguera nueva en esta posición con el ciclo en 0.
             </p>
-            {modalError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{modalError}</div>}
+            {modalError && <Notice tone="error" className="mb-3">{modalError}</Notice>}
             <form onSubmit={handleReplace} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>

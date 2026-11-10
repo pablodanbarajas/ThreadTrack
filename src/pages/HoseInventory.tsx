@@ -4,6 +4,8 @@ import { Waves, Plus, Search, Loader, Pencil, Trash2, PlusCircle, Download } fro
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import { SkeletonList } from '../components/ui/Skeleton'
+import { Notice } from '../components/ui/StatusBadge'
 import { getHoseLifeStatus } from '../lib/hoseLifeStatus'
 import { generateHoseInventoryExcel } from '../services/reportService'
 import type { HoseLifeStatus } from '../lib/hoseLifeStatus'
@@ -261,7 +263,7 @@ const HoseInventory = () => {
       </div>
 
       {loading && equipmentList.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">Cargando productos...</div>
+        <SkeletonList rows={4} />
       ) : filteredEquipment.length === 0 ? (
         <div className="text-center py-12 text-gray-500">No hay productos registrados</div>
       ) : (
@@ -343,7 +345,7 @@ const HoseInventory = () => {
             <p className="text-sm text-gray-500 mb-4">
               Se sumará 1 ciclo a las {(cycleEquipment.positions || []).filter((p) => p.activeHose).length} mangueras activas de "{cycleEquipment.name}".
             </p>
-            {cycleError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{cycleError}</div>}
+            {cycleError && <Notice tone="error" className="mb-3">{cycleError}</Notice>}
             <form onSubmit={handleRegisterCycle} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
@@ -368,7 +370,7 @@ const HoseInventory = () => {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold mb-4">Editar producto</h2>
-            {editError && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{editError}</div>}
+            {editError && <Notice tone="error" className="mb-3">{editError}</Notice>}
             <form onSubmit={handleSaveEdit} className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Código del producto *</label>

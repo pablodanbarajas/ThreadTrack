@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Trash2, Loader2, PackageX, Calendar, FileText, Search } from 'lucide-react'
+import { Archive, PackageX, Calendar, FileText, Search } from 'lucide-react'
+import { useFeedback } from '../components/ui/feedback-context'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { SkeletonList } from '../components/ui/Skeleton'
 import { garmentService } from '../services/garmentService'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { Garment } from '../types'
@@ -7,6 +10,7 @@ import type { Garment } from '../types'
 const Bajas = () => {
   const { garments: cachedGarments, loading, loadGarments, refreshGarments } = useGarmentCache()
   const [searchTerm, setSearchTerm] = useState('')
+  const feedback = useFeedback()
 
   useEffect(() => {
     loadGarments().catch((error) => console.error('Error cargando bajas:', error))
@@ -20,19 +24,23 @@ const Bajas = () => {
     (garment.baja_reason?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
   )
 
-  const handleDeletePermanent = async (id: string) => {
-    const reason = prompt('La prenda se archivará (su historial se conserva).\n\nMotivo del archivado:')
-    if (reason === null) return
-    if (!reason.trim()) {
-      alert('El motivo es obligatorio para archivar una prenda')
-      return
-    }
+  const handleArchive = async (id: string, code: string) => {
+    const reason = await feedback.prompt({
+      title: `Archivar prenda ${code}`,
+      message: 'Dejará de aparecer en bajas. Su historial completo se conserva para trazabilidad.',
+      label: 'Motivo del archivado',
+      placeholder: 'Ej. registrada por duplicado',
+      required: true,
+      confirmLabel: 'Archivar',
+      variant: 'danger',
+    })
+    if (!reason) return
     try {
-      await garmentService.archive(id, reason.trim())
+      await garmentService.archive(id, reason)
       await refreshGarments()
+      feedback.success(`Prenda ${code} archivada`)
     } catch (error) {
-      console.error('Error archivando prenda:', error)
-      alert((error as Error).message || 'Error al archivar la prenda')
+      feedback.error((error as Error).message || 'Error al archivar la prenda')
     }
   }
 
@@ -50,7 +58,7 @@ const Bajas = () => {
   return (
     <div className="w-full pb-20 md:pb-0">
       <div className="flex items-center gap-3 mb-6">
-        <PackageX className="w-8 h-8 text-red-600" />
+        <PackageX className="w-8 h-8 text-gray-500" />
         <h1 className="text-2xl font-bold text-gray-800">Prendas Dadas de Baja</h1>
       </div>
 
@@ -72,11 +80,8 @@ const Bajas = () => {
       </div>
 
       {/* Lista de Bajas */}
-      {loading ? (
-        <div className="card text-center py-12">
-          <Loader2 className="w-12 h-12 text-red-600 mx-auto mb-4 animate-spin" />
-          <p className="text-gray-600">Cargando bajas...</p>
-        </div>
+      {loading && cachedGarments.length === 0 ? (
+        <SkeletonList rows={4} />
       ) : filteredGarments.length === 0 ? (
         <div className="card text-center py-12">
           <PackageX className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -89,14 +94,12 @@ const Bajas = () => {
       ) : (
         <div className="space-y-3">
           {filteredGarments.map((garment) => (
-            <div key={garment.id} className="card border-l-4 border-red-500">
+            <div key={garment.id} className="rounded-xl border border-gray-200 bg-white p-5">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-mono text-lg text-gray-800">{garment.code}</span>
-                    <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs font-medium">
-                      BAJA
-                    </span>
+                    <StatusBadge tone="red">Baja</StatusBadge>
                   </div>
                   <div className="text-gray-600 font-medium">{garment.name}</div>
                   {garment.client_name && (
@@ -122,11 +125,11 @@ const Bajas = () => {
                 </div>
                 
                 <button
-                  onClick={() => handleDeletePermanent(garment.id)}
-                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  onClick={() => handleArchive(garment.id, garment.code)}
+                  className="p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors"
                   title="Archivar prenda"
                 >
-                  <Trash2 className="w-5 h-5" />
+                  <Archive className="w-5 h-5" />
                 </button>
               </div>
             </div>
