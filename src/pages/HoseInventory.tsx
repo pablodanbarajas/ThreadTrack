@@ -30,6 +30,8 @@ const HoseInventory = () => {
   const [editName, setEditName] = useState('')
   const [editCalibers, setEditCalibers] = useState<Record<string, string>>({})
   const [editLengths, setEditLengths] = useState<Record<string, string>>({})
+  const [editReason, setEditReason] = useState('')
+  const [archiveReason, setArchiveReason] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
@@ -88,10 +90,12 @@ const HoseInventory = () => {
     }
     setEditCalibers(calibers)
     setEditLengths(lengths)
+    setEditReason('')
     setEditError(null)
   }
 
   const handleDeleteEquipment = async (equipmentId: string, equipmentName: string) => {
+    setArchiveReason('')
     setConfirmDelete({ id: equipmentId, name: equipmentName })
   }
 
@@ -156,14 +160,18 @@ const HoseInventory = () => {
 
   const confirmDeleteEquipment = async () => {
     if (!confirmDelete) return
+    if (!archiveReason.trim()) {
+      setSearchError('El motivo es obligatorio para archivar un producto')
+      return
+    }
     setDeletingId(confirmDelete.id)
     try {
-      await hoseService.deleteEquipment(confirmDelete.id)
+      await hoseService.archiveEquipment(confirmDelete.id, archiveReason.trim())
       invalidateEquipment()
       await loadEquipment({ force: true })
       setConfirmDelete(null)
     } catch (err: any) {
-      setSearchError(err.message || 'Error al eliminar el producto')
+      setSearchError(err.message || 'Error al archivar el producto')
     } finally {
       setDeletingId(null)
     }
@@ -178,7 +186,15 @@ const HoseInventory = () => {
       if (!editCode.trim() || !editName.trim()) {
         throw new Error('El código y el nombre del producto son obligatorios')
       }
-      await hoseService.updateEquipment(editingEquipment.id, { code: editCode.trim(), name: editName.trim() })
+      const reason = editReason.trim()
+      if (!reason) {
+        throw new Error('El motivo del cambio es obligatorio')
+      }
+      const equipmentChanged =
+        editCode.trim() !== editingEquipment.code || editName.trim() !== editingEquipment.name
+      if (equipmentChanged) {
+        await hoseService.updateEquipment(editingEquipment.id, { code: editCode.trim(), name: editName.trim() }, reason)
+      }
 
       const positions = editingEquipment.positions || []
       await Promise.all(
@@ -191,7 +207,7 @@ const HoseInventory = () => {
           .map((position) => hoseService.updatePosition(position.id, {
             caliber: editCalibers[position.id]?.trim() || position.caliber,
             length: editLengths[position.id]?.trim() || undefined,
-          }))
+          }, reason))
       )
 
       invalidateEquipment()
@@ -273,7 +289,7 @@ const HoseInventory = () => {
                         onClick={() => handleDeleteEquipment(equipment.id, equipment.name)}
                         disabled={deletingId === equipment.id}
                         className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-50"
-                        title="Eliminar producto"
+                        title="Archivar producto"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -384,6 +400,18 @@ const HoseInventory = () => {
                   ))}
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del cambio *</label>
+                <textarea
+                  value={editReason}
+                  onChange={(e) => setEditReason(e.target.value)}
+                  className="input-field"
+                  rows={2}
+                  placeholder="Ej. corrección de calibre capturado por error"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
+              </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setEditingEquipment(null)} className="btn-secondary flex-1">Cancelar</button>
                 <button type="submit" className="btn-primary flex-1" disabled={savingEdit}>
@@ -398,10 +426,18 @@ const HoseInventory = () => {
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-3">Eliminar producto</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              ¿Eliminar el producto "{confirmDelete.name}"? Esto borrará también sus mangueras e historial. Esta acción no se puede deshacer.
+            <h2 className="text-lg font-semibold mb-3">Archivar producto</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              El producto "{confirmDelete.name}" dejará de aparecer en el inventario. Sus mangueras e historial se conservan para trazabilidad.
             </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Motivo *</label>
+            <textarea
+              value={archiveReason}
+              onChange={(e) => setArchiveReason(e.target.value)}
+              className="input-field mb-4"
+              rows={2}
+              placeholder="Ej. equipo retirado de operación"
+            />
             <div className="flex gap-3">
               <button type="button" onClick={() => setConfirmDelete(null)} className="btn-secondary flex-1" disabled={deletingId === confirmDelete.id}>
                 Cancelar
@@ -409,10 +445,10 @@ const HoseInventory = () => {
               <button
                 type="button"
                 onClick={confirmDeleteEquipment}
-                disabled={deletingId === confirmDelete.id}
+                disabled={deletingId === confirmDelete.id || !archiveReason.trim()}
                 className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50"
               >
-                {deletingId === confirmDelete.id ? 'Eliminando...' : 'Eliminar'}
+                {deletingId === confirmDelete.id ? 'Archivando...' : 'Archivar'}
               </button>
             </div>
           </div>

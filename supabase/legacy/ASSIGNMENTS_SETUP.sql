@@ -107,7 +107,6 @@ CREATE POLICY "Staff garment update"
 CREATE POLICY "Administrador garment delete"
   ON public.garments FOR DELETE
   USING (public.get_my_role() IN ('administrador', 'jefe'));
-  USING (public.get_my_role() = 'administrador');
 
 -- ============================================================
 -- 5. RLS en tabla garment_actions

@@ -27,7 +27,7 @@ const GarmentDetail = () => {
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editForm, setEditForm] = useState({ name: '', description: '', client_name: '', client_phone: '', notes: '' })
+  const [editForm, setEditForm] = useState({ name: '', description: '', client_name: '', client_phone: '', notes: '', reason: '' })
   const [editLoading, setEditLoading] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
 
@@ -98,6 +98,7 @@ const GarmentDetail = () => {
       client_name: garment.client_name ?? '',
       client_phone: garment.client_phone ?? '',
       notes: garment.notes ?? '',
+      reason: '',
     })
     setEditError(null)
     setShowEditModal(true)
@@ -106,6 +107,7 @@ const GarmentDetail = () => {
   const handleEditSave = async () => {
     if (!garment) return
     if (!editForm.name.trim()) { setEditError('El nombre es obligatorio'); return }
+    if (!editForm.reason.trim()) { setEditError('El motivo del cambio es obligatorio'); return }
     setEditLoading(true)
     setEditError(null)
     try {
@@ -115,7 +117,7 @@ const GarmentDetail = () => {
         client_name: editForm.client_name.trim() || undefined,
         client_phone: editForm.client_phone.trim() || undefined,
         notes: editForm.notes.trim() || undefined,
-      })
+      }, editForm.reason.trim())
       invalidateGarments()
       setShowEditModal(false)
       await loadGarmentData()
@@ -437,6 +439,9 @@ const GarmentDetail = () => {
                       {action.performed_by && (
                         <p className="text-xs text-gray-500">Responsable: {action.performed_by}</p>
                       )}
+                      {action.recorded_by_email && (
+                        <p className="text-xs text-gray-400">Capturó: {action.recorded_by_email}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -552,6 +557,16 @@ const GarmentDetail = () => {
                   className="input-field min-h-[70px]"
                   placeholder="Notas adicionales (opcional)"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del cambio *</label>
+                <textarea
+                  value={editForm.reason}
+                  onChange={e => setEditForm(f => ({ ...f, reason: e.target.value }))}
+                  className="input-field min-h-[60px]"
+                  placeholder="Ej. corrección del nombre del cliente"
+                />
+                <p className="text-xs text-gray-500 mt-1">Queda registrado en el audit trail junto con el valor anterior y el nuevo.</p>
               </div>
             </div>
 

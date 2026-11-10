@@ -21,12 +21,18 @@ const Bajas = () => {
   )
 
   const handleDeletePermanent = async (id: string) => {
-    if (!confirm('¿Eliminar permanentemente esta prenda? Esta acción no se puede deshacer.')) return
+    const reason = prompt('La prenda se archivará (su historial se conserva).\n\nMotivo del archivado:')
+    if (reason === null) return
+    if (!reason.trim()) {
+      alert('El motivo es obligatorio para archivar una prenda')
+      return
+    }
     try {
-      await garmentService.delete(id)
+      await garmentService.archive(id, reason.trim())
       await refreshGarments()
     } catch (error) {
-      console.error('Error eliminando prenda:', error)
+      console.error('Error archivando prenda:', error)
+      alert((error as Error).message || 'Error al archivar la prenda')
     }
   }
 
@@ -118,7 +124,7 @@ const Bajas = () => {
                 <button
                   onClick={() => handleDeletePermanent(garment.id)}
                   className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Eliminar permanentemente"
+                  title="Archivar prenda"
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
