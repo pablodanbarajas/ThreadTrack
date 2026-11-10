@@ -27,6 +27,9 @@ export const garmentService = {
       p_life: filters.life && filters.life.length ? filters.life : null,
       p_limit: pageSize,
       p_offset: (page - 1) * pageSize,
+      p_client: filters.client?.trim() || null,
+      p_idle_days: filters.idleDays || null,
+      p_sort: filters.sort || 'recientes',
     })
     if (error) throw error
     const rows = (data || []).map((r: any) => ({
@@ -65,6 +68,17 @@ export const garmentService = {
       for (const g of all) g.actions = byGarment.get(g.id) ?? []
     }
     return all
+  },
+
+  /** De una lista de códigos, los que ya existen (para validar una importación) */
+  async existingCodes(codes: string[]): Promise<Set<string>> {
+    const found = new Set<string>()
+    for (let i = 0; i < codes.length; i += 1000) {
+      const { data, error } = await supabase.rpc('existing_garment_codes', { p_codes: codes.slice(i, i + 1000) })
+      if (error) throw error
+      for (const c of (data || []) as string[]) found.add(c)
+    }
+    return found
   },
 
   async stats(): Promise<GarmentStats> {

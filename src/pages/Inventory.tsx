@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Archive, Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, FileClock, X, ScanBarcode, Download, Copy, Upload, Check, AlertCircle, FileArchive, Users, Pencil, Search, ChevronDown } from 'lucide-react'
+import { Archive, Package, PackageCheck, Droplets, ClipboardCheck, Scissors, PackageX, Loader2, FileClock, X, ScanBarcode, Download, Copy, Upload, FileArchive, Pencil, Search } from 'lucide-react'
 import QRCode from 'qrcode.react'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
@@ -12,6 +12,8 @@ import { garmentService } from '../services/garmentService'
 import { useArchiveGarment } from '../hooks/useArchiveGarment'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Pagination from '../components/ui/Pagination'
+import ImportGarmentsModal from '../components/ImportGarmentsModal'
+import InventoryFilterBar, { FilterField } from '../components/InventoryFilterBar'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
@@ -20,13 +22,12 @@ import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { generateReportExcel } from '../services/reportService'
 import { userService } from '../services/userService'
-import type { UserProfile } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
-import { parseGarmentCode, GARMENT_TYPES, COLORS, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
+import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
 import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
 import type { CycleLifeStatus } from '../lib/lifeStatus'
-import type { Garment, GarmentListItem, GarmentListFilters, LifeStatus, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
+import type { Garment, GarmentListItem, GarmentListFilters, LifeStatus, GarmentSort, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
 
 const compactHex = (value: string) => value.toLowerCase().replace(/[^a-f0-9]/g, '')
 
@@ -50,14 +51,15 @@ interface InventoryFilters {
   filterStatus: string
   filterDateFrom: string
   filterDateTo: string
-  showDateFilters: boolean
   filterGarmentType: GarmentType | ''
   filterColor: Color | ''
   filterSize: Size | ''
   filterBatch: string
-  showCodeFilters: boolean
   filterTeamId: string
   filterLifeStatuses: CycleLifeStatus[]
+  filterClient: string
+  filterIdleDays: number
+  sortBy: GarmentSort
 }
 
 const defaultInventoryFilters: InventoryFilters = {
@@ -65,14 +67,15 @@ const defaultInventoryFilters: InventoryFilters = {
   filterStatus: 'all',
   filterDateFrom: '',
   filterDateTo: '',
-  showDateFilters: false,
   filterGarmentType: '',
   filterColor: '',
   filterSize: '',
   filterBatch: '',
-  showCodeFilters: false,
   filterTeamId: 'all',
   filterLifeStatuses: [],
+  filterClient: '',
+  filterIdleDays: 0,
+  sortBy: 'recientes',
 }
 
 const getStoredInventoryFilters = (): InventoryFilters => {
@@ -99,10 +102,9 @@ const Inventory = () => {
   const feedback = useFeedback()
   const storedFilters = useRef(getStoredInventoryFilters()).current
   const [searchTerm, setSearchTerm] = useState(storedFilters.searchTerm)
-  const [filterStatus] = useState<string>(storedFilters.filterStatus)
-  const [filterDateFrom] = useState(storedFilters.filterDateFrom)
-  const [filterDateTo] = useState(storedFilters.filterDateTo)
-  const [showDateFilters] = useState(storedFilters.showDateFilters)
+  const [filterStatus, setFilterStatus] = useState<string>(storedFilters.filterStatus)
+  const [filterDateFrom, setFilterDateFrom] = useState(storedFilters.filterDateFrom)
+  const [filterDateTo, setFilterDateTo] = useState(storedFilters.filterDateTo)
   const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
@@ -122,33 +124,21 @@ const Inventory = () => {
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
   // Filtros para códigos de prenda
-  const [filterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
-  const [filterColor] = useState<Color | ''>(storedFilters.filterColor)
-  const [filterSize] = useState<Size | ''>(storedFilters.filterSize)
-  const [filterBatch] = useState(storedFilters.filterBatch)
-  const [showCodeFilters] = useState(storedFilters.showCodeFilters)
-  // Ingreso masivo de prendas
-  const [showBulkModal, setShowBulkModal] = useState(false)
-  const [bulkInput, setBulkInput] = useState('')
-  const [bulkClientName, setBulkClientName] = useState('')
-  const [bulkTeamId, setBulkTeamId] = useState<string>('')
-  const [bulkGarments, setBulkGarments] = useState<any[]>([])
-  const [bulkLoading, setBulkLoading] = useState(false)
+  const [filterGarmentType, setFilterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
+  const [filterColor, setFilterColor] = useState<Color | ''>(storedFilters.filterColor)
+  const [filterSize, setFilterSize] = useState<Size | ''>(storedFilters.filterSize)
+  const [filterBatch, setFilterBatch] = useState(storedFilters.filterBatch)
+  const [filterClient, setFilterClient] = useState(storedFilters.filterClient)
+  const [filterIdleDays, setFilterIdleDays] = useState<number>(storedFilters.filterIdleDays)
+  const [sortBy, setSortBy] = useState<GarmentSort>(storedFilters.sortBy)
+  const [showFilters, setShowFilters] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   // Descarga masiva de QR
   const [downloadingQRs, setDownloadingQRs] = useState(false)
   const [downloadingReport, setDownloadingReport] = useState(false)
-  // Asignación de usuarios a prendas
-  const [showAssignModal, setShowAssignModal] = useState(false)
-  const [assignTargetGarment, setAssignTargetGarment] = useState<Garment | null>(null)
-  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([])
-  const [allUsersForAssign, setAllUsersForAssign] = useState<UserProfile[]>([])
-  const [loadingAssign, setLoadingAssign] = useState(false)
-  const [savingAssign, setSavingAssign] = useState(false)
-  const [bulkAssignUserIds, setBulkAssignUserIds] = useState<string[]>([])
-  const [filterTeamId] = useState<string>(storedFilters.filterTeamId)
+  const [filterTeamId, setFilterTeamId] = useState<string>(storedFilters.filterTeamId)
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [filterLifeStatuses, setFilterLifeStatuses] = useState<CycleLifeStatus[]>(storedFilters.filterLifeStatuses)
-  const [showLifeStatusFilter, setShowLifeStatusFilter] = useState(false)
   // Paginación
   const ITEMS_PER_PAGE = 12
   const [currentPage, setCurrentPage] = useState(1)
@@ -247,17 +237,18 @@ const Inventory = () => {
       filterStatus,
       filterDateFrom,
       filterDateTo,
-      showDateFilters,
       filterGarmentType,
       filterColor,
       filterSize,
       filterBatch,
-      showCodeFilters,
       filterTeamId,
       filterLifeStatuses,
+      filterClient,
+      filterIdleDays,
+      sortBy,
     }
-    sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters))
-  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, showDateFilters, filterGarmentType, filterColor, filterSize, filterBatch, showCodeFilters, filterTeamId, filterLifeStatuses])
+    try { sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters)) } catch { /* sin almacenamiento */ }
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses, filterClient, filterIdleDays, sortBy])
 
   useEffect(() => {
     if (isAdministrador) {
@@ -266,6 +257,7 @@ const Inventory = () => {
   }, [isAdministrador])
 
   const debouncedSearch = useDebouncedValue(searchTerm)
+  const debouncedClient = useDebouncedValue(filterClient)
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE)
 
   const listFilters = useMemo<GarmentListFilters>(() => ({
@@ -279,12 +271,15 @@ const Inventory = () => {
     batch: filterBatch || null,
     teamId: isAdministrador && filterTeamId !== 'all' ? filterTeamId : null,
     life: filterLifeStatuses as LifeStatus[],
-  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, isAdministrador, filterTeamId, filterLifeStatuses])
+    client: debouncedClient || null,
+    idleDays: filterIdleDays || null,
+  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, isAdministrador, filterTeamId, filterLifeStatuses, debouncedClient, filterIdleDays])
+  const listQuery = useMemo(() => ({ ...listFilters, sort: sortBy }), [listFilters, sortBy])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    garmentService.list(listFilters, currentPage, pageSize)
+    garmentService.list(listQuery, currentPage, pageSize)
       .then((res) => {
         if (cancelled) return
         setGarments(res.rows)
@@ -296,16 +291,24 @@ const Inventory = () => {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [listFilters, currentPage, pageSize, reloadKey, feedback])
+  }, [listQuery, currentPage, pageSize, reloadKey, feedback])
 
   const hasActiveFilters = Object.values(listFilters).some((v) => (Array.isArray(v) ? v.length > 0 : !!v))
+  // Filtros del panel (sin contar la búsqueda ni el estado, que están a la vista)
+  const panelFilterCount = [filterGarmentType, filterSize, filterColor, filterBatch, filterClient, filterDateFrom, filterDateTo,
+    filterIdleDays ? 'x' : '', isAdministrador && filterTeamId !== 'all' ? 'x' : '', filterLifeStatuses.length ? 'x' : ''].filter(Boolean).length
+  const clearFilters = () => {
+    setFilterStatus('all'); setFilterGarmentType(''); setFilterSize(''); setFilterColor(''); setFilterBatch('')
+    setFilterClient(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterIdleDays(0); setFilterTeamId('all')
+    setFilterLifeStatuses([]); setSortBy('recientes')
+  }
 
   // La página actual ya viene filtrada y ordenada desde el servidor
   const filteredGarments = garments
   const paginatedGarments = garments
 
   // Resetear página al cambiar filtros
-  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, pageSize, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, debouncedClient, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterTeamId, filterLifeStatuses])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -566,180 +569,9 @@ const Inventory = () => {
     if (await archiveGarment(garment)) loadGarments()
   }
 
-  const openAssignModal = async (garment: Garment) => {
-    setAssignTargetGarment(garment)
-    setShowAssignModal(true)
-    setLoadingAssign(true)
-    try {
-      const [users, assignments] = await Promise.all([
-        userService.getAllUsers(),
-        userService.getGarmentAssignments(garment.id)
-      ])
-      setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
-      setAssignedUserIds(assignments)
-    } catch (err) {
-      console.error('Error cargando asignaciones:', err)
-    } finally {
-      setLoadingAssign(false)
-    }
-  }
-
-  const saveAssignments = async () => {
-    if (!assignTargetGarment) return
-    setSavingAssign(true)
-    try {
-      await userService.setGarmentAssignments(assignTargetGarment.id, assignedUserIds)
-      setShowAssignModal(false)
-    } catch (err) {
-      console.error('Error guardando asignaciones:', err)
-    } finally {
-      setSavingAssign(false)
-    }
-  }
-
-  const processBulkCodes = (input: string) => {
-    const codes = input
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-
-    const processed = codes.map((code) => {
-      const parsed = parseGarmentCode(code)
-      if (parsed.valid) {
-        const name = `${parsed.garmentName} - Talla ${parsed.sizeName} - ${parsed.colorName}`
-        return {
-          code: parsed.fullCode,
-          name,
-          client_name: bulkClientName,
-          parsed,
-          valid: true,
-        }
-      } else {
-        return {
-          code,
-          name: '',
-          client_name: bulkClientName,
-          error: parsed.error,
-          valid: false,
-        }
-      }
-    })
-
-    setBulkGarments(processed)
-  }
-
-  const handleBulkCreate = async () => {
-    const validGarments = bulkGarments.filter((g) => g.valid)
-
-    if (validGarments.length === 0) {
-      feedback.toast('No hay prendas válidas para crear', 'warning')
-      return
-    }
-
-    if (!canCreateGarment) {
-      feedback.error('No tienes permisos para crear prendas')
-      return
-    }
-
-    try {
-      setBulkLoading(true)
-      let successCount = 0
-      let errorCount = 0
-
-      for (const garment of validGarments) {
-        try {
-          const created = await garmentService.create({
-            code: garment.code,
-            name: garment.name,
-            client_name: garment.client_name || undefined,
-            team_id: (isAdministrador && bulkTeamId) ? bulkTeamId : undefined,
-          })
-          if (isAdministrador && bulkAssignUserIds.length > 0) {
-            await userService.setGarmentAssignments(created.id, bulkAssignUserIds)
-          }
-          successCount++
-        } catch (error: any) {
-          console.error(`Error creando ${garment.code}:`, error)
-          errorCount++
-        }
-      }
-
-      feedback.toast(`Creadas ${successCount} prendas${errorCount ? `. Errores: ${errorCount}` : ''}`, errorCount ? 'warning' : 'success')
-      setBulkInput('')
-      setBulkClientName('')
-      setBulkTeamId('')
-      setBulkGarments([])
-      setShowBulkModal(false)
-      loadGarments()
-    } catch (error) {
-      console.error('Error en ingreso masivo:', error)
-      feedback.error('Error al crear prendas')
-    } finally {
-      setBulkLoading(false)
-    }
-  }
-
   return (
     <div className="w-full pb-20 md:pb-0">
       {/* Modal de Confirmación de Eliminación */}
-      {/* Modal de Asignación de Usuarios */}
-      {showAssignModal && assignTargetGarment && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800 flex items-center gap-2 min-w-0">
-                <Users className="w-5 h-5 shrink-0 text-green-600" />
-                <span className="truncate">Asignar: {assignTargetGarment.code}</span>
-              </h3>
-              <button onClick={() => setShowAssignModal(false)} className="p-1 hover:bg-gray-100 rounded ml-2 shrink-0">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {loadingAssign ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              </div>
-            ) : (
-              <>
-                <p className="text-xs text-gray-500 mb-3">Usuarios que podrán ver y operar esta prenda:</p>
-                <div className="space-y-1 max-h-64 overflow-y-auto border rounded-lg p-2 mb-4">
-                  {allUsersForAssign.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-4">No hay usuarios disponibles</p>
-                  ) : (
-                    allUsersForAssign.map(user => (
-                      <label key={user.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={assignedUserIds.includes(user.id)}
-                          onChange={e => setAssignedUserIds(prev =>
-                            e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
-                          )}
-                          className="rounded"
-                        />
-                        <span className="flex-1 text-sm truncate">{user.email}</span>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => setShowAssignModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                  <button
-                    onClick={saveAssignments}
-                    disabled={savingAssign}
-                    className="btn-primary flex-1 flex items-center justify-center gap-2"
-                  >
-                    {savingAssign && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Guardar ({assignedUserIds.length})
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Scanner Modal */}
       {showScanner && (
         <BarcodeScanner
           onScan={handleScanResult}
@@ -753,68 +585,15 @@ const Inventory = () => {
           <h1 className="text-xl font-bold text-gray-800">Inventario</h1>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:items-center">
-          {isAdministrador && (
+          {canCreateGarment && (
             <button
-              onClick={async () => {
-                setShowBulkModal(true)
-                setBulkInput('')
-                setBulkClientName('')
-                setBulkGarments([])
-                setBulkAssignUserIds([])
-                if (allUsersForAssign.length === 0) {
-                  try {
-                    const users = await userService.getAllUsers()
-                    setAllUsersForAssign(users.filter(u => u.role !== 'administrador'))
-                  } catch {}
-                }
-              }}
+              onClick={() => setShowImport(true)}
               className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none"
             >
               <Upload className="w-4 h-4" />
-              Ingreso Masivo
+              Importar
             </button>
           )}
-
-          <div className="relative flex-1 sm:flex-none">
-            <button
-              onClick={() => setShowLifeStatusFilter((prev) => !prev)}
-              className={`w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm whitespace-nowrap ${
-                filterLifeStatuses.length > 0
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              Vida útil{filterLifeStatuses.length > 0 ? ` (${filterLifeStatuses.length})` : ''}
-              <ChevronDown className={`w-4 h-4 transition-transform ${showLifeStatusFilter ? 'rotate-180' : ''}`} />
-            </button>
-            {showLifeStatusFilter && (
-              <div className="absolute left-0 z-20 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 p-2">
-                {(Object.entries(lifeStatusStyles) as [CycleLifeStatus, typeof lifeStatusStyles['verde']][]).map(([key, style]) => (
-                  <label key={key} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={filterLifeStatuses.includes(key)}
-                      onChange={(e) => {
-                        setFilterLifeStatuses((prev) =>
-                          e.target.checked ? [...prev, key] : prev.filter((s) => s !== key)
-                        )
-                      }}
-                    />
-                    <span className={`h-2.5 w-2.5 rounded-full ${style.dot}`} />
-                    <span className="text-sm text-gray-700">{style.label}</span>
-                  </label>
-                ))}
-                {filterLifeStatuses.length > 0 && (
-                  <button
-                    onClick={() => setFilterLifeStatuses([])}
-                    className="mt-1 w-full text-center text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1"
-                  >
-                    Limpiar selección
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
 
           <button
             onClick={downloadFilteredReport}
@@ -861,181 +640,85 @@ const Inventory = () => {
             Buscar
           </button>
         </form>
+
+        <InventoryFilterBar
+          status={filterStatus} onStatus={setFilterStatus}
+          sort={sortBy} onSort={setSortBy}
+          open={showFilters} onToggle={() => setShowFilters((v) => !v)}
+          activeCount={panelFilterCount}
+          onClear={clearFilters}
+          canClear={hasActiveFilters || sortBy !== 'recientes'}
+        >
+          <FilterField label="Tipo de prenda">
+            <select value={filterGarmentType} onChange={(e) => setFilterGarmentType(e.target.value as GarmentType | '')} className="input-field py-1.5 text-sm">
+              <option value="">Todos</option>
+              {Object.entries(GARMENT_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="Talla">
+            <select value={filterSize} onChange={(e) => setFilterSize(e.target.value as Size | '')} className="input-field py-1.5 text-sm">
+              <option value="">Todas</option>
+              {Object.entries(SIZES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="Color">
+            <select value={filterColor} onChange={(e) => setFilterColor(e.target.value as Color | '')} className="input-field py-1.5 text-sm">
+              <option value="">Todos</option>
+              {Object.entries(COLORS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </FilterField>
+          <FilterField label="Lote">
+            <input value={filterBatch} onChange={(e) => setFilterBatch(e.target.value.toUpperCase().trim())} placeholder="Ej. 202607A" className="input-field py-1.5 text-sm" />
+          </FilterField>
+          <FilterField label="Cliente">
+            <input value={filterClient} onChange={(e) => setFilterClient(e.target.value)} placeholder="Nombre del cliente" className="input-field py-1.5 text-sm" />
+          </FilterField>
+          <FilterField label="Vida útil">
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.entries(lifeStatusStyles) as [CycleLifeStatus, typeof lifeStatusStyles['verde']][]).map(([key, style]) => {
+                const on = filterLifeStatuses.includes(key)
+                return (
+                  <button key={key} type="button"
+                    onClick={() => setFilterLifeStatuses((prev) => on ? prev.filter((x) => x !== key) : [...prev, key])}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${on ? 'bg-blue-50 text-blue-700 ring-blue-300' : 'bg-white text-gray-600 ring-gray-200 hover:bg-gray-50'}`}>
+                    <StatusDot tone={lifeTone[key]} /> {style.label}
+                  </button>
+                )
+              })}
+            </div>
+          </FilterField>
+          <FilterField label="Sin actividad">
+            <select value={filterIdleDays} onChange={(e) => setFilterIdleDays(Number(e.target.value))} className="input-field py-1.5 text-sm">
+              <option value={0}>Cualquiera</option>
+              <option value={7}>Más de 7 días</option>
+              <option value={30}>Más de 30 días</option>
+              <option value={90}>Más de 90 días</option>
+            </select>
+          </FilterField>
+          <FilterField label="Actualizada entre">
+            <div className="flex items-center gap-1.5">
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} className="input-field py-1.5 text-sm" aria-label="Desde" />
+              <span className="text-gray-400">–</span>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} className="input-field py-1.5 text-sm" aria-label="Hasta" />
+            </div>
+          </FilterField>
+          {isAdministrador && teams.length > 0 && (
+            <FilterField label="Equipo">
+              <select value={filterTeamId} onChange={(e) => setFilterTeamId(e.target.value)} className="input-field py-1.5 text-sm">
+                <option value="all">Todos</option>
+                {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </FilterField>
+          )}
+        </InventoryFilterBar>
       </div>
 
-      {/* Modal de Ingreso Masivo */}
-      {showBulkModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl my-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Ingreso Masivo de Prendas</h2>
-              <button onClick={() => setShowBulkModal(false)} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Cliente */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Cliente (opcional)</label>
-                <input
-                  type="text"
-                  value={bulkClientName}
-                  onChange={(e) => {
-                    setBulkClientName(e.target.value)
-                    processBulkCodes(bulkInput)
-                  }}
-                  placeholder="Nombre del cliente"
-                  className="input-field w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
-              </div>
-
-              {/* Equipo (solo admin) */}
-              {isAdministrador && teams.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Equipo / Empresa</label>
-                  <select
-                    value={bulkTeamId}
-                    onChange={(e) => setBulkTeamId(e.target.value)}
-                    className="input-field w-full"
-                  >
-                    <option value="">Sin equipo asignado</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Se aplicará a todas las prendas de este lote</p>
-                </div>
-              )}
-
-              {/* Textarea */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Códigos de Prendas (uno por línea)
-                </label>
-                <textarea
-                  value={bulkInput}
-                  onChange={(e) => {
-                    setBulkInput(e.target.value)
-                    processBulkCodes(e.target.value)
-                  }}
-                  placeholder="202512A-OV-M-NE-001&#10;202512A-FI-L-AC-002&#10;202512A-PA-S-AM-003"
-                  className="input-field w-full h-32 font-mono text-sm resize-none"
-                />
-                <p className="text-xs text-gray-500 mt-1">Formato: LOTE-PRENDA-TALLA-COLOR-NNN</p>
-              </div>
-
-              {/* Preview Table */}
-              {bulkGarments.length > 0 && (
-                <div className="overflow-x-auto">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-2">
-                    Preview ({bulkGarments.filter((g) => g.valid).length} válidos de {bulkGarments.length})
-                  </h3>
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-2 py-1 text-left">Código</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Prenda</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Talla</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Color</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Lote</th>
-                        <th className="border border-gray-300 px-2 py-1 text-left">Cliente</th>
-                        <th className="border border-gray-300 px-2 py-1 text-center">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkGarments.map((garment, idx) => (
-                        <tr key={idx} className={garment.valid ? '' : 'text-gray-400'}>
-                          <td className="border border-gray-300 px-2 py-1 font-mono">{garment.code}</td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.garmentName : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.sizeName : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.colorName : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1">
-                            {garment.valid ? garment.parsed.batchCode : '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1 text-sm">
-                            {garment.client_name || '-'}
-                          </td>
-                          <td className="border border-gray-300 px-2 py-1 text-center">
-                            {garment.valid ? (
-                              <Check className="w-4 h-4 text-green-600 mx-auto" />
-                            ) : (
-                              <div className="text-red-600" title={garment.error}>
-                                <AlertCircle className="w-4 h-4 mx-auto" />
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Asignación de usuarios — solo administrador */}
-              {isAdministrador && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-green-600" />
-                    Asignar acceso a usuarios
-                  </label>
-                  {allUsersForAssign.length === 0 ? (
-                    <p className="text-xs text-gray-400 animate-pulse">Cargando usuarios…</p>
-                  ) : (
-                    <div className="space-y-1 max-h-40 overflow-y-auto border rounded-lg p-2">
-                      {allUsersForAssign.map(user => (
-                        <label key={user.id} className="flex items-center gap-3 p-1.5 rounded hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={bulkAssignUserIds.includes(user.id)}
-                            onChange={e => setBulkAssignUserIds(prev =>
-                              e.target.checked ? [...prev, user.id] : prev.filter(id => id !== user.id)
-                            )}
-                            className="rounded"
-                          />
-                          <span className="flex-1 text-sm truncate">{user.email}</span>
-                          <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded capitalize shrink-0">{user.role}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                  {bulkAssignUserIds.length > 0 && (
-                    <p className="text-xs text-green-700 mt-1">Se asignarán a {bulkAssignUserIds.length} usuario{bulkAssignUserIds.length !== 1 ? 's' : ''}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Botones */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowBulkModal(false)}
-                  className="btn-secondary flex-1"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleBulkCreate}
-                  disabled={bulkLoading || bulkGarments.filter((g) => g.valid).length === 0}
-                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
-                    bulkLoading || bulkGarments.filter((g) => g.valid).length === 0
-                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                      : 'bg-green-600 hover:bg-green-700 text-white'
-                  }`}
-                >
-                  {bulkLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {bulkLoading ? 'Creando...' : 'Crear Prendas'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {showImport && (
+        <ImportGarmentsModal
+          teams={isAdministrador ? teams : []}
+          onClose={() => setShowImport(false)}
+          onImported={() => loadGarments()}
+        />
       )}
 
       {showModal && !showScanner && (
@@ -1310,15 +993,6 @@ const Inventory = () => {
                       title="Editar prenda"
                     >
                       <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
-                  {isAdministrador && (
-                    <button
-                      onClick={() => openAssignModal(garment)}
-                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                      title="Asignar usuarios"
-                    >
-                      <Users className="w-4 h-4" />
                     </button>
                   )}
                   {canDeleteGarment && (

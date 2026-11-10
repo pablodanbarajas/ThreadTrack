@@ -227,7 +227,13 @@ export interface GarmentListFilters {
   batch?: string | null
   teamId?: string | null
   life?: LifeStatus[]
+  client?: string | null
+  /** Sin acciones en los últimos N días */
+  idleDays?: number | null
+  sort?: GarmentSort
 }
+
+export type GarmentSort = 'recientes' | 'ciclos' | 'codigo' | 'inactividad'
 
 export interface Paged<T> {
   rows: T[]

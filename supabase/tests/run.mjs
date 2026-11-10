@@ -430,6 +430,23 @@ console.log('\n— Consultas paginadas')
   await expectRows('usuario sin módulo Prendas no lista prendas', () =>
     as('adminx@x.test', `SELECT * FROM list_garments()`), 0)
 
+  // Ordenamiento, cliente, inactividad
+  rows = await page(`SELECT * FROM list_garments(p_sort => 'ciclos', p_limit => 3)`)
+  console.log(rows.length === 3 && rows.every((r) => Number(r.wash_count) === 80) ? '  ✔ ordenar por más ciclos' : '  ✘ ' + JSON.stringify(rows.map((r) => r.wash_count))); rows.length === 3 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(p_sort => 'codigo', p_limit => 50)`)
+  const codes = rows.map((r) => r.code)
+  const sortedOk = codes.every((c, i) => i === 0 || codes[i - 1] <= c)
+  console.log(sortedOk ? '  ✔ ordenar por código' : '  ✘ orden'); sortedOk ? pass++ : fail++
+  await db.query(`UPDATE garments SET client_name = 'Hospital Norte' WHERE short_code IN ('P1', 'P2')`)
+  rows = await page(`SELECT * FROM list_garments(p_client => 'norte', p_limit => 50)`)
+  console.log(rows.length === 2 ? '  ✔ filtro por cliente' : '  ✘ ' + rows.length); rows.length === 2 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_garments(p_idle_days => 30, p_limit => 50)`)
+  const idleOk = rows.length === 1 && rows[0].code === 'G-A-2'
+  console.log(idleOk ? '  ✔ sin actividad en 30 días: detecta la prenda con última acción en mayo' : '  ✘ ' + JSON.stringify(rows.map((r) => r.code))); idleOk ? pass++ : fail++
+  const ex = (await as('jefeA', `SELECT array_agg(c) a FROM existing_garment_codes(ARRAY['202607A-FI-L-NE-001', 'NO-EXISTE']) c`)).rows[0].a
+  console.log(JSON.stringify(ex) === '["202607A-FI-L-NE-001"]' ? '  ✔ detecta códigos ya existentes para importar' : '  ✘ ' + JSON.stringify(ex)); ex ? pass++ : fail++
+  await expectRows('operador no consulta códigos existentes', () => as('opA', `SELECT * FROM existing_garment_codes(ARRAY['202607A-FI-L-NE-001'])`), 0)
+
   const st = (await as('jefeA', `SELECT garment_stats() s`)).rows[0].s
   const okStats = st.life.rojo === 3 && st.life.naranja === 0 && st.life.amarillo === 3 && st.reparacion >= 6
   console.log(okStats ? `  ✔ totales de Inicio en la base (activas ${st.active}, rojo ${st.life.rojo}, amarillo ${st.life.amarillo})` : '  ✘ ' + JSON.stringify(st)); okStats ? pass++ : fail++
