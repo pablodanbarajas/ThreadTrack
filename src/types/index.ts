@@ -2,7 +2,18 @@ export interface Team {
   id: string
   name: string
   description?: string
+  organization_id?: string
   created_at: string
+}
+
+// Empresa (cliente) con su licencia
+export interface Organization {
+  id: string
+  name: string
+  max_users: number
+  modules: ('prendas' | 'mangueras')[]
+  is_active: boolean
+  active_users: number
 }
 
 export type GarmentStatus = 'disponible' | 'lavado' | 'inspeccion' | 'reparacion' | 'baja'

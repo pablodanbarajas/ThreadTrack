@@ -82,10 +82,10 @@ export const canUserAction = (role: UserRole | null, action: keyof typeof rolePe
  * Mensajes descriptivos para cada rol
  */
 export const roleDescriptions: Record<UserRole, string> = {
-  jefe: 'Acceso total al sistema. Puede crear, editar, eliminar prendas, autorizar estados, ver reportes y gestionar usuarios.',
-  supervisor: 'Puede ver todo, crear y editar prendas, autorizar cambios de estado y generar reportes. No puede eliminar prendas ni gestionar usuarios.',
-  operador: 'Puede registrar acciones (lavado y esterilización, reparación, inspección) en prendas. Acceso de solo lectura a inventario.',
-  administrador: 'Acceso administrativo completo. Crea prendas y gestiona qué usuarios tienen acceso a cada una.'
+  administrador: 'Administra a los usuarios de su empresa en los módulos que tiene asignados: alta, roles, módulos, restablecer contraseña y desactivar. Además tiene todos los permisos de jefe.',
+  jefe: 'Crea, edita y archiva prendas y equipos, autoriza bajas con firma electrónica y consulta reportes históricos.',
+  supervisor: 'Crea y edita prendas y equipos, autoriza bajas e inspecciones con firma electrónica y consulta reportes. No archiva.',
+  operador: 'Registra lavado/esterilización, inspecciones y uso de mangueras. No edita, no da de baja y no consulta reportes.',
 }
 
 /**

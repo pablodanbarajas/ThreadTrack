@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { Home, Package, Menu, X, PackageX, LogOut, Plus, Layers, Users, UserCircle, Waves, History } from 'lucide-react'
+import { Home, Package, Menu, X, PackageX, LogOut, Plus, Layers, Users, UserCircle, Waves, History, KeyRound } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
@@ -8,7 +8,7 @@ import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 const Layout = () => {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
-  const { user, signOut, role } = useAuth()
+  const { user, signOut, role, isSuperadmin } = useAuth()
   const { canViewPrendas, canViewMangueras, canViewReports } = useRole()
 
   const navItems = [
@@ -60,9 +60,16 @@ const Layout = () => {
                 <UserCircle className="w-4 h-4 flex-shrink-0 text-blue-200" />
                 <div className="flex flex-col leading-tight">
                   <span className="hidden xl:block font-medium truncate max-w-[130px] text-white text-xs">{user?.email}</span>
-                  <span className="text-blue-300 text-xs capitalize">{role}</span>
+                  <span className="text-blue-300 text-xs capitalize">{isSuperadmin ? 'superadmin' : role}</span>
                 </div>
               </div>
+              <Link
+                to="/cambiar-contrasena"
+                className="flex items-center px-2 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
+                title="Cambiar contraseña"
+              >
+                <KeyRound className="w-5 h-5" />
+              </Link>
               <button
                 onClick={signOut}
                 className="flex items-center px-2 py-2 rounded-lg transition-colors duration-200 hover:bg-blue-500 ml-1"
@@ -104,9 +111,17 @@ const Layout = () => {
                   {item.label}
                 </Link>
               ))}
+              <Link
+                to="/cambiar-contrasena"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center px-4 py-2 rounded-lg mt-2 hover:bg-blue-500 border-t border-blue-500 pt-3"
+              >
+                <KeyRound className="w-5 h-5 mr-2" />
+                Cambiar contraseña
+              </Link>
               <button
                 onClick={signOut}
-                className="flex items-center w-full px-4 py-2 rounded-lg mt-2 hover:bg-blue-500 border-t border-blue-500 pt-3"
+                className="flex items-center w-full px-4 py-2 rounded-lg hover:bg-blue-500"
               >
                 <LogOut className="w-5 h-5 mr-2" />
                 Cerrar Sesión ({user?.email})

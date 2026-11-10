@@ -199,8 +199,8 @@ await expectOk('jefe ya NO puede subir su rol a administrador', async () => {
   const r = await as('jefeA', `SELECT update_user_role('${USERS.jefeA[0]}', 'administrador') r`)
   if (!r.rows[0].r.error) throw new Error('permitió el cambio')
 })
-await expectRows('jefe no puede cambiar roles por UPDATE directo', () =>
-  as('jefeA', `UPDATE user_profiles SET role = 'administrador' WHERE id = '${USERS.opA[0]}' RETURNING id`), 0)
+await expectErr('jefe no puede cambiar roles por UPDATE directo', () =>
+  as('jefeA', `UPDATE user_profiles SET role = 'administrador' WHERE id = '${USERS.opA[0]}'`), /permission denied/)
 await expectOk('admin cambia rol de otro', async () => {
   const r = await as('admin', `SELECT update_user_role('${USERS.opA[0]}', 'supervisor') r`)
   if (r.rows[0].r.error) throw new Error(r.rows[0].r.error)
@@ -211,8 +211,9 @@ await expectOk('admin no puede cambiar su propio rol', async () => {
 })
 await expectErr('operador no lista correos de usuarios', () =>
   as('jefeB', `SELECT 1`).then(() => as('opA', `SELECT * FROM get_all_users()`)), /Sin permisos/)
-await expectRows('jefe lista usuarios', () => as('jefeA', `SELECT * FROM get_all_users()`), 4)
-let roleAudit = await one(`SELECT reason FROM audit_log WHERE table_name='user_profiles' AND operation='UPDATE'`)
+await expectRows('jefe lista solo usuarios de su empresa', () => as('jefeA', `SELECT * FROM get_all_users()`), 2)
+await expectRows('superadmin lista todos los usuarios', () => as('admin', `SELECT * FROM get_all_users()`), 4)
+let roleAudit = await one(`SELECT reason FROM audit_log WHERE table_name='user_profiles' AND operation='UPDATE' AND reason LIKE 'Cambio de rol%'`)
 console.log(roleAudit?.reason?.startsWith('Cambio de rol') ? '  ✔ cambio de rol queda en audit_log' : '  ✘ cambio de rol sin auditar'); roleAudit ? pass++ : fail++
 
 console.log('\n— Estado en una fecha determinada')
@@ -284,6 +285,96 @@ let lockAudit = await one(`SELECT count(*)::int n FROM audit_log WHERE table_nam
 console.log(lockAudit.n >= 2 ? '  ✔ bloqueo y desbloqueo quedan en audit_log' : '  ✘ audit ' + lockAudit.n); lockAudit.n >= 2 ? pass++ : fail++
 let users = (await as('admin', `SELECT email, is_active, locked_until FROM get_all_users()`)).rows
 console.log(users.length === 4 && 'is_active' in users[0] ? '  ✔ get_all_users incluye estado y bloqueo' : '  ✘ get_all_users'); users.length === 4 ? pass++ : fail++
+
+console.log('\n— Empresas y licencias')
+{
+  // Simula auth.admin.createUser de la Edge Function (lo hace Supabase Auth con service role)
+  const createAuthUser = async (id, email, pwd = 'Temporal#2026x') => {
+    await db.query(`INSERT INTO auth.users (id, email, encrypted_password) VALUES ('${id}', '${email}', 'h:${pwd}')`)
+    USERS[email] = [id, email]
+  }
+  const asU = (email, sql) => as(email, sql)
+
+  let org = (await as('admin', `SELECT * FROM save_organization(NULL, 'Cliente X', 3, ARRAY['prendas','mangueras'], true, 'Alta de cliente')`)).rows[0]
+  console.log(org?.id ? '  ✔ superadmin crea empresa con licencia (3 usuarios, 2 módulos)' : '  ✘ no se creó la empresa'); org?.id ? pass++ : fail++
+  await expectErr('jefe NO puede crear empresas', () =>
+    as('jefeA', `SELECT * FROM save_organization(NULL, 'Pirata', 99, ARRAY['prendas'], true, 'x')`), /superadministrador/)
+
+  // Alta del administrador del cliente (solo Prendas) por el superadmin
+  let prep = (await as('admin', `SELECT admin_prepare_new_user('adminx@x.test', 'administrador', ARRAY['prendas'], '${org.id}') r`)).rows[0].r
+  console.log(prep.ok ? '  ✔ validación previa de alta OK' : '  ✘ ' + prep.error); prep.ok ? pass++ : fail++
+  await createAuthUser('55555555-5555-5555-5555-555555555555', 'adminx@x.test')
+  await expectOk('superadmin completa el alta del administrador del cliente', () =>
+    as('admin', `SELECT admin_finalize_new_user('55555555-5555-5555-5555-555555555555', 'administrador', ARRAY['prendas'], '${org.id}')`))
+
+  // Contraseña temporal: sin acceso hasta cambiarla
+  let st = (await asU('adminx@x.test', `SELECT get_my_password_status() s`)).rows[0].s
+  console.log(st.must_change && st.reason === 'temporal' ? '  ✔ usuario nuevo debe cambiar su contraseña temporal' : '  ✘ ' + JSON.stringify(st)); st.must_change ? pass++ : fail++
+  await expectErr('con contraseña temporal NO accede a funciones', () => asU('adminx@x.test', `SELECT * FROM get_all_users()`), /Sin permisos/)
+  let r = (await asU('adminx@x.test', `SELECT change_my_password('mala', 'Nueva#Segura2026') r`)).rows[0].r
+  console.log(!r.ok ? '  ✔ cambio rechazado con contraseña actual incorrecta' : '  ✘'); !r.ok ? pass++ : fail++
+  r = (await asU('adminx@x.test', `SELECT change_my_password('Temporal#2026x', 'corta1A!') r`)).rows[0].r
+  console.log(!r.ok && /12 caracteres/.test(r.error) ? '  ✔ contraseña débil rechazada' : '  ✘ ' + r.error); !r.ok ? pass++ : fail++
+  r = (await asU('adminx@x.test', `SELECT change_my_password('Temporal#2026x', 'Temporal#2026x') r`)).rows[0].r
+  console.log(!r.ok && /reutilizar/.test(r.error) ? '  ✔ no puede reutilizar la contraseña actual' : '  ✘ ' + r.error); !r.ok ? pass++ : fail++
+  r = (await asU('adminx@x.test', `SELECT change_my_password('Temporal#2026x', 'Nueva#Segura2026') r`)).rows[0].r
+  console.log(r.ok ? '  ✔ contraseña cambiada; acceso habilitado' : '  ✘ ' + r.error); r.ok ? pass++ : fail++
+  r = (await asU('adminx@x.test', `SELECT change_my_password('Nueva#Segura2026', 'Temporal#2026x') r`)).rows[0].r
+  console.log(!r.ok && /últimas 5/.test(r.error) ? '  ✔ no puede volver a una de sus últimas 5 contraseñas' : '  ✘ ' + r.error); !r.ok ? pass++ : fail++
+
+  // El administrador del cliente da de alta a su gente
+  await expectRows('admin del cliente ve solo usuarios de su empresa', () => asU('adminx@x.test', `SELECT * FROM get_all_users()`), 1)
+  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op1@x.test', 'operador', ARRAY['mangueras'], NULL) r`)).rows[0].r
+  console.log(!prep.ok && /módulos que tú administras/.test(prep.error) ? '  ✔ admin de Prendas NO puede dar acceso a Mangueras' : '  ✘ ' + JSON.stringify(prep)); !prep.ok ? pass++ : fail++
+  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op1@x.test', 'operador', ARRAY['prendas'], '00000000-0000-0000-0000-0000000000b1') r`)).rows[0].r
+  console.log(prep.ok && prep.organization_id === org.id ? '  ✔ admin del cliente siempre crea en SU empresa (ignora otra empresa)' : '  ✘ ' + JSON.stringify(prep)); prep.ok ? pass++ : fail++
+  await createAuthUser('66666666-6666-6666-6666-666666666666', 'op1@x.test')
+  await expectOk('admin del cliente da de alta a un operador', () =>
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('66666666-6666-6666-6666-666666666666', 'operador', ARRAY['prendas'], '${org.id}')`))
+  await createAuthUser('77777777-7777-7777-7777-777777777777', 'op2@x.test')
+  await expectOk('tercer usuario (llega al límite de 3)', () =>
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('77777777-7777-7777-7777-777777777777', 'operador', ARRAY['prendas'], '${org.id}')`))
+  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op3@x.test', 'operador', ARRAY['prendas'], NULL) r`)).rows[0].r
+  console.log(!prep.ok && /límite de 3/.test(prep.error) ? '  ✔ cuarto usuario rechazado: límite de licencia' : '  ✘ ' + JSON.stringify(prep)); !prep.ok ? pass++ : fail++
+  await createAuthUser('88888888-8888-8888-8888-888888888888', 'op3@x.test')
+  await expectErr('la base rechaza el 4º aunque se salte la validación previa', () =>
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('88888888-8888-8888-8888-888888888888', 'operador', ARRAY['prendas'], '${org.id}')`), /límite/)
+  await expectOk('desactivar a uno libera un lugar', () =>
+    asU('adminx@x.test', `SELECT set_user_active('77777777-7777-7777-7777-777777777777', false, 'Salió de la empresa')`))
+  await expectOk('ahora sí entra el nuevo usuario', () =>
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('88888888-8888-8888-8888-888888888888', 'operador', ARRAY['prendas'], '${org.id}')`))
+  await expectErr('reactivar al que salió excede la licencia', () =>
+    asU('adminx@x.test', `SELECT set_user_active('77777777-7777-7777-7777-777777777777', true, 'Regresó')`), /límite/)
+  await expectErr('superadmin no puede reducir la licencia por debajo de los activos', () =>
+    as('admin', `SELECT * FROM save_organization('${org.id}', 'Cliente X', 2, ARRAY['prendas','mangueras'], true, 'Recorte')`), /usuarios activos/)
+
+  // Aislamiento entre empresas y módulos
+  await expectErr('admin del cliente NO administra usuarios de otra empresa', () =>
+    asU('adminx@x.test', `SELECT set_user_active('${USERS.jefeA[0]}', false, 'x')`), /empresa/)
+  await expectRows('admin del cliente NO ve prendas de otra empresa', () => asU('adminx@x.test', `SELECT * FROM garments`), 0)
+  await expectErr('admin del cliente NO crea prendas en equipo de otra empresa', () =>
+    asU('adminx@x.test', `INSERT INTO garments (code, name, team_id) VALUES ('X-1', 'Intruso', '00000000-0000-0000-0000-0000000000a1')`), /empresa/)
+  await expectOk('admin del cliente crea prendas en su empresa', () =>
+    asU('adminx@x.test', `INSERT INTO garments (code, name) VALUES ('X-1', 'Bata cliente X')`))
+  let gx = await one(`SELECT organization_id FROM garments WHERE code = 'X-1'`)
+  console.log(gx.organization_id === org.id ? '  ✔ la prenda queda en la empresa del usuario' : '  ✘'); gx.organization_id === org.id ? pass++ : fail++
+  await expectRows('admin de Prendas NO ve mangueras (módulo no asignado)', () => asU('adminx@x.test', `SELECT * FROM equipment`), 0)
+  await expectRows('jefe de otra empresa no ve la prenda del cliente X', () => as('jefeA', `SELECT * FROM garments WHERE code = 'X-1'`), 0)
+  await expectErr('la empresa de una prenda no se puede cambiar', () =>
+    db.query(`UPDATE garments SET organization_id = (SELECT organization_id FROM teams WHERE name = 'Equipo A') WHERE code = 'X-1'`), /no puede cambiarse/)
+  let auditOther = (await asU('adminx@x.test', `SELECT count(*)::int n FROM audit_log WHERE organization_id IS DISTINCT FROM '${org.id}'`)).rows[0].n
+  console.log(auditOther === 0 ? '  ✔ admin del cliente solo ve el audit trail de su empresa' : '  ✘ ve ' + auditOther); auditOther === 0 ? pass++ : fail++
+
+  // Restablecimiento y caducidad
+  await expectOk('admin restablece contraseña de su operador', () =>
+    asU('adminx@x.test', `SELECT admin_mark_password_reset('66666666-6666-6666-6666-666666666666')`))
+  st = (await asU('op1@x.test', `SELECT get_my_password_status() s`)).rows[0].s
+  console.log(st.must_change ? '  ✔ tras restablecer, debe cambiarla' : '  ✘'); st.must_change ? pass++ : fail++
+  await db.query(`UPDATE user_profiles SET password_changed_at = now() - interval '91 days' WHERE id = '55555555-5555-5555-5555-555555555555'`)
+  st = (await asU('adminx@x.test', `SELECT get_my_password_status() s`)).rows[0].s
+  console.log(st.must_change && st.reason === 'expirada' ? '  ✔ contraseña de más de 90 días caduca' : '  ✘ ' + JSON.stringify(st)); st.must_change ? pass++ : fail++
+  await expectRows('con contraseña caducada NO ve datos', () => asU('adminx@x.test', `SELECT * FROM garments`), 0)
+}
 
 console.log(`\nResultado: ${pass} OK, ${fail} fallas`)
 process.exit(fail ? 1 : 0)

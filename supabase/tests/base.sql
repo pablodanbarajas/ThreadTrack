@@ -6,11 +6,12 @@ CREATE ROLE authenticated NOLOGIN;
 CREATE SCHEMA auth;
 CREATE TABLE auth.users (
   id UUID PRIMARY KEY, email TEXT, created_at TIMESTAMPTZ DEFAULT now(),
-  encrypted_password TEXT, banned_until TIMESTAMPTZ, last_sign_in_at TIMESTAMPTZ
+  encrypted_password TEXT, banned_until TIMESTAMPTZ, last_sign_in_at TIMESTAMPTZ, updated_at TIMESTAMPTZ DEFAULT now()
 );
 -- Sustituto de pgcrypto.crypt para pruebas: hash = 'h:' || contraseña
 CREATE SCHEMA extensions;
 CREATE FUNCTION extensions.crypt(p TEXT, salt TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$ SELECT 'h:' || p $$;
+CREATE FUNCTION extensions.gen_salt(t TEXT, r INT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $fn$ SELECT 'x' $fn$;
 CREATE FUNCTION auth.uid() RETURNS UUID LANGUAGE sql STABLE AS
   $$ SELECT NULLIF(NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub', '')::uuid $$;
 CREATE FUNCTION auth.jwt() RETURNS JSONB LANGUAGE sql STABLE AS

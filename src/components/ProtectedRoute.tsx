@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requiredRole, requiredModule }: ProtectedRouteProps) => {
-  const { user, role, accessModule, loading } = useAuth()
+  const { user, role, modules, isSuperadmin, mustChangePassword, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -26,6 +26,11 @@ const ProtectedRoute = ({ children, requiredRole, requiredModule }: ProtectedRou
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  }
+
+  // Contraseña temporal o caducada: nada más hasta cambiarla
+  if (mustChangePassword) {
+    return <Navigate to="/cambiar-contrasena" replace />
   }
 
   // Validar rol si se requiere
@@ -45,13 +50,22 @@ const ProtectedRoute = ({ children, requiredRole, requiredModule }: ProtectedRou
   }
 
   // Redirigir si el módulo asignado al usuario no incluye esta ruta
-  if (requiredModule && role !== 'administrador') {
-    const allowed = accessModule !== 'mangueras' && accessModule !== 'prendas'
-      ? true
-      : accessModule === requiredModule
-    if (!allowed) {
-      return <Navigate to={requiredModule === 'prendas' ? '/mangueras' : '/'} replace />
+  // (también aplica a administradores: cada uno administra solo sus módulos)
+  if (requiredModule && !isSuperadmin && !modules.includes(requiredModule)) {
+    if (requiredModule === 'prendas' && modules.includes('mangueras')) {
+      return <Navigate to="/mangueras" replace />
     }
+    if (requiredModule === 'mangueras' && modules.includes('prendas')) {
+      return <Navigate to="/" replace />
+    }
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">Sin módulos asignados</h1>
+          <p className="text-gray-600">Tu usuario no tiene acceso a ningún módulo. Contacta al administrador de tu empresa.</p>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>

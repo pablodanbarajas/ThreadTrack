@@ -17,6 +17,7 @@ import HoseInventory from './pages/HoseInventory'
 import HoseDetail from './pages/HoseDetail'
 import CreateEquipment from './pages/CreateEquipment'
 import Reports from './pages/Reports'
+import ChangePassword from './pages/ChangePassword'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/cambiar-contrasena" element={<ChangePassword />} />
           <Route
             path="/"
             element={
