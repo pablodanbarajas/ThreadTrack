@@ -24,7 +24,7 @@ import { generateReportExcel } from '../services/reportService'
 import { userService } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
-import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES, type GarmentType, type Color, type Size } from '../lib/garmentCodeParser'
+import { parseGarmentCode, COLORS, SIZES, type Color, type Size } from '../lib/garmentCodeParser'
 import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
 import type { CycleLifeStatus } from '../lib/lifeStatus'
 import type { Garment, GarmentListItem, GarmentListFilters, LifeStatus, GarmentSort, GarmentAction, ActionType, InspectionResult, GarmentStatus, LegacyActionType } from '../types'
@@ -51,7 +51,6 @@ interface InventoryFilters {
   filterStatus: string
   filterDateFrom: string
   filterDateTo: string
-  filterGarmentType: GarmentType | ''
   filterColor: Color | ''
   filterSize: Size | ''
   filterBatch: string
@@ -65,7 +64,6 @@ const defaultInventoryFilters: InventoryFilters = {
   filterStatus: 'all',
   filterDateFrom: '',
   filterDateTo: '',
-  filterGarmentType: '',
   filterColor: '',
   filterSize: '',
   filterBatch: '',
@@ -120,7 +118,6 @@ const Inventory = () => {
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
   // Filtros para códigos de prenda
-  const [filterGarmentType, setFilterGarmentType] = useState<GarmentType | ''>(storedFilters.filterGarmentType)
   const [filterColor, setFilterColor] = useState<Color | ''>(storedFilters.filterColor)
   const [filterSize, setFilterSize] = useState<Size | ''>(storedFilters.filterSize)
   const [filterBatch, setFilterBatch] = useState(storedFilters.filterBatch)
@@ -231,7 +228,6 @@ const Inventory = () => {
       filterStatus,
       filterDateFrom,
       filterDateTo,
-      filterGarmentType,
       filterColor,
       filterSize,
       filterBatch,
@@ -240,7 +236,7 @@ const Inventory = () => {
       sortBy,
     }
     try { sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters)) } catch { /* sin almacenamiento */ }
-  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays, sortBy])
+  }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays, sortBy])
 
   useEffect(() => {
     if (isAdministrador) {
@@ -256,13 +252,12 @@ const Inventory = () => {
     status: filterStatus === 'all' ? null : (filterStatus as GarmentStatus),
     dateFrom: filterDateFrom || null,
     dateTo: filterDateTo || null,
-    garmentType: filterGarmentType || null,
     color: filterColor || null,
     size: filterSize || null,
     batch: filterBatch || null,
     life: filterLifeStatuses as LifeStatus[],
     idleDays: filterIdleDays || null,
-  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays])
+  }), [debouncedSearch, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays])
   const listQuery = useMemo(() => ({ ...listFilters, sort: sortBy }), [listFilters, sortBy])
 
   useEffect(() => {
@@ -284,10 +279,10 @@ const Inventory = () => {
 
   const hasActiveFilters = Object.values(listFilters).some((v) => (Array.isArray(v) ? v.length > 0 : !!v))
   // Filtros del panel (sin contar la búsqueda ni el estado, que están a la vista)
-  const panelFilterCount = [filterGarmentType, filterSize, filterColor, filterBatch, filterDateFrom, filterDateTo,
+  const panelFilterCount = [filterSize, filterColor, filterBatch, filterDateFrom, filterDateTo,
     filterIdleDays ? 'x' : '', filterLifeStatuses.length ? 'x' : ''].filter(Boolean).length
   const clearFilters = () => {
-    setFilterStatus('all'); setFilterGarmentType(''); setFilterSize(''); setFilterColor(''); setFilterBatch('')
+    setFilterStatus('all'); setFilterSize(''); setFilterColor(''); setFilterBatch('')
     setFilterDateFrom(''); setFilterDateTo(''); setFilterIdleDays(0)
     setFilterLifeStatuses([]); setSortBy('recientes')
   }
@@ -297,7 +292,7 @@ const Inventory = () => {
   const paginatedGarments = garments
 
   // Resetear página al cambiar filtros
-  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterGarmentType, filterColor, filterSize, filterBatch, filterLifeStatuses])
+  useEffect(() => { setCurrentPage(1) }, [debouncedSearch, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses])
 
   const handleAddGarment = async () => {
     if (!canCreateGarment) {
@@ -515,9 +510,8 @@ const Inventory = () => {
 
       // Generar nombre del ZIP con información de filtros
       let zipName = 'QR_Prendas'
-      if (filterGarmentType || filterColor || filterSize || filterBatch) {
+      if (filterColor || filterSize || filterBatch) {
         const filters = []
-        if (filterGarmentType) filters.push(GARMENT_TYPES[filterGarmentType])
         if (filterSize) filters.push(`Talla${filterSize}`)
         if (filterColor) filters.push(COLORS[filterColor])
         if (filterBatch) filters.push(filterBatch)
@@ -637,12 +631,6 @@ const Inventory = () => {
           onClear={clearFilters}
           canClear={hasActiveFilters || sortBy !== 'recientes'}
         >
-          <FilterField label="Tipo de prenda">
-            <select value={filterGarmentType} onChange={(e) => setFilterGarmentType(e.target.value as GarmentType | '')} className="input-field py-1.5 text-sm">
-              <option value="">Todos</option>
-              {Object.entries(GARMENT_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </FilterField>
           <FilterField label="Talla">
             <select value={filterSize} onChange={(e) => setFilterSize(e.target.value as Size | '')} className="input-field py-1.5 text-sm">
               <option value="">Todas</option>

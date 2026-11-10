@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import { FileSpreadsheet, Upload, X, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
-import { parseGarmentCode, GARMENT_TYPES, COLORS, SIZES } from '../lib/garmentCodeParser'
+import { validateNewGarmentCode, GARMENT_TYPES, ALLOWED_GARMENT_TYPES, COLORS, SIZES } from '../lib/garmentCodeParser'
 import { useFeedback } from './ui/feedback-context'
 import { StatusBadge } from './ui/StatusBadge'
 
@@ -55,7 +55,8 @@ const downloadImportTemplate = () => {
     ['1. Captura una prenda por renglón en la hoja "Prendas", a partir de la fila 2.'],
     ['2. Columna "Código" (obligatoria): formato LOTE-PRENDA-TALLA-COLOR-NNN, por ejemplo 202607A-OV-M-BL-001.'],
     ['   • LOTE: año (4) + mes (2) + letra opcional. Ej. 202607A'],
-    ['   • PRENDA, TALLA y COLOR: usa las claves de la hoja "Catálogos".'],
+    ['   • PRENDA: siempre OV (overol).'],
+    ['   • TALLA y COLOR: usa las claves de la hoja "Catálogos".'],
     ['   • NNN: consecutivo de 3 dígitos.'],
     ['3. "Notas" es opcional.'],
     ['4. El nombre de la prenda se genera automáticamente a partir del código.'],
@@ -64,8 +65,8 @@ const downloadImportTemplate = () => {
   instrucciones['!cols'] = [{ wch: 100 }]
   XLSX.utils.book_append_sheet(wb, instrucciones, 'Instrucciones')
 
-  const max = Math.max(Object.keys(GARMENT_TYPES).length, Object.keys(SIZES).length, Object.keys(COLORS).length)
-  const tipos = Object.entries(GARMENT_TYPES)
+  const tipos = ALLOWED_GARMENT_TYPES.map((k) => [k, GARMENT_TYPES[k]] as const)
+  const max = Math.max(tipos.length, Object.keys(SIZES).length, Object.keys(COLORS).length)
   const tallas = Object.entries(SIZES)
   const colores = Object.entries(COLORS)
   const rows: string[][] = [['Prenda', 'Clave', '', 'Talla', 'Clave', '', 'Color', 'Clave']]
@@ -119,7 +120,7 @@ const ImportGarmentsModal = ({ onClose, onImported }: Props) => {
       const parsedRows: ImportRow[] = data.map((r, i) => {
         const cells = r as unknown[]
         const raw = String(cells[codeCol] ?? '').trim().toUpperCase()
-        const parsed = parseGarmentCode(raw)
+        const parsed = validateNewGarmentCode(raw)
         const base = {
           line: i + 2,
           notes: notesCol >= 0 ? String(cells[notesCol] ?? '').trim() : '',

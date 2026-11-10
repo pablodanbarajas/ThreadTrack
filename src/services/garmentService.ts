@@ -1,3 +1,4 @@
+import { validateNewGarmentCode } from '../lib/garmentCodeParser'
 import { supabase } from '../lib/supabase'
 import type {
   Garment, GarmentInsert, GarmentUpdate, GarmentAction, ActionType, InspectionResult, AuditLogEntry,
@@ -156,6 +157,8 @@ export const garmentService = {
 
   // Crear nueva prenda
   async create(garment: GarmentInsert): Promise<Garment> {
+    const check = validateNewGarmentCode(garment.code.trim().toUpperCase())
+    if (!check.valid) throw new Error(check.error)
     const { data, error } = await supabase
       .rpc('create_garment', {
         p_code: garment.code,

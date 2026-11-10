@@ -15,6 +15,18 @@ export const GARMENT_TYPES = {
   CO: 'Cofia',
 } as const
 
+/** Tipos que se pueden registrar hoy (los demás solo se leen en registros anteriores) */
+export const ALLOWED_GARMENT_TYPES: readonly GarmentType[] = ['OV']
+
+/** Valida un código para dar de alta una prenda nueva: formato correcto y tipo permitido */
+export function validateNewGarmentCode(code: string): ParsedGarmentCode | ParseError {
+  const parsed = parseGarmentCode(code)
+  if (parsed.valid && !ALLOWED_GARMENT_TYPES.includes(parsed.garmentType)) {
+    return { valid: false, error: 'Solo se registran overoles: la clave de prenda debe ser OV' }
+  }
+  return parsed
+}
+
 export const COLORS = {
   BL: 'Blanco',
   AC: 'Azul Cielo',
