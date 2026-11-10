@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Archive, PackageX, Calendar, FileText, Search } from 'lucide-react'
 import { useFeedback } from '../components/ui/feedback-context'
-import { StatusBadge } from '../components/ui/StatusBadge'
+import { StatusBadge, IconTile } from '../components/ui/StatusBadge'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { garmentService } from '../services/garmentService'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
@@ -58,7 +58,7 @@ const Bajas = () => {
   return (
     <div className="w-full pb-20 md:pb-0">
       <div className="flex items-center gap-3 mb-6">
-        <PackageX className="w-8 h-8 text-gray-500" />
+        <IconTile icon={PackageX} tone="red" />
         <h1 className="text-2xl font-bold text-gray-800">Prendas Dadas de Baja</h1>
       </div>
 
@@ -94,7 +94,8 @@ const Bajas = () => {
       ) : (
         <div className="space-y-3">
           {filteredGarments.map((garment) => (
-            <div key={garment.id} className="rounded-xl border border-gray-200 bg-white p-5">
+            <div key={garment.id} className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 pl-6 shadow-sm">
+              <span className="absolute inset-y-0 left-0 w-1 bg-red-500" />
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
@@ -126,7 +127,7 @@ const Bajas = () => {
                 
                 <button
                   onClick={() => handleArchive(garment.id, garment.code)}
-                  className="p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 rounded-lg transition-colors"
+                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="Archivar prenda"
                 >
                   <Archive className="w-5 h-5" />

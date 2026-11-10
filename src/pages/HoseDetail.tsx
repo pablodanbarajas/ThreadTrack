@@ -174,7 +174,7 @@ const HoseDetail = () => {
         <Link to="/mangueras" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
           <ArrowLeft className="w-4 h-4" /> Volver a Mangueras
         </Link>
-        <button onClick={handleExport} className="btn-secondary flex items-center gap-2" disabled={exporting}>
+        <button onClick={handleExport} className="btn-excel flex items-center gap-2" disabled={exporting}>
           {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
           Exportar
         </button>

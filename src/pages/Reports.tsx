@@ -3,6 +3,8 @@ import type { LucideIcon } from 'lucide-react'
 import { FileSpreadsheet, CalendarClock, History, ShieldCheck, KeyRound, Loader2, Waves } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
 import { useFeedback } from '../components/ui/feedback-context'
+import { IconTile } from '../components/ui/StatusBadge'
+import type { IndicatorTone } from '../lib/tones'
 import { historyReportService, startOfDay, endOfDay } from '../services/historyReportService'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -16,6 +18,7 @@ interface RangeReport {
   title: string
   description: string
   adminOnly?: boolean
+  tone: IndicatorTone
   run: (fromIso: string, toIso: string, email: string) => Promise<number>
 }
 
@@ -52,32 +55,32 @@ const Reports = () => {
     <button
       onClick={onClick}
       disabled={!!running || disabled}
-      className="btn-secondary flex shrink-0 items-center justify-center gap-2 text-sm disabled:opacity-50"
+      className="btn-excel flex shrink-0 items-center justify-center gap-2 text-sm disabled:opacity-50"
     >
-      {running === job ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-gray-500" />}
+      {running === job ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
       Exportar Excel
     </button>
   )
 
   const rangeReports: RangeReport[] = [
     ...(canViewPrendas ? [{
-      job: 'actions' as Job, icon: History, title: 'Historial de acciones de prendas',
+      job: 'actions' as Job, icon: History, title: 'Historial de acciones de prendas', tone: 'blue' as IndicatorTone,
       description: 'Lavados/esterilizaciones, inspecciones, reparaciones y bajas, con responsable, usuario que capturó y firma.',
       run: historyReportService.exportGarmentActions.bind(historyReportService),
     }] : []),
     ...(canViewMangueras ? [{
-      job: 'hoses' as Job, icon: Waves, title: 'Historial de acciones de mangueras',
+      job: 'hoses' as Job, icon: Waves, title: 'Historial de acciones de mangueras', tone: 'blue' as IndicatorTone,
       description: 'Usos (ciclos), inspecciones, reemplazos y bajas por equipo y calibre.',
       run: historyReportService.exportHoseActions.bind(historyReportService),
     }] : []),
     ...(isAdministrador ? [
       {
-        job: 'audit' as Job, icon: ShieldCheck, title: 'Audit trail', adminOnly: true,
+        job: 'audit' as Job, icon: ShieldCheck, title: 'Audit trail', adminOnly: true, tone: 'purple' as IndicatorTone,
         description: 'Todos los cambios: usuario, fecha y hora, valor anterior, valor nuevo y motivo.',
         run: historyReportService.exportAuditTrail.bind(historyReportService),
       },
       {
-        job: 'access' as Job, icon: KeyRound, title: 'Bitácora de accesos y firmas', adminOnly: true,
+        job: 'access' as Job, icon: KeyRound, title: 'Bitácora de accesos y firmas', adminOnly: true, tone: 'purple' as IndicatorTone,
         description: 'Intentos de inicio de sesión (exitosos y fallidos) y firmas electrónicas emitidas.',
         run: historyReportService.exportAccessLog.bind(historyReportService),
       },
@@ -95,11 +98,9 @@ const Reports = () => {
 
       {/* Reporte a una fecha */}
       {canViewPrendas && (
-        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 md:flex-row md:items-center">
+        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
           <div className="flex min-w-0 flex-1 items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-              <CalendarClock className="h-5 w-5" />
-            </div>
+            <IconTile icon={CalendarClock} tone="green" />
             <div className="min-w-0">
               <h2 className="font-semibold text-gray-900">Estado del inventario en una fecha</h2>
               <p className="text-sm text-gray-500">Estado de cada prenda y ciclos acumulados al cierre del día elegido.</p>
@@ -122,8 +123,8 @@ const Reports = () => {
 
       {/* Reportes por periodo */}
       {rangeReports.length > 0 && (
-        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="flex flex-col gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="card-header flex-col md:flex-row md:items-center">
             <div>
               <h2 className="font-semibold text-gray-900">Reportes por periodo</h2>
               <p className="text-xs text-gray-500">El rango de fechas se aplica a todos los reportes de esta lista.</p>
@@ -149,14 +150,12 @@ const Reports = () => {
             {rangeReports.map((r) => (
               <li key={r.job} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
-                    <r.icon className="h-5 w-5" />
-                  </div>
+                  <IconTile icon={r.icon} tone={r.tone} />
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
                       {r.title}
                       {r.adminOnly && (
-                        <span className="rounded-full border border-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-inset ring-violet-600/20">
                           Solo administrador
                         </span>
                       )}

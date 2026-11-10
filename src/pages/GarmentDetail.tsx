@@ -227,15 +227,15 @@ const GarmentDetail = () => {
         </div>
 
         {/* Header card – full width */}
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-2 md:mb-4">
-          <div className="p-3 md:p-6">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-2 md:mb-4">
+          <div className="p-3 md:p-6 bg-gradient-to-r from-blue-50/70 to-white border-b border-gray-100">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h1 className="text-lg md:text-2xl font-bold leading-tight break-words text-gray-900">{garment.name}</h1>
                 <p className="text-gray-500 text-xs md:text-sm mt-0.5">Código: <span className="font-mono font-semibold">{garment.code}</span></p>
                 {garment.short_code && (
                   <p className="text-gray-500 text-xs mt-1">
-                    Código corto: <span className="font-mono font-bold text-gray-900 border border-gray-200 px-2 py-0.5 rounded-md tracking-wider">{garment.short_code}</span>
+                    Código corto: <span className="font-mono font-bold text-blue-700 bg-white ring-1 ring-inset ring-blue-200 px-2 py-0.5 rounded-md tracking-wider">{garment.short_code}</span>
                   </p>
                 )}
               </div>
@@ -283,36 +283,36 @@ const GarmentDetail = () => {
               const parsed = parseGarmentCode(garment.code)
               if (!parsed.valid) return null
               return (
-                <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
                   <h3 className="font-semibold text-gray-900 text-sm md:text-base mb-2">Información del Código</h3>
                   <div className="grid grid-cols-3 md:grid-cols-2 gap-1.5 md:gap-3">
-                    <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium">Prenda</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Prenda</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.garmentName}</p>
                       <p className="text-xs text-gray-400">{parsed.garmentType}</p>
                     </div>
-                    <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium">Talla</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Talla</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.sizeName}</p>
                       <p className="text-xs text-gray-400">{parsed.size}</p>
                     </div>
-                    <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium">Color</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Color</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.colorName}</p>
                       <p className="text-xs text-gray-400">{parsed.color}</p>
                     </div>
-                    <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium">Lote</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Lote</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">{parsed.batchCode} <span className="text-gray-400">#{parsed.sequenceNumber.toString().padStart(3, '0')}</span></p>
                     </div>
-                    <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium">Mes del Lote</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Mes del Lote</p>
                       <p className="text-xs md:text-sm font-semibold text-gray-800 leading-tight">
                         {new Date(parsed.batchYear, parsed.batchMonth - 1).toLocaleDateString('es-ES', { month: 'short', year: 'numeric' })}
                       </p>
                     </div>
-                    <div className="border border-gray-200 p-2 md:p-3 rounded-lg">
-                      <p className="text-xs text-gray-500 font-medium">Código</p>
+                    <div className="bg-blue-50/60 ring-1 ring-inset ring-blue-100 p-2 md:p-3 rounded-lg">
+                      <p className="text-xs text-blue-700/80 font-medium">Código</p>
                       <p className="text-xs font-mono font-semibold text-gray-800 break-all leading-tight">{parsed.fullCode}</p>
                     </div>
                   </div>
@@ -329,7 +329,7 @@ const GarmentDetail = () => {
               const lifeExpired = cycleCount >= LIFE_LIMIT
               const lifeNearEnd = !lifeExpired && cycleCount >= LIFE_WARN
               return (
-              <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
                 {/* Banner advertencia fin de vida */}
                 {lifeExpired && (
                   <Notice tone="error" title="Fin de vida útil alcanzado" className="mb-3">
@@ -383,7 +383,7 @@ const GarmentDetail = () => {
 
             {/* Descripción y Notas */}
             {(garment.description || garment.notes) && (
-              <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5 space-y-2 md:space-y-3">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5 space-y-2 md:space-y-3">
                 {garment.description && (
                   <div>
                     <p className="text-sm font-medium text-gray-600 mb-1">Descripción</p>
@@ -415,7 +415,7 @@ const GarmentDetail = () => {
                     <>
                       <div className="p-4 rounded-lg border border-gray-200 text-center">
                         <div className="flex items-center justify-center gap-2 mb-1">
-                          <Droplets className="w-5 h-5 text-gray-400" />
+                          <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${cycleCount >= L ? 'bg-red-50 text-red-600' : cycleCount >= W ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'}`}><Droplets className="w-4 h-4" /></span>
                           <span className="text-2xl font-bold text-gray-900">{cycleCount}</span>
                           {cycleCount >= W && <StatusDot tone={cycleCount >= L ? 'red' : 'orange'} />}
                         </div>
@@ -423,10 +423,10 @@ const GarmentDetail = () => {
                       </div>
                       <div className="p-4 rounded-lg border border-gray-200 text-center">
                         <div className="flex items-center justify-center gap-2 mb-1">
-                          <Scissors className="w-5 h-5 text-gray-400" />
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-50 text-orange-600"><Scissors className="w-4 h-4" /></span>
                           <span className="text-2xl font-bold text-gray-900">{rc}</span>
                         </div>
-                        <p className="text-xs text-gray-500 font-medium">Reparaciones</p>
+                        <p className="text-xs text-blue-700/80 font-medium">Reparaciones</p>
                       </div>
                     </>
                   )
@@ -435,7 +435,7 @@ const GarmentDetail = () => {
             </div>
 
             {/* Historial de acciones */}
-            <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
               <h2 className="font-semibold text-gray-800 text-sm md:text-base mb-2">
                 Historial de Acciones {actions.length > 0 && `(${actions.length})`}
               </h2>
@@ -478,10 +478,10 @@ const GarmentDetail = () => {
 
             {/* Audit trail (supervisor / jefe / administrador) */}
             {canViewReports && garment && (
-              <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-5">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-3 md:p-5">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h2 className="font-semibold text-gray-800 text-sm md:text-base flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-gray-500" />
+                    <ShieldCheck className="w-4 h-4 text-violet-600" />
                     Audit trail {auditTrail && `(${auditTrail.length})`}
                   </h2>
                   <div className="flex gap-2">

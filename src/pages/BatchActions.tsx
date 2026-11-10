@@ -413,13 +413,13 @@ const BatchActions = () => {
                     disabled={applying}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all text-left ${
                       active
-                        ? 'bg-white border-blue-500 text-gray-900 font-semibold'
+                        ? `${c.bg} ${c.border} ${c.color} font-semibold`
                         : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`} />
+                    <Icon className={`w-5 h-5 shrink-0 ${active ? c.color : 'text-gray-400'}`} />
                     <span className="text-sm">{c.label}</span>
-                    {active && <CheckCircle2 className="w-4 h-4 ml-auto text-blue-600" />}
+                    {active && <CheckCircle2 className="w-4 h-4 ml-auto" />}
                   </button>
                 )
               })}
@@ -504,6 +504,8 @@ const BatchActions = () => {
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base transition-all shadow-sm ${
               applying || pendingCount === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : selectedAction === 'inspeccion'
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
             }`}
           >

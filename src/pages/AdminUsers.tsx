@@ -11,7 +11,7 @@ import type { UserProfile } from '../services/userService'
 import { accessService } from '../services/accessService'
 import type { Team, Organization } from '../types'
 import { useFeedback } from '../components/ui/feedback-context'
-import { StatusBadge } from '../components/ui/StatusBadge'
+import { StatusBadge, IconTile } from '../components/ui/StatusBadge'
 import { SkeletonHeader, SkeletonList, SkeletonPanel } from '../components/ui/Skeleton'
 
 const ASSIGNABLE_ROLES: UserRole[] = ['operador', 'supervisor', 'jefe', 'administrador']
@@ -202,7 +202,7 @@ const AdminUsers = () => {
   return (
     <div className="w-full pb-20 md:pb-0 space-y-6">
       <div className="flex items-center gap-3">
-        <Users className="w-8 h-8 text-gray-500" />
+        <IconTile icon={Users} tone="blue" />
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Gestionar usuarios</h1>
           <p className="text-sm text-gray-500">
@@ -242,7 +242,7 @@ const AdminUsers = () => {
       <section className="rounded-xl border border-gray-200 bg-white p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-gray-500" />
+            <IconTile icon={Building2} tone="purple" size="sm" />
             {isSuperadmin ? (
               <select value={selectedOrgId ?? ''} onChange={(e) => setSelectedOrgId(e.target.value)} className="input-field py-1">
                 {orgs.map((o) => <option key={o.id} value={o.id}>{o.name}{o.is_active ? '' : ' (inactiva)'}</option>)}
@@ -361,7 +361,7 @@ const AdminUsers = () => {
                 <div className="font-medium text-gray-800 break-words">{u.email}{isMe && ' (tú)'}</div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap text-xs">
                   <span className={`px-2 py-0.5 rounded-full font-medium ${badge.color}`}>{badge.label}</span>
-                  {u.modules.map((m) => <span key={m} className="px-2 py-0.5 rounded-full border border-gray-200 text-gray-600">{moduleLabels[m]}</span>)}
+                  {u.modules.map((m) => <span key={m} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{moduleLabels[m]}</span>)}
                   {u.is_active
                     ? <StatusBadge tone="green">Activo</StatusBadge>
                     : <span title={u.deactivation_reason ?? ''}><StatusBadge tone="gray">Desactivado</StatusBadge></span>}
@@ -395,16 +395,16 @@ const AdminUsers = () => {
                       {orgTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   )}
-                  <button onClick={() => handleResetPassword(u)} disabled={disabled} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50" title="Restablecer contraseña">
+                  <button onClick={() => handleResetPassword(u)} disabled={disabled} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50" title="Restablecer contraseña">
                     <KeyRound className="w-4 h-4" />
                   </button>
                   {u.locked_until && (
-                    <button onClick={() => handleUnlock(u)} disabled={disabled} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg" title="Desbloquear cuenta">
+                    <button onClick={() => handleUnlock(u)} disabled={disabled} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg" title="Desbloquear cuenta">
                       <Unlock className="w-4 h-4" />
                     </button>
                   )}
                   <button onClick={() => handleToggleActive(u)} disabled={disabled}
-                    className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                    className={`p-2 rounded-lg disabled:opacity-50 ${u.is_active ? 'text-red-600 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
                     title={u.is_active ? 'Desactivar usuario' : 'Reactivar usuario'}>
                     {busy === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : u.is_active ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                   </button>
@@ -424,7 +424,7 @@ const AdminUsers = () => {
           <div className="flex flex-wrap gap-2">
             {orgTeams.length === 0 && <span className="text-sm text-gray-400">Sin equipos</span>}
             {orgTeams.map((t) => (
-              <span key={t.id} className="px-3 py-1 rounded-full border border-gray-200 text-gray-700 text-sm flex items-center gap-1">
+              <span key={t.id} className="px-3 py-1 rounded-full bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-600/20 text-sm flex items-center gap-1">
                 {t.name}
                 {isSuperadmin && (
                   <button onClick={async () => {

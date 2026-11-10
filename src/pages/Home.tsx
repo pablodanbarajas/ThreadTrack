@@ -7,22 +7,19 @@ import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleCount, getCycleLifeStatus } fro
 import { StatusDot } from '../components/ui/StatusBadge'
 import { Skeleton, SkeletonStats } from '../components/ui/Skeleton'
 import type { IndicatorTone } from '../lib/tones'
-import { dotColor } from '../lib/tones'
+import { dotColor, iconTint } from '../lib/tones'
 
 const Kpi = ({ icon: Icon, label, value, tone, to }: {
   icon: LucideIcon; label: string; value: number; tone?: IndicatorTone; to?: string
 }) => {
   const body = (
-    <div className="flex h-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 transition-shadow hover:shadow-sm">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-600">
+    <div className="flex h-full items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconTint[tone ?? 'blue']}`}>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0">
         <p className="text-2xl font-bold leading-none text-gray-900">{value}</p>
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
-          {tone && <StatusDot tone={tone} />}
-          {label}
-        </p>
+        <p className="mt-1 text-xs font-medium text-gray-500">{label}</p>
       </div>
       {to && <ChevronRight className="ml-auto h-4 w-4 text-gray-300" />}
     </div>
@@ -68,7 +65,7 @@ const Home = () => {
 
       {/* Resumen de inventario */}
       <section>
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">Inventario</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">Inventario</h2>
         {showSkeleton ? (
           <SkeletonStats count={6} />
         ) : (
@@ -84,16 +81,17 @@ const Home = () => {
       </section>
 
       {/* Semáforo de vida útil */}
-      <section className="rounded-xl border border-gray-200 bg-white p-5">
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="card-header flex-wrap">
           <div>
             <h2 className="text-base font-semibold text-gray-900">Semáforo de vida útil</h2>
             <p className="text-sm text-gray-500">
               Ciclos de lavado y esterilización por prenda (límite: {WASH_STERILIZATION_CYCLE_LIMIT})
             </p>
           </div>
-          <span className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-500">{lifeTotal} prendas activas</span>
+          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-600/20">{lifeTotal} prendas activas</span>
         </div>
+        <div className="p-5">
 
         {showSkeleton ? (
           <>
@@ -109,7 +107,8 @@ const Home = () => {
             </div>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {lifeBands.map((b) => (
-                <div key={b.key} className="rounded-lg border border-gray-200 p-3">
+                <div key={b.key} className="relative overflow-hidden rounded-lg border border-gray-200 p-3 pl-4">
+                  <span className={`absolute inset-y-0 left-0 w-1 ${dotColor[b.tone]}`} />
                   <p className="flex items-center gap-2 text-sm font-medium text-gray-700">
                     <StatusDot tone={b.tone} /> {b.label}
                   </p>
@@ -120,6 +119,7 @@ const Home = () => {
             </div>
           </>
         )}
+        </div>
       </section>
     </div>
   )

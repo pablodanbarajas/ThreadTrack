@@ -236,7 +236,7 @@ const HoseInventory = () => {
               Nuevo Producto
             </Link>
           )}
-          <button onClick={handleExport} className="btn-secondary flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || filteredEquipment.length === 0}>
+          <button onClick={handleExport} className="btn-excel flex-1 flex items-center justify-center gap-2 whitespace-nowrap sm:flex-none" disabled={exporting || filteredEquipment.length === 0}>
             {exporting ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             Exportar
           </button>
