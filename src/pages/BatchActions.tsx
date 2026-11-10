@@ -454,7 +454,7 @@ const BatchActions = () => {
 
         {/* ── RIGHT: notes + apply ── */}
         <div className="space-y-3">
-          <RecordedBy />
+          {!signatureMeaning && <RecordedBy />}
 
           {/* Notes */}
           <div className="card">

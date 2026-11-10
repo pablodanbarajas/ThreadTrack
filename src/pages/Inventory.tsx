@@ -13,6 +13,7 @@ import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
+import InspectionResultPicker from '../components/InspectionResultPicker'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { generateReportExcel } from '../services/reportService'
@@ -1334,47 +1335,8 @@ const Inventory = () => {
             })()}
 
             {actionType === 'inspeccion' && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Resultado</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="result"
-                      value="aprobado"
-                      checked={inspectionResult === 'aprobado'}
-                      onChange={() => setInspectionResult('aprobado')}
-                    />
-                    <PackageCheck className="w-5 h-5 text-green-600" />
-                    <span>Aprobado - Vuelve a Disponible</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="result"
-                      value="reparacion"
-                      checked={inspectionResult === 'reparacion'}
-                      onChange={() => setInspectionResult('reparacion')}
-                    />
-                    <Scissors className="w-5 h-5 text-orange-600" />
-                    <span>Requiere Reparación</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input
-                      type="radio"
-                      name="result"
-                      value="baja"
-                      checked={inspectionResult === 'baja'}
-                      onChange={() => setInspectionResult('baja')}
-                    />
-                    <PackageX className="w-5 h-5 text-red-600" />
-                    <span>Dar de Baja</span>
-                  </label>
-                </div>
-              </div>
+              <InspectionResultPicker value={inspectionResult} onChange={setInspectionResult} />
             )}
-
-            <RecordedBy className="mb-4" />
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1388,11 +1350,12 @@ const Inventory = () => {
               />
             </div>
 
-            {signatureMeaning && (
-              <div className="mb-4">
-                <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
-              </div>
-            )}
+            {/* Confirmación: firma (incluye al firmante) o, si no aplica, a nombre de quién se registra */}
+            <div className="mb-4">
+              {signatureMeaning
+                ? <SignatureField meaning={signatureMeaning} password={signaturePassword} onChange={setSignaturePassword} />
+                : <RecordedBy />}
+            </div>
 
             {actionError && (
               <Notice tone="error" className="mb-4">{actionError}</Notice>
