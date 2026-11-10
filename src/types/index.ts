@@ -68,6 +68,7 @@ export interface GarmentAction {
   performed_by?: string // responsable físico (lo escribe el usuario)
   recorded_by?: string // usuario autenticado que capturó el registro (lo fija la base)
   recorded_by_email?: string
+  recorded_by_name?: string
   signature_id?: string // firma electrónica (bajas y resultados de inspección)
   created_at: string
 }
@@ -178,6 +179,7 @@ export interface HoseAction {
   performed_by: string
   recorded_by?: string
   recorded_by_email?: string
+  recorded_by_name?: string
   signature_id?: string
   created_at: string
 }

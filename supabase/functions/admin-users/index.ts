@@ -7,7 +7,7 @@
 // quedan atribuidas a él en el audit trail.
 //
 // Acciones:
-//   { action: 'create', email, role, modules: string[], organization_id?, team_id? }
+//   { action: 'create', email, full_name, role, modules: string[], organization_id?, team_id? }
 //   { action: 'reset_password', user_id }
 // Respuesta: { ok: true, temporary_password, user_id? } | { ok: false, error }
 import { createClient } from 'npm:@supabase/supabase-js@2.93.1'
@@ -79,12 +79,14 @@ Deno.serve(async (req) => {
       const role = String(body.role ?? '')
       const modules = Array.isArray(body.modules) ? body.modules.map(String) : []
       const teamId = body.team_id ? String(body.team_id) : null
+      const fullName = String(body.full_name ?? '').trim()
 
       const { data: prep, error: prepError } = await caller.rpc('admin_prepare_new_user', {
         p_email: email,
         p_role: role,
         p_modules: modules,
         p_organization_id: body.organization_id ?? null,
+        p_full_name: fullName,
       })
       if (prepError) return json({ ok: false, error: prepError.message }, 403)
       if (!prep?.ok) return json({ ok: false, error: prep?.error ?? 'No autorizado' }, 403)
@@ -94,6 +96,7 @@ Deno.serve(async (req) => {
         email,
         password,
         email_confirm: true,
+        user_metadata: { full_name: fullName },
       })
       if (createError || !created.user) {
         return json({ ok: false, error: createError?.message ?? 'No se pudo crear la cuenta' }, 400)
@@ -105,6 +108,7 @@ Deno.serve(async (req) => {
         p_modules: modules,
         p_organization_id: prep.organization_id,
         p_team_id: teamId,
+        p_full_name: fullName,
       })
       if (finError) {
         // Deshacer: la cuenta no debe quedar creada sin empresa

@@ -4,6 +4,8 @@ import { ArrowLeft, Waves, Replace, ChevronDown, ChevronUp, Loader2, Download } 
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import ActionAuthor from '../components/ActionAuthor'
+import RecordedBy from '../components/RecordedBy'
 import { Skeleton, SkeletonPanel } from '../components/ui/Skeleton'
 import { Notice } from '../components/ui/StatusBadge'
 import SignatureField from '../components/SignatureField'
@@ -30,9 +32,12 @@ const ActionRow = ({ action }: { action: HoseAction }) => (
       {action.notes && <span className="text-gray-500"> — {action.notes}</span>}
     </div>
     <div className="text-right text-gray-500">
-      <div>{action.performed_by}</div>
-      {action.recorded_by_email && <div className="text-xs">Capturó: {action.recorded_by_email}</div>}
-      {action.signature_id && <div className="text-xs text-blue-600 font-medium">Firmado electrónicamente</div>}
+      <ActionAuthor
+        performedBy={action.performed_by}
+        recordedByName={action.recorded_by_name}
+        recordedByEmail={action.recorded_by_email}
+        signed={!!action.signature_id}
+      />
       <div>{new Date(action.created_at).toLocaleString()}</div>
     </div>
   </li>
@@ -54,7 +59,6 @@ const HoseDetail = () => {
   const [showFullActiveHistory, setShowFullActiveHistory] = useState(false)
 
   const [showReplaceModal, setShowReplaceModal] = useState(false)
-  const [responsible, setResponsible] = useState('')
   const [notes, setNotes] = useState('')
   const [signaturePassword, setSignaturePassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -87,7 +91,6 @@ const HoseDetail = () => {
   }, [positionId])
 
   const openModal = (type: 'use' | 'replace') => {
-    setResponsible('')
     setNotes(type === 'use' ? 'Lavado y Esterilización' : '')
     setModalError(null)
     setSignaturePassword('')
@@ -102,7 +105,7 @@ const HoseDetail = () => {
     try {
       if (!notes.trim()) throw new Error('Indica el motivo del reemplazo')
       const signatureToken = await signatureService.sign(signaturePassword)
-      await hoseService.replaceHose(position.id, notes, responsible, signatureToken)
+      await hoseService.replaceHose(position.id, notes, signatureToken)
       setSignaturePassword('')
       invalidateEquipment()
       setShowReplaceModal(false)
@@ -316,10 +319,7 @@ const HoseDetail = () => {
             </p>
             {modalError && <Notice tone="error" className="mb-3">{modalError}</Notice>}
             <form onSubmit={handleReplace} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
-                <input value={responsible} onChange={(e) => setResponsible(e.target.value)} className="input-field" required />
-              </div>
+              <RecordedBy />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Motivo del reemplazo *</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="input-field" rows={2} required />
@@ -331,7 +331,7 @@ const HoseDetail = () => {
               />
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setShowReplaceModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                <button type="submit" className="btn-primary flex items-center justify-center gap-2 flex-1" disabled={submitting || !responsible.trim() || !notes.trim() || !signaturePassword}>
+                <button type="submit" className="btn-primary flex items-center justify-center gap-2 flex-1" disabled={submitting || !notes.trim() || !signaturePassword}>
                   <Replace className="w-4 h-4" /> {submitting ? 'Reemplazando...' : 'Firmar y reemplazar'}
                 </button>
               </div>

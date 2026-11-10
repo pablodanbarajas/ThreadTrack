@@ -6,7 +6,7 @@ evaluación (secciones 2 a 5) y como base para la especificación funcional.
 
 | Principio | Control |
 |---|---|
-| **Atribuible** | Cada acción guarda `recorded_by` / `recorded_by_email` tomados de la sesión autenticada (no del cliente), además del responsable físico (`performed_by`). Cada cambio en `audit_log` guarda `user_id`, correo y rol. |
+| **Atribuible** | Cada persona usa su propia cuenta. Toda acción guarda automáticamente el usuario en sesión: identificador, correo y **nombre completo** (`recorded_by`, `recorded_by_email`, `recorded_by_name`); el responsable ya no se captura a mano y la base ignora cualquier valor enviado por el cliente. Cada cambio en `audit_log` guarda usuario, correo y rol. |
 | **Legible** | Registros estructurados; consulta por prenda con `get_garment_audit_trail`. |
 | **Contemporáneo** | Fecha/hora asignada por el servidor (`now()` / `clock_timestamp()`); el cliente no puede enviarla. |
 | **Original** | `garment_actions`, `hose_actions`, `movements` y `audit_log` son de solo inserción: la base rechaza `UPDATE`, `DELETE` y `TRUNCATE`, incluso para el administrador. |
@@ -31,7 +31,7 @@ Requerida para: **dar de baja** una prenda o manguera, **certificar el resultado
 
 1. El usuario vuelve a capturar su contraseña; el servidor la verifica (`request_signature`). Un fallo queda registrado y cuenta para el bloqueo.
 2. Se emite un token válido 5 minutos para ese mismo usuario (serie de firmas en una sesión controlada, §11.200(a)(1)(i); permite firmar un lote completo).
-3. La acción crea un registro en `electronic_signatures` (inmutable) con **firmante, rol, fecha y hora, significado** ("Autorizo la baja definitiva de la prenda", "Certifico el resultado de inspección: aprobado", etc.) y el registro firmado; la acción guarda `signature_id`, así la firma queda ligada al registro (§11.70).
+3. La acción crea un registro en `electronic_signatures` (inmutable) con **nombre impreso del firmante (§11.50), correo, rol, fecha y hora, significado** ("Autorizo la baja definitiva de la prenda", "Certifico el resultado de inspección: aprobado", etc.) y el registro firmado; la acción guarda `signature_id`, así la firma queda ligada al registro (§11.70).
 
 ## Reportes históricos (menú *Reportes*)
 

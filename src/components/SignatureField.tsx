@@ -13,7 +13,7 @@ interface SignatureFieldProps {
  * La contraseña se verifica en el servidor (signatureService.sign).
  */
 const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) => {
-  const { user } = useAuth()
+  const { user, displayName } = useAuth()
 
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -22,7 +22,8 @@ const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) =>
         Firma electrónica
       </div>
       <p className="mt-1 text-xs text-gray-700">
-        <span className="font-medium">{user?.email}</span> — {meaning}
+        <span className="font-semibold text-gray-900">{displayName}</span>
+        {displayName !== user?.email && <span className="text-gray-400"> ({user?.email})</span>} — {meaning}
       </p>
       <input
         type="password"

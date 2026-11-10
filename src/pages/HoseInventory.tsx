@@ -4,6 +4,7 @@ import { Waves, Plus, Search, Loader, Pencil, Trash2, PlusCircle, Download } fro
 import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
+import RecordedBy from '../components/RecordedBy'
 import { SkeletonList } from '../components/ui/Skeleton'
 import { Notice } from '../components/ui/StatusBadge'
 import { getHoseLifeStatus } from '../lib/hoseLifeStatus'
@@ -38,7 +39,6 @@ const HoseInventory = () => {
   const [editError, setEditError] = useState<string | null>(null)
 
   const [cycleEquipment, setCycleEquipment] = useState<(Equipment & { positions?: HosePositionWithDetails[] }) | null>(null)
-  const [cycleResponsible, setCycleResponsible] = useState('')
   const [cycleNotes, setCycleNotes] = useState('')
   const [cycleSubmitting, setCycleSubmitting] = useState(false)
   const [cycleError, setCycleError] = useState<string | null>(null)
@@ -103,7 +103,6 @@ const HoseInventory = () => {
 
   const openCycleModal = (equipment: Equipment & { positions?: HosePositionWithDetails[] }) => {
     setCycleEquipment(equipment)
-    setCycleResponsible('')
     setCycleNotes('Lavado y Esterilización')
     setCycleError(null)
   }
@@ -123,7 +122,7 @@ const HoseInventory = () => {
     setCycleSubmitting(true)
     setCycleError(null)
     try {
-      await hoseService.registerBulkUse(activeHoseIds, { performedBy: cycleResponsible, notes: cycleNotes })
+      await hoseService.registerBulkUse(activeHoseIds, { notes: cycleNotes })
       invalidateEquipment()
       await loadEquipment({ force: true })
       setCycleEquipment(null)
@@ -347,17 +346,14 @@ const HoseInventory = () => {
             </p>
             {cycleError && <Notice tone="error" className="mb-3">{cycleError}</Notice>}
             <form onSubmit={handleRegisterCycle} className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
-                <input value={cycleResponsible} onChange={(e) => setCycleResponsible(e.target.value)} className="input-field" required />
-              </div>
+              <RecordedBy />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea value={cycleNotes} onChange={(e) => setCycleNotes(e.target.value)} className="input-field" rows={2} />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setCycleEquipment(null)} className="btn-secondary flex-1">Cancelar</button>
-                <button type="submit" className="btn-primary flex-1" disabled={cycleSubmitting || !cycleResponsible.trim()}>
+                <button type="submit" className="btn-primary flex-1" disabled={cycleSubmitting}>
                   {cycleSubmitting ? 'Registrando...' : 'Registrar'}
                 </button>
               </div>

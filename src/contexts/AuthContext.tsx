@@ -20,6 +20,10 @@ interface AuthContextType {
   modules: AppModule[]
   isSuperadmin: boolean
   organizationId: string | null
+  /** Nombre completo del perfil (null si aún no se registra) */
+  fullName: string | null
+  /** Nombre para mostrar: nombre completo o, si no hay, el correo */
+  displayName: string
   mustChangePassword: boolean
   passwordChangeReason: 'temporal' | 'expirada' | null
   refreshProfile: () => Promise<void>
@@ -77,6 +81,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [modules, setModules] = useState<AppModule[]>([])
   const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [fullName, setFullName] = useState<string | null>(null)
   const [mustChangePassword, setMustChangePassword] = useState(false)
   const [passwordChangeReason, setPasswordChangeReason] = useState<'temporal' | 'expirada' | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,6 +95,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setModules([])
     setIsSuperadmin(false)
     setOrganizationId(null)
+    setFullName(null)
     setMustChangePassword(false)
     setPasswordChangeReason(null)
   }
@@ -125,7 +131,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('role, modules, organization_id, is_active')
+        .select('role, modules, organization_id, is_active, full_name')
         .eq('id', userId)
         .single()
 
@@ -142,6 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(superadmin ? 'administrador' : (data.role as UserRole))
         setModules(superadmin ? ALL_MODULES : ((data.modules ?? []) as AppModule[]))
         setOrganizationId(data.organization_id ?? null)
+        setFullName(data.full_name?.trim() || null)
 
         // Contraseña temporal o caducada => debe cambiarla antes de continuar
         const { data: pwd } = await supabase.rpc('get_my_password_status')
@@ -202,6 +209,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{
       user, session, role, accessModule, modules, isSuperadmin, organizationId,
+      fullName, displayName: fullName || user?.email || '',
       mustChangePassword, passwordChangeReason, refreshProfile, loading, signIn, signOut,
     }}>
       {children}

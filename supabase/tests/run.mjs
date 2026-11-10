@@ -91,11 +91,14 @@ await expectRows('movements de otro equipo no visibles', () => as('jefeB', `SELE
 console.log('\n— Prendas')
 await expectOk('operador registra lavado', () =>
   as('opA', `SELECT * FROM register_garment_action(${G}, 'lavado', 'María')`))
-let a = await one(`SELECT * FROM garment_actions WHERE performed_by = 'María'`)
-console.log(a.recorded_by === USERS.opA[0] && a.recorded_by_email === 'operador@a.test' ? '  ✔ recorded_by tomado de la sesión' : '  ✘ recorded_by incorrecto', a.recorded_by_email)
-a.recorded_by === USERS.opA[0] ? pass++ : fail++
-await expectErr('responsable vacío rechazado', () =>
-  as('opA', `SELECT * FROM register_garment_action(${G}, 'lavado', '   ')`), /RESPONSABLE/)
+let a = await one(`SELECT * FROM garment_actions WHERE recorded_by = '${USERS.opA[0]}' ORDER BY created_at DESC LIMIT 1`)
+const okRec = a && a.recorded_by_email === 'operador@a.test' && a.performed_by === 'operador@a.test' && a.recorded_by_name === 'operador@a.test'
+console.log(okRec ? '  ✔ responsable = usuario en sesión (se ignora el nombre enviado por el cliente)' : '  ✘ ' + JSON.stringify(a)); okRec ? pass++ : fail++
+await db.query(`UPDATE user_profiles SET full_name = 'María López' WHERE id = '${USERS.opA[0]}'`)
+await as('opA', `SELECT * FROM register_garment_action(${G}, 'lavado', NULL)`)
+a = await one(`SELECT * FROM garment_actions WHERE recorded_by = '${USERS.opA[0]}' ORDER BY created_at DESC LIMIT 1`)
+const okName = a.performed_by === 'María López' && a.recorded_by_name === 'María López'
+console.log(okName ? '  ✔ con nombre completo: el registro guarda el nombre del usuario' : '  ✘ ' + JSON.stringify(a)); okName ? pass++ : fail++
 await expectErr('operador NO puede dar de baja', () =>
   as('opA', `SELECT * FROM register_garment_action(${G}, 'baja', 'María', NULL, 'rota')`), /Solo jefe/)
 await expectErr('operador NO puede baja vía inspección', () =>
@@ -140,11 +143,13 @@ let sig = await one(`SELECT s.meaning, s.user_email, s.user_role, a.signature_id
   FROM electronic_signatures s JOIN garment_actions a ON a.signature_id = s.id WHERE a.action_type = 'baja'`)
 const okSig = sig && sig.linked && sig.user_email === 'jefe@a.test' && /baja/.test(sig.meaning) && sig.user_role === 'jefe'
 console.log(okSig ? `  ✔ firma ligada a la acción (quién, rol, significado: "${sig.meaning}")` : '  ✘ firma no ligada'); okSig ? pass++ : fail++
+let sigName = await one(`SELECT user_name FROM electronic_signatures ORDER BY signed_at DESC LIMIT 1`)
+console.log(sigName?.user_name === 'jefe@a.test' ? '  ✔ la firma guarda el nombre impreso del firmante' : '  ✘ ' + JSON.stringify(sigName)); sigName?.user_name ? pass++ : fail++
 await expectErr('firmas electrónicas inmutables', () => db.query(`DELETE FROM electronic_signatures`), /inmutables/)
 let g = await one(`SELECT status, baja_reason FROM garments WHERE id = ${G}`)
 console.log(g.status === 'baja' && g.baja_reason === 'Tela rota' ? '  ✔ estado y motivo de baja aplicados' : '  ✘ baja no aplicada'); g.status === 'baja' ? pass++ : fail++
 let mv = await one(`SELECT count(*)::int n FROM movements WHERE garment_id = ${G}`)
-console.log(mv.n === 3 ? '  ✔ movimientos registrados en la misma transacción' : '  ✘ movimientos: ' + mv.n); mv.n === 3 ? pass++ : fail++
+console.log(mv.n === 4 ? '  ✔ movimientos registrados en la misma transacción' : '  ✘ movimientos: ' + mv.n); mv.n === 4 ? pass++ : fail++
 await expectErr('DELETE directo de prenda no permitido', () =>
   as('jefeA', `DELETE FROM garments WHERE id = ${G}`))
 await expectErr('supervisor/operador no archiva', () =>
@@ -301,11 +306,11 @@ console.log('\n— Empresas y licencias')
     as('jefeA', `SELECT * FROM save_organization(NULL, 'Pirata', 99, ARRAY['prendas'], true, 'x')`), /superadministrador/)
 
   // Alta del administrador del cliente (solo Prendas) por el superadmin
-  let prep = (await as('admin', `SELECT admin_prepare_new_user('adminx@x.test', 'administrador', ARRAY['prendas'], '${org.id}') r`)).rows[0].r
+  let prep = (await as('admin', `SELECT admin_prepare_new_user('adminx@x.test', 'administrador', ARRAY['prendas'], '${org.id}', 'Nombre adminx') r`)).rows[0].r
   console.log(prep.ok ? '  ✔ validación previa de alta OK' : '  ✘ ' + prep.error); prep.ok ? pass++ : fail++
   await createAuthUser('55555555-5555-5555-5555-555555555555', 'adminx@x.test')
   await expectOk('superadmin completa el alta del administrador del cliente', () =>
-    as('admin', `SELECT admin_finalize_new_user('55555555-5555-5555-5555-555555555555', 'administrador', ARRAY['prendas'], '${org.id}')`))
+    as('admin', `SELECT admin_finalize_new_user('55555555-5555-5555-5555-555555555555', 'administrador', ARRAY['prendas'], '${org.id}', NULL, 'Usuario 5555')`))
 
   // Contraseña temporal: sin acceso hasta cambiarla
   let st = (await asU('adminx@x.test', `SELECT get_my_password_status() s`)).rows[0].s
@@ -324,25 +329,25 @@ console.log('\n— Empresas y licencias')
 
   // El administrador del cliente da de alta a su gente
   await expectRows('admin del cliente ve solo usuarios de su empresa', () => asU('adminx@x.test', `SELECT * FROM get_all_users()`), 1)
-  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op1@x.test', 'operador', ARRAY['mangueras'], NULL) r`)).rows[0].r
+  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op1@x.test', 'operador', ARRAY['mangueras'], NULL, 'Nombre op1') r`)).rows[0].r
   console.log(!prep.ok && /módulos que tú administras/.test(prep.error) ? '  ✔ admin de Prendas NO puede dar acceso a Mangueras' : '  ✘ ' + JSON.stringify(prep)); !prep.ok ? pass++ : fail++
-  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op1@x.test', 'operador', ARRAY['prendas'], '00000000-0000-0000-0000-0000000000b1') r`)).rows[0].r
+  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op1@x.test', 'operador', ARRAY['prendas'], '00000000-0000-0000-0000-0000000000b1', 'Nombre op1') r`)).rows[0].r
   console.log(prep.ok && prep.organization_id === org.id ? '  ✔ admin del cliente siempre crea en SU empresa (ignora otra empresa)' : '  ✘ ' + JSON.stringify(prep)); prep.ok ? pass++ : fail++
   await createAuthUser('66666666-6666-6666-6666-666666666666', 'op1@x.test')
   await expectOk('admin del cliente da de alta a un operador', () =>
-    asU('adminx@x.test', `SELECT admin_finalize_new_user('66666666-6666-6666-6666-666666666666', 'operador', ARRAY['prendas'], '${org.id}')`))
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('66666666-6666-6666-6666-666666666666', 'operador', ARRAY['prendas'], '${org.id}', NULL, 'Usuario 6666')`))
   await createAuthUser('77777777-7777-7777-7777-777777777777', 'op2@x.test')
   await expectOk('tercer usuario (llega al límite de 3)', () =>
-    asU('adminx@x.test', `SELECT admin_finalize_new_user('77777777-7777-7777-7777-777777777777', 'operador', ARRAY['prendas'], '${org.id}')`))
-  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op3@x.test', 'operador', ARRAY['prendas'], NULL) r`)).rows[0].r
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('77777777-7777-7777-7777-777777777777', 'operador', ARRAY['prendas'], '${org.id}', NULL, 'Usuario 7777')`))
+  prep = (await asU('adminx@x.test', `SELECT admin_prepare_new_user('op3@x.test', 'operador', ARRAY['prendas'], NULL, 'Nombre op3') r`)).rows[0].r
   console.log(!prep.ok && /límite de 3/.test(prep.error) ? '  ✔ cuarto usuario rechazado: límite de licencia' : '  ✘ ' + JSON.stringify(prep)); !prep.ok ? pass++ : fail++
   await createAuthUser('88888888-8888-8888-8888-888888888888', 'op3@x.test')
   await expectErr('la base rechaza el 4º aunque se salte la validación previa', () =>
-    asU('adminx@x.test', `SELECT admin_finalize_new_user('88888888-8888-8888-8888-888888888888', 'operador', ARRAY['prendas'], '${org.id}')`), /límite/)
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('88888888-8888-8888-8888-888888888888', 'operador', ARRAY['prendas'], '${org.id}', NULL, 'Usuario 8888')`), /límite/)
   await expectOk('desactivar a uno libera un lugar', () =>
     asU('adminx@x.test', `SELECT set_user_active('77777777-7777-7777-7777-777777777777', false, 'Salió de la empresa')`))
   await expectOk('ahora sí entra el nuevo usuario', () =>
-    asU('adminx@x.test', `SELECT admin_finalize_new_user('88888888-8888-8888-8888-888888888888', 'operador', ARRAY['prendas'], '${org.id}')`))
+    asU('adminx@x.test', `SELECT admin_finalize_new_user('88888888-8888-8888-8888-888888888888', 'operador', ARRAY['prendas'], '${org.id}', NULL, 'Usuario 8888')`))
   await expectErr('reactivar al que salió excede la licencia', () =>
     asU('adminx@x.test', `SELECT set_user_active('77777777-7777-7777-7777-777777777777', true, 'Regresó')`), /límite/)
   await expectErr('superadmin no puede reducir la licencia por debajo de los activos', () =>
@@ -374,6 +379,20 @@ console.log('\n— Empresas y licencias')
   st = (await asU('adminx@x.test', `SELECT get_my_password_status() s`)).rows[0].s
   console.log(st.must_change && st.reason === 'expirada' ? '  ✔ contraseña de más de 90 días caduca' : '  ✘ ' + JSON.stringify(st)); st.must_change ? pass++ : fail++
   await expectRows('con contraseña caducada NO ve datos', () => asU('adminx@x.test', `SELECT * FROM garments`), 0)
+}
+
+console.log('\n— Nombre completo')
+{
+  const r = (await as('admin', `SELECT admin_prepare_new_user('sinnombre@x.test', 'operador', ARRAY['prendas'], (SELECT id FROM organizations WHERE name = 'Cliente X'), NULL) r`)).rows[0].r
+  console.log(!r.ok && /nombre completo/.test(r.error) ? '  ✔ alta sin nombre completo rechazada' : '  ✘ ' + JSON.stringify(r)); !r.ok ? pass++ : fail++
+}
+await expectOk('usuario sin nombre puede registrar el suyo una vez', () => as('jefeB', `SELECT set_my_full_name('Juan Pérez')`))
+await expectErr('después ya no puede cambiarlo él mismo', () => as('jefeB', `SELECT set_my_full_name('Otro Nombre')`), /administrador/)
+await expectOk('el superadmin puede corregir el nombre', () => as('admin', `SELECT update_user_full_name('${USERS.jefeB[0]}', 'Juan Pérez García')`))
+await expectErr('un jefe no cambia nombres de otros', () => as('jefeA', `SELECT update_user_full_name('${USERS.opA[0]}', 'X Y Z')`), /administrar/)
+{
+  const nm = await one(`SELECT full_name FROM user_profiles WHERE id = '${USERS.jefeB[0]}'`)
+  console.log(nm.full_name === 'Juan Pérez García' ? '  ✔ nombre actualizado' : '  ✘ ' + nm.full_name); nm.full_name === 'Juan Pérez García' ? pass++ : fail++
 }
 
 console.log(`\nResultado: ${pass} OK, ${fail} fallas`)

@@ -5,6 +5,7 @@ import type { Team, Organization } from '../types'
 export interface UserProfile {
   id: string
   email: string
+  full_name: string | null
   role: UserRole
   team_id: string | null
   access_module: AccessModule
@@ -63,6 +64,18 @@ export const userService = {
     return data.success ?? false
   },
 
+  // Nombre completo (nombre impreso en registros y firmas)
+  async updateUserFullName(userId: string, fullName: string): Promise<void> {
+    const { error } = await supabase.rpc('update_user_full_name', { p_user_id: userId, p_full_name: fullName })
+    if (error) throw error
+  },
+
+  // El propio usuario registra su nombre si aún no lo tiene
+  async setMyFullName(fullName: string): Promise<void> {
+    const { error } = await supabase.rpc('set_my_full_name', { p_full_name: fullName })
+    if (error) throw error
+  },
+
   // Módulos del usuario (solo dentro de los que administra quien los asigna)
   async updateUserModules(userId: string, modules: AppModule[]): Promise<void> {
     const { error } = await supabase.rpc('update_user_modules', { p_user_id: userId, p_modules: modules })
@@ -72,6 +85,7 @@ export const userService = {
   // Alta de usuario (Edge Function admin-users): devuelve la contraseña temporal
   async createUser(input: {
     email: string
+    fullName: string
     role: Exclude<UserRole, never>
     modules: AppModule[]
     organizationId?: string | null
@@ -81,6 +95,7 @@ export const userService = {
       body: {
         action: 'create',
         email: input.email,
+        full_name: input.fullName,
         role: input.role,
         modules: input.modules,
         organization_id: input.organizationId ?? null,

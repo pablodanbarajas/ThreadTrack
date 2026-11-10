@@ -6,6 +6,7 @@ import {
 import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
+import RecordedBy from '../components/RecordedBy'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { StatusDot } from '../components/ui/StatusBadge'
@@ -29,7 +30,6 @@ interface PersistedBatchState {
   selectedAction: ActionType
   inspectionResult: InspectionResult
   notes: string
-  responsible: string
   cameraScanCount: number
   done: boolean
 }
@@ -41,7 +41,6 @@ const defaultBatchState: PersistedBatchState = {
   selectedAction: 'lavado',
   inspectionResult: 'aprobado',
   notes: '',
-  responsible: '',
   cameraScanCount: 0,
   done: false,
 }
@@ -65,7 +64,6 @@ const getStoredBatchState = (): PersistedBatchState => {
       selectedAction: isActionType(parsed.selectedAction) ? parsed.selectedAction : defaultBatchState.selectedAction,
       inspectionResult: isInspectionResult(parsed.inspectionResult) ? parsed.inspectionResult : defaultBatchState.inspectionResult,
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
-      responsible: typeof parsed.responsible === 'string' ? parsed.responsible : '',
       cameraScanCount: typeof parsed.cameraScanCount === 'number' ? parsed.cameraScanCount : 0,
       done: typeof parsed.done === 'boolean' ? parsed.done : false,
     }
@@ -91,7 +89,6 @@ const BatchActions = () => {
   const [selectedAction, setSelectedAction] = useState<ActionType>(storedBatchState.selectedAction)
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>(storedBatchState.inspectionResult)
   const [notes, setNotes] = useState(storedBatchState.notes)
-  const [responsible, setResponsible] = useState(storedBatchState.responsible)
 
   const [applying, setApplying] = useState(false)
   const [signaturePassword, setSignaturePassword] = useState('') // nunca se guarda en sessionStorage
@@ -125,12 +122,11 @@ const BatchActions = () => {
       selectedAction,
       inspectionResult,
       notes,
-      responsible,
       cameraScanCount,
       done,
     }
     sessionStorage.setItem(BATCH_ACTIONS_STORAGE_KEY, JSON.stringify(state))
-  }, [items, selectedAction, inspectionResult, notes, responsible, cameraScanCount, done])
+  }, [items, selectedAction, inspectionResult, notes, cameraScanCount, done])
 
   const resolveGarmentFromCode = useCallback(async (raw: string) => {
     const trimmed = raw.trim()
@@ -204,7 +200,6 @@ const BatchActions = () => {
   const reset = () => {
     setItems([])
     setNotes('')
-    setResponsible('')
     setDone(false)
     setInputValue('')
     setCameraScanCount(0)
@@ -217,7 +212,7 @@ const BatchActions = () => {
   const signatureMeaning = garmentSignatureMeaning(selectedAction, selectedAction === 'inspeccion' ? inspectionResult : undefined)
 
   const applyToAll = async () => {
-    if (pendingCount === 0 || !responsible.trim()) return
+    if (pendingCount === 0) return
     setApplying(true)
     setDone(false)
 
@@ -241,7 +236,6 @@ const BatchActions = () => {
         await garmentService.registerAction(item.garmentId, selectedAction, {
           result: selectedAction === 'inspeccion' ? inspectionResult : undefined,
           notes: notes || undefined,
-          responsible,
           signatureToken,
         })
         setItems(prev =>
@@ -458,20 +452,9 @@ const BatchActions = () => {
 
         </div>
 
-        {/* ── RIGHT: responsible + notes + apply ── */}
+        {/* ── RIGHT: notes + apply ── */}
         <div className="space-y-3">
-          {/* Responsable */}
-          <div className="card">
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Responsable *</label>
-            <input
-              type="text"
-              value={responsible}
-              onChange={e => setResponsible(e.target.value)}
-              className="input-field text-sm"
-              placeholder="Nombre de quien ejecuta la acción"
-              disabled={applying}
-            />
-          </div>
+          <RecordedBy />
 
           {/* Notes */}
           <div className="card">
@@ -500,7 +483,7 @@ const BatchActions = () => {
           {/* Apply button */}
           <button
             onClick={applyToAll}
-            disabled={applying || pendingCount === 0 || !responsible.trim() || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes) || (!!signatureMeaning && !signaturePassword)}
+            disabled={applying || pendingCount === 0 || (selectedAction === 'inspeccion' && inspectionResult === 'baja' && !notes) || (!!signatureMeaning && !signaturePassword)}
             className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-bold text-base transition-all shadow-sm ${
               applying || pendingCount === 0
                 ? 'bg-gray-200 text-gray-400 cursor-not-allowed'

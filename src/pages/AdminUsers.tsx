@@ -55,6 +55,7 @@ const AdminUsers = () => {
   // Alta de usuario
   const [showNewUser, setShowNewUser] = useState(false)
   const [newEmail, setNewEmail] = useState('')
+  const [newFullName, setNewFullName] = useState('')
   const [newRole, setNewRole] = useState<UserRole>('operador')
   const [newModules, setNewModules] = useState<AppModule[]>([])
   const [newTeamId, setNewTeamId] = useState('')
@@ -121,11 +122,12 @@ const AdminUsers = () => {
     try {
       const email = newEmail.trim().toLowerCase()
       const res = await userService.createUser({
-        email, role: newRole, modules: newModules, organizationId: selectedOrgId, teamId: newTeamId || null,
+        email, fullName: newFullName.trim(), role: newRole, modules: newModules, organizationId: selectedOrgId, teamId: newTeamId || null,
       })
       setTempPassword({ email, password: res.temporaryPassword, isNew: true })
       setShowNewUser(false)
       setNewEmail('')
+      setNewFullName('')
       setNewModules([])
       setNewTeamId('')
       await loadAll()
@@ -154,6 +156,19 @@ const AdminUsers = () => {
     } finally {
       setBusy(null)
     }
+  }
+
+  const handleEditName = async (u: UserProfile) => {
+    const name = await feedback.prompt({
+      title: `Nombre completo de ${u.email}`,
+      message: 'Es el nombre que aparece en los registros, firmas electrónicas y reportes.',
+      label: 'Nombre completo',
+      placeholder: u.full_name ?? 'Nombre y apellidos',
+      required: true,
+      confirmLabel: 'Guardar',
+    })
+    if (!name) return
+    run(u.id, () => userService.updateUserFullName(u.id, name), 'Nombre actualizado')
   }
 
   const handleToggleActive = async (u: UserProfile) => {
@@ -313,6 +328,10 @@ const AdminUsers = () => {
           </div>
           {showNewUser && (
             <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-gray-700">Nombre completo
+                <input value={newFullName} onChange={(e) => setNewFullName(e.target.value)} className="input-field mt-1" placeholder="Nombre y apellidos" />
+                <span className="mt-0.5 block text-xs text-gray-400">Aparece en los registros, firmas y reportes.</span>
+              </label>
               <label className="text-sm text-gray-700">Correo
                 <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="input-field mt-1" placeholder="nombre@empresa.com" />
               </label>
@@ -336,7 +355,7 @@ const AdminUsers = () => {
                 Se generará una contraseña temporal. El usuario deberá cambiarla en su primer acceso; nadie más conocerá su contraseña definitiva.
               </p>
               <div className="sm:col-span-2 flex gap-2">
-                <button onClick={handleCreateUser} disabled={busy === 'new-user' || !newEmail.trim() || newModules.length === 0}
+                <button onClick={handleCreateUser} disabled={busy === 'new-user' || !newEmail.trim() || newFullName.trim().length < 3 || newModules.length === 0}
                   className="btn-primary text-sm flex items-center gap-1 disabled:opacity-50">
                   {busy === 'new-user' && <Loader2 className="w-4 h-4 animate-spin" />} Crear usuario
                 </button>
@@ -358,7 +377,11 @@ const AdminUsers = () => {
           return (
             <div key={u.id} className={`rounded-xl border border-gray-200 bg-white p-4 flex flex-col lg:flex-row lg:items-center gap-3 ${u.is_active ? '' : 'opacity-60'}`}>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-800 break-words">{u.email}{isMe && ' (tú)'}</div>
+                <div className="font-semibold text-gray-900 break-words">
+                  {u.full_name || <span className="font-normal italic text-amber-700">Sin nombre registrado</span>}
+                  {isMe && <span className="font-normal text-gray-400"> (tú)</span>}
+                </div>
+                <div className="text-sm text-gray-500 break-words">{u.email}</div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap text-xs">
                   <span className={`px-2 py-0.5 rounded-full font-medium ${badge.color}`}>{badge.label}</span>
                   {u.modules.map((m) => <span key={m} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">{moduleLabels[m]}</span>)}
@@ -395,6 +418,9 @@ const AdminUsers = () => {
                       {orgTeams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                   )}
+                  <button onClick={() => handleEditName(u)} disabled={disabled} className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg disabled:opacity-50" title="Corregir nombre">
+                    <Pencil className="w-4 h-4" />
+                  </button>
                   <button onClick={() => handleResetPassword(u)} disabled={disabled} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg disabled:opacity-50" title="Restablecer contraseña">
                     <KeyRound className="w-4 h-4" />
                   </button>

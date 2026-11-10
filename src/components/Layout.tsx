@@ -7,6 +7,9 @@ import {
 } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
 import { APP_VERSION } from '../version'
+import { useFeedback } from './ui/feedback-context'
+import { Notice } from './ui/StatusBadge'
+import { userService } from '../services/userService'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 interface NavItem {
@@ -34,7 +37,8 @@ const readCollapsed = () => {
 
 const Layout = () => {
   const location = useLocation()
-  const { user, signOut, role, isSuperadmin } = useAuth()
+  const { user, signOut, role, isSuperadmin, displayName, fullName, refreshProfile } = useAuth()
+  const feedback = useFeedback()
   const { canViewPrendas, canViewMangueras, canViewReports, canCreateGarment } = useRole()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -71,6 +75,26 @@ const Layout = () => {
     }] : []),
   ]
 
+  // Usuarios existentes sin nombre completo: lo registran una vez
+  const askFullName = async () => {
+    const name = await feedback.prompt({
+      title: 'Registra tu nombre completo',
+      message: 'Aparecerá en tus registros, firmas electrónicas y reportes. Después solo el administrador podrá cambiarlo.',
+      label: 'Nombre completo',
+      placeholder: 'Nombre y apellidos',
+      required: true,
+      confirmLabel: 'Guardar',
+    })
+    if (!name) return
+    try {
+      await userService.setMyFullName(name)
+      await refreshProfile()
+      feedback.success('Nombre registrado')
+    } catch (err) {
+      feedback.error((err as Error).message || 'No se pudo guardar el nombre')
+    }
+  }
+
   const isActive = (item: NavItem) =>
     location.pathname === item.path || (item.match ?? []).some((m) => location.pathname.startsWith(m))
 
@@ -105,12 +129,13 @@ const Layout = () => {
         {/* Usuario */}
         <div className={`border-b border-white/10 ${compact ? 'flex justify-center py-3' : 'px-4 py-3'}`}>
           {compact ? (
-            <span title={`${user?.email} · ${roleLabel}`}><UserCircle className="h-5 w-5 text-slate-400" /></span>
+            <span title={`${displayName} · ${roleLabel}`}><UserCircle className="h-5 w-5 text-slate-400" /></span>
           ) : (
             <div className="flex items-center gap-2 min-w-0">
               <UserCircle className="h-5 w-5 shrink-0 text-slate-400" />
               <div className="min-w-0">
-                <p className="truncate text-xs text-slate-200">{user?.email}</p>
+                <p className="truncate text-sm font-medium text-white">{displayName}</p>
+                {displayName !== user?.email && <p className="truncate text-[11px] text-slate-400">{user?.email}</p>}
                 <span className="mt-0.5 inline-block rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-slate-200">
                   {roleLabel}
                 </span>
@@ -204,6 +229,16 @@ const Layout = () => {
       {/* Contenido */}
       <main className={`transition-[padding] duration-200 ${collapsed ? 'md:pl-[72px]' : 'md:pl-64'}`}>
         <div className="mx-auto w-full max-w-7xl px-4 py-6 md:px-8">
+          {user && !fullName && (
+            <Notice
+              tone="warning"
+              title="Falta tu nombre completo"
+              className="mb-5"
+              action={<button onClick={askFullName} className="btn-primary shrink-0 py-1.5 text-sm">Registrar nombre</button>}
+            >
+              Es necesario para que tus registros y firmas electrónicas muestren tu nombre impreso.
+            </Notice>
+          )}
           <Outlet />
         </div>
       </main>

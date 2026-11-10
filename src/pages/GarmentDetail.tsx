@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom'
 import { AlertCircle, Home, ArrowLeft, Droplets, Scissors, ClipboardCheck, PackageX, PackageCheck, X, Pencil, ShieldCheck, FileSpreadsheet } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
+import ActionAuthor from '../components/ActionAuthor'
+import RecordedBy from '../components/RecordedBy'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { documentService } from '../services/documentService'
@@ -39,7 +41,6 @@ const GarmentDetail = () => {
   const [actionType, setActionType] = useState<ActionType>('lavado')
   const [inspectionResult, setInspectionResult] = useState<InspectionResult>('aprobado')
   const [actionNotes, setActionNotes] = useState('')
-  const [actionResponsible, setActionResponsible] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [signaturePassword, setSignaturePassword] = useState('')
@@ -107,7 +108,6 @@ const GarmentDetail = () => {
   const openActionModal = (type: ActionType) => {
     setActionType(type)
     setActionNotes('')
-    setActionResponsible('')
     setInspectionResult('aprobado')
     setActionError(null)
     setSignaturePassword('')
@@ -163,7 +163,6 @@ const GarmentDetail = () => {
       await garmentService.registerAction(garment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
-        responsible: actionResponsible,
         signatureToken,
       })
       invalidateGarments()
@@ -461,15 +460,13 @@ const GarmentDetail = () => {
                       {action.notes && (
                         <p className="text-xs text-gray-500">Notas: {action.notes}</p>
                       )}
-                      {action.performed_by && (
-                        <p className="text-xs text-gray-500">Responsable: {action.performed_by}</p>
-                      )}
-                      {action.recorded_by_email && (
-                        <p className="text-xs text-gray-400">Capturó: {action.recorded_by_email}</p>
-                      )}
-                      {action.signature_id && (
-                        <p className="text-xs text-blue-600 font-medium">Firmado electrónicamente</p>
-                      )}
+                      <ActionAuthor
+                        performedBy={action.performed_by}
+                        recordedByName={action.recorded_by_name}
+                        recordedByEmail={action.recorded_by_email}
+                        signed={!!action.signature_id}
+                        className="mt-1"
+                      />
                     </div>
                   ))}
                 </div>
@@ -724,16 +721,7 @@ const GarmentDetail = () => {
               </div>
             )}
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
-              <input
-                type="text"
-                value={actionResponsible}
-                onChange={(e) => setActionResponsible(e.target.value)}
-                className="input-field"
-                placeholder="Nombre de quien ejecuta la acción"
-              />
-            </div>
+            <RecordedBy className="mb-4" />
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -764,7 +752,7 @@ const GarmentDetail = () => {
               <button
                 onClick={handleAction}
                 className="btn-primary flex-1"
-                disabled={actionLoading || !actionResponsible.trim() || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes) || (!!signatureMeaning && !signaturePassword)}
+                disabled={actionLoading || (actionType === 'inspeccion' && inspectionResult === 'baja' && !actionNotes) || (!!signatureMeaning && !signaturePassword)}
               >
                 {actionLoading ? 'Guardando...' : signatureMeaning ? 'Firmar y confirmar' : 'Confirmar'}
               </button>
