@@ -454,6 +454,41 @@ console.log('\n— Consultas paginadas')
   await db.query(`INSERT INTO equipment (id, code, name, team_id) VALUES ('eeeeeeee-0000-0000-0000-000000000002', 'EQ-B2', 'Equipo dos', '00000000-0000-0000-0000-0000000000a1')`)
   rows = await page(`SELECT * FROM list_equipment(NULL, 10, 0)`)
   console.log(rows.length >= 1 && Array.isArray(rows[0].positions) ? `  ✔ equipos paginados con posiciones (${rows.length}, total ${rows[0].total_count})` : '  ✘ ' + JSON.stringify(rows[0])); rows.length >= 1 ? pass++ : fail++
+
+  // Mangueras: alta, filtros, totales, estado a una fecha e importación
+  await expectErr('operador no crea productos de mangueras', () =>
+    as('opA', `SELECT create_equipment('EQ-OP', 'No', ARRAY['1/2"'])`), /Sin permisos/)
+  await expectErr('calibres repetidos rechazados', () =>
+    as('jefeA', `SELECT create_equipment('EQ-R', 'Rep', ARRAY['1/2"', '1/2"'])`), /repetir/)
+  const eqNew = (await as('jefeA', `SELECT create_equipment('EQ-N', 'Nuevo', ARRAY['1/2"', '3/4"'], NULL, ARRAY['6m', '']) r`)).rows[0].r
+  await expectErr('código de producto duplicado', () =>
+    as('jefeA', `SELECT create_equipment('EQ-N', 'Otro', ARRAY['1'])`), /Ya existe/)
+  const nh2 = (await one(`SELECT h.id FROM hoses h JOIN hose_positions p ON p.id = h.position_id WHERE p.equipment_id = '${eqNew.id}' AND p.caliber = '1/2"'`)).id
+  await db.query(`UPDATE hoses SET current_cycle = 120 WHERE id = '${nh2}'`)
+  await as('opA', `SELECT * FROM register_hose_action('${nh2}', 'uso', 'x')`)
+  rows = await page(`SELECT * FROM list_equipment(p_life => ARRAY['naranja'])`)
+  const okHl = rows.length === 1 && rows[0].code === 'EQ-N' && rows[0].max_cycle === 121
+  console.log(okHl ? '  ✔ filtro de vida útil de mangueras (naranja, 121 ciclos)' : '  ✘ ' + JSON.stringify(rows.map((r) => [r.code, r.max_cycle]))); okHl ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_equipment(p_caliber => '3/4"')`)
+  console.log(rows.length === 1 && rows[0].code === 'EQ-N' ? '  ✔ filtro por calibre' : '  ✘ ' + rows.length); rows.length === 1 ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_equipment(p_sort => 'ciclos')`)
+  console.log(rows[0]?.code === 'EQ-N' ? '  ✔ orden por más ciclos' : '  ✘ ' + rows[0]?.code); rows[0]?.code === 'EQ-N' ? pass++ : fail++
+  rows = await page(`SELECT * FROM list_equipment(p_attention => true)`)
+  console.log(rows.length === 1 && rows[0].code === 'EQ-B2' ? '  ✔ equipos que requieren atención (sin manguera activa)' : '  ✘ ' + JSON.stringify(rows.map((r) => r.code))); rows.length === 1 ? pass++ : fail++
+  const cal = (await as('jefeA', `SELECT array_agg(c) a FROM hose_calibers() c`)).rows[0].a
+  console.log(cal?.includes('3/4"') ? '  ✔ catálogo de calibres' : '  ✘ ' + JSON.stringify(cal)); cal?.includes('3/4"') ? pass++ : fail++
+  const hst = (await as('jefeA', `SELECT hose_stats() s`)).rows[0].s
+  const okHst = hst.active >= 2 && hst.life.naranja === 1 && hst.uses_30d >= 1
+  console.log(okHst ? `  ✔ totales de mangueras (activas ${hst.active}, naranja ${hst.life.naranja}, usos 30 días ${hst.uses_30d})` : '  ✘ ' + JSON.stringify(hst)); okHst ? pass++ : fail++
+  await expectRows('otra empresa no ve productos ajenos', () => as('jefeB', `SELECT * FROM list_equipment(p_search => 'EQ-N')`), 0)
+  rows = await page(`SELECT * FROM get_hose_status_at(now())`)
+  const st1 = rows.find((r) => r.equipment_code === 'EQ-N' && r.caliber === '1/2"')
+  console.log(st1?.status_at === 'Activa' && st1?.cycles_at === 121 ? '  ✔ estado de mangueras a una fecha (ciclos del historial)' : '  ✘ ' + JSON.stringify(st1)); st1 ? pass++ : fail++
+  rows = await page(`SELECT * FROM get_hose_status_at(now() - interval '10 years')`)
+  console.log(rows.length === 0 ? '  ✔ antes de instalarse no aparecen' : '  ✘ ' + rows.length); rows.length === 0 ? pass++ : fail++
+  await expectErr('operador no consulta estado histórico de mangueras', () => as('opA', `SELECT * FROM get_hose_status_at(now())`), /Sin permisos/)
+  const exE = (await as('jefeA', `SELECT array_agg(c) a FROM existing_equipment_codes(ARRAY['EQ-N', 'NUEVO-1']) c`)).rows[0].a
+  console.log(JSON.stringify(exE) === '["EQ-N"]' ? '  ✔ detecta productos ya existentes para importar' : '  ✘ ' + JSON.stringify(exE)); exE ? pass++ : fail++
 }
 
 console.log(`\nResultado: ${pass} OK, ${fail} fallas`)

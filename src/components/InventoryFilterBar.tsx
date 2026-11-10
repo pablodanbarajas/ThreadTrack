@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
 import { SlidersHorizontal, X, ChevronDown } from 'lucide-react'
-import type { GarmentSort } from '../types'
 import { StatusDot } from './ui/StatusBadge'
 import type { IndicatorTone } from '../lib/tones'
 
-const statusChips: { value: string; label: string; tone?: IndicatorTone }[] = [
+export interface FilterChip { value: string; label: string; tone?: IndicatorTone }
+export interface SortOption { value: string; label: string }
+
+const garmentChips: FilterChip[] = [
   { value: 'all', label: 'Todas' },
   { value: 'disponible', label: 'Disponibles', tone: 'green' },
   { value: 'lavado', label: 'En lavado', tone: 'blue' },
@@ -13,7 +15,7 @@ const statusChips: { value: string; label: string; tone?: IndicatorTone }[] = [
   { value: 'baja', label: 'Bajas', tone: 'red' },
 ]
 
-const sortOptions: { value: GarmentSort; label: string }[] = [
+const garmentSortOptions: SortOption[] = [
   { value: 'recientes', label: 'Más recientes' },
   { value: 'ciclos', label: 'Más ciclos de lavado' },
   { value: 'inactividad', label: 'Más tiempo sin actividad' },
@@ -30,8 +32,12 @@ export const FilterField = ({ label, children, className = '' }: { label: string
 interface Props {
   status: string
   onStatus: (s: string) => void
-  sort: GarmentSort
-  onSort: (s: GarmentSort) => void
+  sort: string
+  onSort: (s: string) => void
+  /** Opciones de la fila de chips (por defecto: estados de prenda) */
+  chips?: FilterChip[]
+  chipsLabel?: string
+  sortOptions?: SortOption[]
   open: boolean
   onToggle: () => void
   activeCount: number
@@ -41,11 +47,11 @@ interface Props {
 }
 
 /** Barra de filtros del inventario: estado a la vista, el resto en un panel */
-const InventoryFilterBar = ({ status, onStatus, sort, onSort, open, onToggle, activeCount, onClear, canClear, children }: Props) => (
+const InventoryFilterBar = ({ status, onStatus, sort, onSort, open, onToggle, activeCount, onClear, canClear, children, chips = garmentChips, chipsLabel = 'Estado', sortOptions = garmentSortOptions }: Props) => (
   <div className="mt-3 border-t border-gray-100 pt-3">
     <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Estado">
-        {statusChips.map((c) => {
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={chipsLabel}>
+        {chips.map((c) => {
           const on = status === c.value
           return (
             <button
@@ -69,7 +75,7 @@ const InventoryFilterBar = ({ status, onStatus, sort, onSort, open, onToggle, ac
         <select
           aria-label="Ordenar por"
           value={sort}
-          onChange={(e) => onSort(e.target.value as GarmentSort)}
+          onChange={(e) => onSort(e.target.value)}
           className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm"
         >
           {sortOptions.map((o) => <option key={o.value} value={o.value}>Ordenar: {o.label}</option>)}

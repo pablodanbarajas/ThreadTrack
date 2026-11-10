@@ -53,7 +53,7 @@ const ProtectedRoute = ({ children, requiredRole, requiredModule }: ProtectedRou
   // (también aplica a administradores: cada uno administra solo sus módulos)
   if (requiredModule && !isSuperadmin && !modules.includes(requiredModule)) {
     if (requiredModule === 'prendas' && modules.includes('mangueras')) {
-      return <Navigate to="/mangueras" replace />
+      return <Navigate to="/mangueras/inicio" replace />
     }
     if (requiredModule === 'mangueras' && modules.includes('prendas')) {
       return <Navigate to="/" replace />

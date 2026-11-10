@@ -625,7 +625,7 @@ const Inventory = () => {
 
         <InventoryFilterBar
           status={filterStatus} onStatus={setFilterStatus}
-          sort={sortBy} onSort={setSortBy}
+          sort={sortBy} onSort={(v) => setSortBy(v as GarmentSort)}
           open={showFilters} onToggle={() => setShowFilters((v) => !v)}
           activeCount={panelFilterCount}
           onClear={clearFilters}

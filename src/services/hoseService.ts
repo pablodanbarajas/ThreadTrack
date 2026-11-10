@@ -7,29 +7,82 @@ import type {
   HoseActionType,
   HosePosition,
   HosePositionWithDetails,
+  EquipmentListItem,
+  EquipmentListFilters,
+  HoseStats,
+  Paged,
 } from '../types'
 
 export const hoseService = {
-  // Equipos paginados con posiciones y mangueras en una sola consulta
-  async listEquipment(search: string, page: number, pageSize: number): Promise<{ rows: (Equipment & { positions: HosePositionWithDetails[] })[]; total: number }> {
+  // Productos paginados y filtrados en el servidor, con posiciones y mangueras
+  async listEquipment(filters: EquipmentListFilters, page: number, pageSize: number): Promise<Paged<EquipmentListItem>> {
     const { data, error } = await supabase.rpc('list_equipment', {
-      p_search: search.trim() || null,
+      p_search: filters.search?.trim() || null,
       p_limit: pageSize,
       p_offset: (page - 1) * pageSize,
+      p_caliber: filters.caliber || null,
+      p_life: filters.life?.length ? filters.life : null,
+      p_idle_days: filters.idleDays || null,
+      p_attention: !!filters.attention,
+      p_sort: filters.sort || 'recientes',
     })
     if (error) throw error
-    const rows = (data || []).map((r: any) => ({ ...r, positions: (r.positions || []) as HosePositionWithDetails[] }))
-    return { rows, total: rows.length ? Number((data as any[])[0].total_count) : 0 }
+    const list = (data || []) as (EquipmentListItem & { total_count: number })[]
+    const rows = list.map((r) => ({ ...r, positions: (r.positions || []) as HosePositionWithDetails[] }))
+    return { rows, total: list.length ? Number(list[0].total_count) : 0 }
   },
 
-  async listAllEquipment(search = ''): Promise<(Equipment & { positions: HosePositionWithDetails[] })[]> {
-    const all: (Equipment & { positions: HosePositionWithDetails[] })[] = []
+  async listAllEquipment(filters: EquipmentListFilters = {}): Promise<EquipmentListItem[]> {
+    const all: EquipmentListItem[] = []
     for (let page = 1; ; page++) {
-      const { rows, total } = await this.listEquipment(search, page, 500)
+      const { rows, total } = await this.listEquipment(filters, page, 500)
       all.push(...rows)
       if (all.length >= total || rows.length === 0) break
     }
     return all
+  },
+
+  // Historial de varias mangueras en pocas consultas (para exportar sin N+1)
+  async getActionsForHoses(hoseIds: string[]): Promise<Record<string, HoseAction[]>> {
+    const out: Record<string, HoseAction[]> = {}
+    for (let i = 0; i < hoseIds.length; i += 200) {
+      const chunk = hoseIds.slice(i, i + 200)
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from('hose_actions')
+          .select('*')
+          .in('hose_id', chunk)
+          .order('created_at', { ascending: false })
+          .range(from, from + 999)
+        if (error) throw error
+        for (const a of (data || []) as HoseAction[]) (out[a.hose_id] ??= []).push(a)
+        if (!data || data.length < 1000) break
+      }
+    }
+    return out
+  },
+
+  async calibers(): Promise<string[]> {
+    const { data, error } = await supabase.rpc('hose_calibers')
+    if (error) throw error
+    return (data || []) as string[]
+  },
+
+  async stats(): Promise<HoseStats> {
+    const { data, error } = await supabase.rpc('hose_stats')
+    if (error) throw error
+    return data as HoseStats
+  },
+
+  // Códigos de producto que ya existen (para validar una importación)
+  async existingCodes(codes: string[]): Promise<Set<string>> {
+    const found = new Set<string>()
+    for (let i = 0; i < codes.length; i += 500) {
+      const { data, error } = await supabase.rpc('existing_equipment_codes', { p_codes: codes.slice(i, i + 500) })
+      if (error) throw error
+      for (const c of (data || []) as string[]) found.add(c)
+    }
+    return found
   },
 
   // Obtener todos los equipos

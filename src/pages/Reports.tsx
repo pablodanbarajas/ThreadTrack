@@ -10,7 +10,7 @@ import { historyReportService, startOfDay, endOfDay } from '../services/historyR
 const today = () => new Date().toISOString().slice(0, 10)
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10)
 
-type Job = 'status' | 'actions' | 'hoses' | 'audit' | 'access'
+type Job = 'status' | 'hoseStatus' | 'actions' | 'hoses' | 'audit' | 'access'
 
 interface RangeReport {
   job: Job
@@ -62,6 +62,19 @@ const Reports = () => {
     </button>
   )
 
+  const pointReports: { job: Job; icon: LucideIcon; title: string; description: string; tone: IndicatorTone; run: (atIso: string, email: string) => Promise<number> }[] = [
+    ...(canViewPrendas ? [{
+      job: 'status' as Job, icon: CalendarClock, title: 'Estado del inventario de prendas', tone: 'green' as IndicatorTone,
+      description: 'Estado de cada prenda y ciclos de lavado/esterilización acumulados.',
+      run: historyReportService.exportInventoryStatusAt.bind(historyReportService),
+    }] : []),
+    ...(canViewMangueras ? [{
+      job: 'hoseStatus' as Job, icon: CalendarClock, title: 'Estado de las mangueras', tone: 'green' as IndicatorTone,
+      description: 'Estado de cada manguera (activa, reemplazada o baja) y ciclos de uso acumulados, por producto y calibre.',
+      run: historyReportService.exportHoseStatusAt.bind(historyReportService),
+    }] : []),
+  ]
+
   const rangeReports: RangeReport[] = [
     ...(canViewPrendas ? [{
       job: 'actions' as Job, icon: History, title: 'Historial de acciones de prendas', tone: 'blue' as IndicatorTone,
@@ -96,28 +109,41 @@ const Reports = () => {
         </p>
       </div>
 
-      {/* Reporte a una fecha */}
-      {canViewPrendas && (
-        <section className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
-          <div className="flex min-w-0 flex-1 items-start gap-3">
-            <IconTile icon={CalendarClock} tone="green" />
-            <div className="min-w-0">
-              <h2 className="font-semibold text-gray-900">Estado del inventario en una fecha</h2>
-              <p className="text-sm text-gray-500">Estado de cada prenda y ciclos acumulados al cierre del día elegido.</p>
+      {/* Reportes a una fecha */}
+      {pointReports.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="card-header flex-col md:flex-row md:items-center">
+            <div>
+              <h2 className="font-semibold text-gray-900">Estado a una fecha</h2>
+              <p className="text-xs text-gray-500">Reconstruido del historial al cierre del día elegido.</p>
             </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              Fecha
+              <input
+                type="date"
+                aria-label="Fecha del reporte"
+                value={statusDate}
+                max={today()}
+                onChange={(e) => setStatusDate(e.target.value)}
+                className="input-field w-auto bg-white py-1.5 text-sm"
+              />
+            </label>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              aria-label="Fecha del reporte"
-              value={statusDate}
-              max={today()}
-              onChange={(e) => setStatusDate(e.target.value)}
-              className="input-field w-auto py-1.5 text-sm"
-            />
-            <ExportButton job="status" disabled={!statusDate}
-              onClick={() => run('status', () => historyReportService.exportInventoryStatusAt(endOfDay(statusDate), email))} />
-          </div>
+          <ul className="divide-y divide-gray-100">
+            {pointReports.map((r) => (
+              <li key={r.job} className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <IconTile icon={r.icon} tone={r.tone} />
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-900">{r.title}</p>
+                    <p className="text-sm text-gray-500">{r.description}</p>
+                  </div>
+                </div>
+                <ExportButton job={r.job} disabled={!statusDate}
+                  onClick={() => run(r.job, () => r.run(endOfDay(statusDate), email))} />
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

@@ -240,6 +240,37 @@ export interface Paged<T> {
   total: number
 }
 
+/** Producto de mangueras en una lista: indicadores calculados en la base */
+export interface EquipmentListItem extends Equipment {
+  positions: HosePositionWithDetails[]
+  max_cycle: number
+  life_status: LifeStatus
+  last_action_at?: string | null
+  needs_attention: boolean
+}
+
+export type EquipmentSort = 'recientes' | 'ciclos' | 'codigo' | 'inactividad'
+
+export interface EquipmentListFilters {
+  search?: string
+  caliber?: string | null
+  life?: LifeStatus[]
+  idleDays?: number | null
+  attention?: boolean
+  sort?: EquipmentSort
+}
+
+export interface HoseStats {
+  equipment: number
+  positions: number
+  active: number
+  without_hose: number
+  at_limit: number
+  uses_30d: number
+  replaced_30d: number
+  life: Record<LifeStatus, number>
+}
+
 export interface GarmentStats {
   active: number
   disponible: number

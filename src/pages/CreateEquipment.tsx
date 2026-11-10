@@ -1,17 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
-import { useRole } from '../contexts/AuthContext'
 import { useHoseCache } from '../contexts/HoseCacheContext'
 import { hoseService } from '../services/hoseService'
 import { Notice } from '../components/ui/StatusBadge'
-import { userService } from '../services/userService'
-import type { Team } from '../types'
 
 const DEFAULT_CALIBERS = ['', '', '', '', '']
 
 const CreateEquipment = () => {
-  const { isAdministrador } = useRole()
   const { invalidateEquipment } = useHoseCache()
   const navigate = useNavigate()
 
@@ -19,16 +15,8 @@ const CreateEquipment = () => {
   const [name, setName] = useState('')
   const [calibers, setCalibers] = useState<string[]>(DEFAULT_CALIBERS)
   const [lengths, setLengths] = useState<string[]>(['', '', '', '', ''])
-  const [teamId, setTeamId] = useState('')
-  const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (isAdministrador) {
-      userService.getTeams().then(setTeams).catch(console.error)
-    }
-  }, [isAdministrador])
 
   const handleCaliberChange = (index: number, value: string) => {
     setCalibers((prev) => prev.map((c, i) => (i === index ? value : c)))
@@ -42,13 +30,23 @@ const CreateEquipment = () => {
     e.preventDefault()
     setError(null)
 
-    const calibersList = calibers.map((c) => c.trim()).filter(Boolean)
+    // Solo las filas con calibre; la longitud de una fila sin calibre no se acepta
+    const filled = calibers.map((c, i) => ({ caliber: c.trim(), length: lengths[i]?.trim() || '' }))
     if (!code.trim() || !name.trim()) {
       setError('El código y el nombre del producto son obligatorios')
       return
     }
-    if (calibersList.length !== calibers.length) {
-      setError('Debes indicar los 5 calibres')
+    if (filled.some((f) => !f.caliber && f.length)) {
+      setError('Hay una longitud sin calibre')
+      return
+    }
+    const used = filled.filter((f) => f.caliber)
+    if (used.length === 0) {
+      setError('Indica al menos un calibre')
+      return
+    }
+    if (new Set(used.map((f) => f.caliber.toLowerCase())).size !== used.length) {
+      setError('Los calibres de un producto no se pueden repetir')
       return
     }
 
@@ -57,14 +55,13 @@ const CreateEquipment = () => {
       const equipment = await hoseService.createEquipment({
         code: code.trim(),
         name: name.trim(),
-        calibers: calibersList,
-        lengths: calibers.map((_, i) => lengths[i]?.trim() || ''),
-        team_id: teamId || undefined,
+        calibers: used.map((f) => f.caliber),
+        lengths: used.map((f) => f.length),
       })
       invalidateEquipment()
       navigate(`/mangueras`, { state: { createdEquipmentId: equipment.id } })
-    } catch (err: any) {
-      setError(err.message || 'Error al crear el producto')
+    } catch (err) {
+      setError((err as Error).message || 'Error al crear el producto')
     } finally {
       setLoading(false)
     }
@@ -92,7 +89,7 @@ const CreateEquipment = () => {
             <input value={name} onChange={(e) => setName(e.target.value)} className="input-field" required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Calibres y longitud</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Calibres y longitud <span className="font-normal text-gray-400">(de 1 a 5 mangueras)</span></label>
             <div className="space-y-2">
               {calibers.map((caliber, index) => (
                 <div key={index} className="flex items-center gap-2">
@@ -113,17 +110,6 @@ const CreateEquipment = () => {
               ))}
             </div>
           </div>
-          {isAdministrador && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-              <select value={teamId} onChange={(e) => setTeamId(e.target.value)} className="input-field">
-                <option value="">Sin asignar</option>
-                {teams.map((team) => (
-                  <option key={team.id} value={team.id}>{team.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <button type="submit" className="btn-primary w-full" disabled={loading}>
             {loading ? 'Creando...' : 'Crear producto'}
