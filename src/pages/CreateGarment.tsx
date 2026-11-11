@@ -6,6 +6,7 @@ import { Notice, StatusBadge } from '../components/ui/StatusBadge'
 import { garmentStatusTone, garmentStatusLabel } from '../lib/tones'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import { generateQRUrl } from '../lib/qrGenerator'
+import GarmentCodeInput, { type GarmentCodeCheck } from '../components/GarmentCodeInput'
 import type { Garment, GarmentInsert } from '../types'
 
 const CreateGarment = () => {
@@ -19,6 +20,7 @@ const CreateGarment = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [codeCheck, setCodeCheck] = useState<GarmentCodeCheck>({ status: 'empty' })
   const { invalidateGarments } = useGarmentCache()
   const qrRef = useRef<HTMLDivElement>(null)
 
@@ -33,11 +35,12 @@ const CreateGarment = () => {
     setLoading(true)
 
     try {
-      if (!formData.name || !formData.code) {
-        throw new Error('El nombre y código de la prenda son obligatorios')
+      if (codeCheck.status !== 'ok') {
+        throw new Error('Captura un código válido que no exista todavía')
       }
 
-      const garment = await garmentService.create(formData)
+      // El nombre siempre se genera del código
+      const garment = await garmentService.create({ ...formData, code: codeCheck.code, name: codeCheck.name })
       invalidateGarments()
       setCreatedGarment(garment)
       setFormData({
@@ -46,8 +49,8 @@ const CreateGarment = () => {
         description: '',
         notes: '',
       })
-    } catch (err: any) {
-      setError(err.message || 'Error al crear la prenda')
+    } catch (err) {
+      setError((err as Error).message || 'Error al crear la prenda')
     } finally {
       setLoading(false)
     }
@@ -118,37 +121,16 @@ const CreateGarment = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Código y Nombre en dos columnas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Código de Prenda *
-                  </label>
-                  <input
-                    type="text"
-                    name="code"
-                    value={formData.code}
-                    onChange={handleChange}
-                    placeholder="Ej: 202607A-OV-M-BL-001"
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Ej: Camisa blanca talla M"
-                    className="input-field"
-                    required
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Código de prenda *
+                </label>
+                <GarmentCodeInput
+                  value={formData.code}
+                  onChange={(code) => setFormData((prev) => ({ ...prev, code }))}
+                  onCheck={setCodeCheck}
+                  autoFocus
+                />
               </div>
 
               {/* Descripción ancho completo */}
@@ -183,8 +165,8 @@ const CreateGarment = () => {
 
               <button
                 type="submit"
-                className="btn-primary w-full flex items-center justify-center gap-2"
-                disabled={loading}
+                className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-50"
+                disabled={loading || codeCheck.status !== 'ok'}
               >
                 {loading ? (
                   <>

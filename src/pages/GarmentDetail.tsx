@@ -15,15 +15,10 @@ import { useRole, useAuth } from '../contexts/AuthContext'
 import { StatusBadge, StatusDot, Notice } from '../components/ui/StatusBadge'
 import { Skeleton, SkeletonPanel } from '../components/ui/Skeleton'
 import { garmentStatusTone, garmentStatusLabel } from '../lib/tones'
-import { historyReportService, describeChanges } from '../services/historyReportService'
+import { historyReportService } from '../services/historyReportService'
+import { auditOpLabel, auditTableLabel, describeChanges } from '../lib/auditFormat'
 import { useGarmentCache } from '../contexts/GarmentCacheContext'
 import type { Garment, Document, GarmentAction, ActionType, InspectionResult, AuditLogEntry } from '../types'
-
-const auditOpLabel: Record<string, string> = { INSERT: 'Alta', UPDATE: 'Modificación', DELETE: 'Eliminación' }
-const auditTableLabel: Record<string, string> = {
-  garments: 'Prenda', garment_actions: 'Acción', movements: 'Movimiento',
-  documents: 'Documento', garment_assignments: 'Asignación',
-}
 
 const GarmentDetail = () => {
   const { id } = useParams<{ id: string }>()
@@ -510,7 +505,7 @@ const GarmentDetail = () => {
                             <span className="text-gray-400">{new Date(e.occurred_at).toLocaleString()}</span>
                           </div>
                           <p className="text-gray-600">{e.user_email ?? 'Sistema / mantenimiento'}{e.user_role ? ` (${e.user_role})` : ''}</p>
-                          {describeChanges(e) && <p className="text-gray-600 break-words">{describeChanges(e)}</p>}
+                          {describeChanges(e, (uid) => (uid === garment.id ? garment.code : undefined)) && <p className="text-gray-600 break-words">{describeChanges(e, (uid) => (uid === garment.id ? garment.code : undefined))}</p>}
                           {e.reason && <p className="text-gray-500">Motivo: {e.reason}</p>}
                         </div>
                       ))}

@@ -370,6 +370,21 @@ console.log('\n— Empresas y licencias')
   let auditOther = (await asU('adminx@x.test', `SELECT count(*)::int n FROM audit_log WHERE organization_id IS DISTINCT FROM '${org.id}'`)).rows[0].n
   console.log(auditOther === 0 ? '  ✔ admin del cliente solo ve el audit trail de su empresa' : '  ✘ ve ' + auditOther); auditOther === 0 ? pass++ : fail++
 
+  // Alcance por módulo: el admin de Prendas no ve registros de Mangueras
+  await db.query(`INSERT INTO audit_log (operation, table_name, record_id, new_data, organization_id, reason) VALUES
+    ('INSERT', 'equipment', 'eq-x', '{"code":"EQ-X"}', '${org.id}', 'prueba-alcance'),
+    ('INSERT', 'hose_actions', 'ha-x', '{"action_type":"uso"}', '${org.id}', 'prueba-alcance'),
+    ('UPDATE', 'user_profiles', 'u-m', '{"modules":["mangueras"]}', '${org.id}', 'prueba-alcance'),
+    ('INSERT', 'electronic_signatures', 's-m', '{"table_name":"hose_actions"}', '${org.id}', 'prueba-alcance'),
+    ('INSERT', 'garment_actions', 'ga-x', '{"action_type":"lavado"}', '${org.id}', 'prueba-alcance'),
+    ('UPDATE', 'user_profiles', 'u-p', '{"modules":["prendas"]}', '${org.id}', 'prueba-alcance'),
+    ('UPDATE', 'organizations', 'o-x', '{"name":"Cliente X"}', '${org.id}', 'prueba-alcance')`)
+  const scope = (await asU('adminx@x.test', `SELECT array_agg(record_id ORDER BY record_id) r FROM audit_log WHERE reason = 'prueba-alcance'`)).rows[0].r
+  const okScope = JSON.stringify(scope) === '["ga-x","o-x","u-p"]'
+  console.log(okScope ? '  ✔ admin de Prendas solo ve audit trail de Prendas, sus usuarios y la empresa' : '  ✘ ve ' + JSON.stringify(scope)); okScope ? pass++ : fail++
+  const allScope = (await as('admin', `SELECT count(*)::int n FROM audit_log WHERE reason = 'prueba-alcance'`)).rows[0].n
+  console.log(allScope === 7 ? '  ✔ superadmin ve todo el audit trail' : '  ✘ ' + allScope); allScope === 7 ? pass++ : fail++
+
   // Restablecimiento y caducidad
   await expectOk('admin restablece contraseña de su operador', () =>
     asU('adminx@x.test', `SELECT admin_mark_password_reset('66666666-6666-6666-6666-666666666666')`))

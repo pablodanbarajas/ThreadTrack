@@ -27,6 +27,15 @@ export function validateNewGarmentCode(code: string): ParsedGarmentCode | ParseE
   return parsed
 }
 
+const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+/** Nombre de la prenda generado a partir de su código (mismo formato en alta e importación) */
+export const garmentNameFromCode = (p: ParsedGarmentCode) => `${p.garmentName} - Talla ${p.sizeName} - ${p.colorName}`
+
+/** Lote legible: "Julio 2026 · A" */
+export const batchLabel = (p: ParsedGarmentCode) =>
+  `${MONTHS[p.batchMonth - 1] ?? p.batchMonth} ${p.batchYear}${p.batchSuffix ? ` · ${p.batchSuffix}` : ''}`
+
 export const COLORS = {
   BL: 'Blanco',
   AC: 'Azul Cielo',
