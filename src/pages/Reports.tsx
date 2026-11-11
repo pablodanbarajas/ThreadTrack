@@ -89,12 +89,12 @@ const Reports = () => {
     ...(isAdministrador ? [
       {
         job: 'audit' as Job, icon: ShieldCheck, title: 'Audit trail', adminOnly: true, tone: 'purple' as IndicatorTone,
-        description: 'Todos los cambios: usuario, fecha y hora, valor anterior, valor nuevo y motivo.',
+        description: 'Cambios en los módulos que administras (incluidos los del superadministrador): usuario, fecha y hora, qué cambió y motivo.',
         run: historyReportService.exportAuditTrail.bind(historyReportService),
       },
       {
         job: 'access' as Job, icon: KeyRound, title: 'Bitácora de accesos y firmas', adminOnly: true, tone: 'purple' as IndicatorTone,
-        description: 'Intentos de inicio de sesión (exitosos y fallidos) y firmas electrónicas emitidas.',
+        description: 'Intentos de inicio de sesión (exitosos y fallidos) y firmas electrónicas de los usuarios de tus módulos.',
         run: historyReportService.exportAccessLog.bind(historyReportService),
       },
     ] : []),
