@@ -2,6 +2,7 @@ import { saveAs } from 'file-saver'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import type { AuditLogEntry } from '../types'
+import { auditOpLabel, auditTableLabel, describeChanges, describeRecord, collectAuditIds, type AuditResolver } from '../lib/auditFormat'
 
 type Row = Record<string, string | number | null>
 
@@ -187,7 +188,7 @@ export const historyReportService = {
         .range(a, b)
     )
     download(
-      [{ name: 'Audit trail', rows: rows.map(auditRow) }],
+      auditSheets(rows, await buildResolver(rows)),
       'audit_trail',
       { Reporte: 'Audit trail del sistema', Desde: fmt(fromIso), Hasta: fmt(toIso), 'Generado por': userEmail, Registros: rows.length }
     )
@@ -197,7 +198,7 @@ export const historyReportService = {
   // ---------- Audit trail de una prenda ----------
   async exportGarmentAuditTrail(garmentCode: string, entries: AuditLogEntry[], userEmail: string) {
     download(
-      [{ name: 'Audit trail', rows: entries.map(auditRow) }],
+      auditSheets(entries, await buildResolver(entries)),
       `audit_trail_${garmentCode}`,
       { Reporte: 'Audit trail de la prenda', Prenda: garmentCode, 'Generado por': userEmail, Registros: entries.length }
     )
@@ -244,34 +245,54 @@ export const historyReportService = {
   },
 }
 
-const opLabel: Record<string, string> = { INSERT: 'Alta', UPDATE: 'Modificación', DELETE: 'Eliminación' }
-const tableLabel: Record<string, string> = {
-  garments: 'Prenda', garment_actions: 'Acción de prenda', movements: 'Movimiento', documents: 'Documento',
-  garment_assignments: 'Asignación', equipment: 'Equipo', hose_positions: 'Posición', hoses: 'Manguera',
-  hose_actions: 'Acción de manguera', user_profiles: 'Usuario', teams: 'Equipo de trabajo',
-  account_locks: 'Bloqueo de cuenta', electronic_signatures: 'Firma electrónica',
-}
-
-const show = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v))
-
-export const describeChanges = (e: AuditLogEntry): string => {
-  if (e.operation === 'UPDATE' && e.changed_fields?.length) {
-    return e.changed_fields
-      .map((f) => `${f}: "${show(e.old_data?.[f])}" → "${show(e.new_data?.[f])}"`)
-      .join('; ')
+// Traduce los UUID de un conjunto de entradas a códigos y nombres (en pocas consultas)
+async function buildResolver(entries: AuditLogEntry[]): Promise<AuditResolver> {
+  const ids = collectAuditIds(entries)
+  const names = new Map<string, string>()
+  const load = async (table: string, col: string, set: Set<string>) => {
+    const list = [...set]
+    for (let i = 0; i < list.length; i += 200) {
+      const { data } = await supabase.from(table).select(`id, ${col}`).in('id', list.slice(i, i + 200))
+      for (const r of (data || []) as unknown as Record<string, string>[]) if (r[col]) names.set(r.id, r[col])
+    }
   }
-  return ''
+  try {
+    await Promise.all([
+      load('garments', 'code', ids.garments),
+      load('hoses', 'short_code', ids.hoses),
+      load('equipment', 'code', ids.equipment),
+      load('organizations', 'name', ids.orgs),
+      load('teams', 'name', ids.teams),
+    ])
+  } catch { /* si algo no se puede leer se muestra el identificador corto */ }
+  return (id) => names.get(id)
 }
 
-const auditRow = (e: AuditLogEntry): Row => ({
-  'Fecha y hora': fmt(e.occurred_at),
-  'Usuario': e.user_email ?? (e.user_id ? e.user_id : 'Sistema / mantenimiento'),
-  'Rol': e.user_role ?? '',
-  'Operación': opLabel[e.operation] ?? e.operation,
-  'Entidad': tableLabel[e.table_name] ?? e.table_name,
-  'Registro': e.record_id ?? '',
-  'Cambios (anterior → nuevo)': describeChanges(e),
-  'Motivo': e.reason ?? '',
-  'Valor anterior (completo)': e.old_data ? JSON.stringify(e.old_data) : '',
-  'Valor nuevo (completo)': e.new_data ? JSON.stringify(e.new_data) : '',
-})
+const auditSheets = (entries: AuditLogEntry[], resolve: AuditResolver) => [
+  {
+    name: 'Audit trail',
+    rows: entries.map((e): Row => ({
+      'Fecha y hora': fmt(e.occurred_at),
+      'Usuario': e.user_email ?? 'Sistema (mantenimiento)',
+      'Rol': e.user_role ? (e.user_role === 'superadmin' ? 'Superadministrador' : e.user_role.charAt(0).toUpperCase() + e.user_role.slice(1)) : '',
+      'Operación': auditOpLabel[e.operation] ?? e.operation,
+      'Qué se afectó': auditTableLabel[e.table_name] ?? e.table_name,
+      'Registro': describeRecord(e, resolve),
+      'Detalle del cambio': describeChanges(e, resolve),
+      'Motivo': e.reason ?? '',
+    })),
+  },
+  {
+    // Copia completa sin interpretar, para auditoría técnica (ALCOA+: completo y original)
+    name: 'Detalle tecnico',
+    rows: entries.map((e): Row => ({
+      'Id de bitácora': e.id,
+      'Fecha y hora': fmt(e.occurred_at),
+      'Tabla': e.table_name,
+      'Id del registro': e.record_id ?? '',
+      'Campos cambiados': (e.changed_fields ?? []).join(', '),
+      'Valor anterior': e.old_data ? JSON.stringify(e.old_data) : '',
+      'Valor nuevo': e.new_data ? JSON.stringify(e.new_data) : '',
+    })),
+  },
+]

@@ -2,14 +2,8 @@ import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Notice } from '../components/ui/StatusBadge'
-import { Loader2, Mail, Lock, Eye, EyeOff, QrCode, ShieldCheck, FileClock } from 'lucide-react'
+import { Loader2, Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
-
-const highlights = [
-  { icon: QrCode, title: 'Trazabilidad por QR', text: 'Cada prenda y manguera con su historial completo.' },
-  { icon: ShieldCheck, title: 'Firma electrónica', text: 'Acciones críticas firmadas con nombre y significado.' },
-  { icon: FileClock, title: 'Registro de auditoría', text: 'Quién, qué, cuándo y por qué de cada cambio.' },
-]
 
 const Login = () => {
   const [email, setEmail] = useState('')
@@ -52,36 +46,16 @@ const Login = () => {
         <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-blue-600/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-emerald-500/15 blur-3xl" />
 
-        <div className="relative flex items-center gap-3">
-          <div className="rounded-xl bg-white p-2 shadow-lg">
-            <img src={Logo} alt="" className="h-10 w-auto" />
+        <div />
+
+        <div className="relative flex flex-col items-center gap-5 text-center">
+          <div className="rounded-2xl bg-white p-4 shadow-xl">
+            <img src={Logo} alt="" className="h-20 w-auto" />
           </div>
-          <span className="text-2xl font-bold tracking-tight">ThreadTrack</span>
+          <span className="text-4xl font-bold tracking-tight">ThreadTrack</span>
         </div>
 
-        <div className="relative max-w-md">
-          <h2 className="text-4xl font-bold leading-tight">
-            Control y trazabilidad de prendas y mangueras
-          </h2>
-          <p className="mt-4 text-lg text-slate-300">
-            Registros íntegros, atribuibles y listos para auditoría.
-          </p>
-          <ul className="mt-10 space-y-5">
-            {highlights.map(({ icon: Icon, title, text }) => (
-              <li key={title} className="flex gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10 text-blue-300 ring-1 ring-inset ring-white/15">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span>
-                  <span className="block font-semibold">{title}</span>
-                  <span className="block text-sm text-slate-400">{text}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <p className="relative text-sm text-slate-500">© 2026 ThreadTrack · Grupo CSCI</p>
+        <p className="relative text-center text-sm text-slate-500">© 2026 ThreadTrack · Grupo CSCI</p>
       </aside>
 
       {/* Formulario */}
