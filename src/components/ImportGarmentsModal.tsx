@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
 import { FileSpreadsheet, Upload, X, Download, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { garmentService } from '../services/garmentService'
-import { validateNewGarmentCode, GARMENT_TYPES, ALLOWED_GARMENT_TYPES, COLORS, SIZES } from '../lib/garmentCodeParser'
+import { validateNewGarmentCode, garmentNameFromCode, GARMENT_TYPES, ALLOWED_GARMENT_TYPES, COLORS, SIZES } from '../lib/garmentCodeParser'
 import { useFeedback } from './ui/feedback-context'
 import { StatusBadge } from './ui/StatusBadge'
 
@@ -131,7 +131,7 @@ const ImportGarmentsModal = ({ onClose, onImported }: Props) => {
         const code = parsed.fullCode
         const status: RowStatus = seen.has(code) ? 'duplicado' : 'valido'
         seen.add(code)
-        return { ...base, code, name: `${parsed.garmentName} - Talla ${parsed.sizeName} - ${parsed.colorName}`, status }
+        return { ...base, code, name: garmentNameFromCode(parsed), status }
       })
 
       // Códigos que ya existen en el sistema

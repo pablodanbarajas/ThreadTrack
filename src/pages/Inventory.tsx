@@ -13,6 +13,7 @@ import { useArchiveGarment } from '../hooks/useArchiveGarment'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Pagination from '../components/ui/Pagination'
 import ImportGarmentsModal from '../components/ImportGarmentsModal'
+import GarmentCodeInput, { type GarmentCodeCheck } from '../components/GarmentCodeInput'
 import InventoryFilterBar, { FilterField } from '../components/InventoryFilterBar'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
@@ -21,7 +22,6 @@ import InspectionResultPicker from '../components/InspectionResultPicker'
 import { garmentSignatureMeaning } from '../lib/signature'
 import { signatureService } from '../services/accessService'
 import { generateReportExcel } from '../services/reportService'
-import { userService } from '../services/userService'
 import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, COLORS, SIZES, type Color, type Size } from '../lib/garmentCodeParser'
@@ -112,8 +112,9 @@ const Inventory = () => {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [signaturePassword, setSignaturePassword] = useState('')
-  const [newGarment, setNewGarment] = useState({ code: '', name: '' })
-  const [newGarmentTeamId, setNewGarmentTeamId] = useState<string>('')
+  const [newGarment, setNewGarment] = useState({ code: '' })
+  const [newCodeCheck, setNewCodeCheck] = useState<GarmentCodeCheck>({ status: 'empty' })
+  const [savingNew, setSavingNew] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
@@ -128,7 +129,6 @@ const Inventory = () => {
   // Descarga masiva de QR
   const [downloadingQRs, setDownloadingQRs] = useState(false)
   const [downloadingReport, setDownloadingReport] = useState(false)
-  const [teams, setTeams] = useState<{ id: string; name: string }[]>([])
   const [filterLifeStatuses, setFilterLifeStatuses] = useState<CycleLifeStatus[]>(storedFilters.filterLifeStatuses)
   // Paginación
   const ITEMS_PER_PAGE = 12
@@ -238,12 +238,6 @@ const Inventory = () => {
     try { sessionStorage.setItem(INVENTORY_FILTERS_STORAGE_KEY, JSON.stringify(filters)) } catch { /* sin almacenamiento */ }
   }, [searchTerm, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses, filterIdleDays, sortBy])
 
-  useEffect(() => {
-    if (isAdministrador) {
-      userService.getTeams().then(setTeams).catch(() => {})
-    }
-  }, [isAdministrador])
-
   const debouncedSearch = useDebouncedValue(searchTerm)
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE)
 
@@ -299,23 +293,19 @@ const Inventory = () => {
       feedback.error('No tienes permisos para crear prendas')
       return
     }
-    if (!newGarment.code || !newGarment.name) return
+    if (newCodeCheck.status !== 'ok') return
+    setSavingNew(true)
     try {
-      await garmentService.create({
-        code: newGarment.code,
-        name: newGarment.name,
-        team_id: (isAdministrador && newGarmentTeamId) ? newGarmentTeamId : undefined,
-      })
-      setNewGarment({ code: '', name: '' })
-      setNewGarmentTeamId('')
+      // El nombre siempre se genera del código
+      await garmentService.create({ code: newCodeCheck.code, name: newCodeCheck.name })
+      feedback.success(`Prenda ${newCodeCheck.code} creada`)
+      setNewGarment({ code: '' })
       setShowModal(false)
       loadGarments()
-    } catch (error: any) {
-      if (error.code === '23505') {
-        feedback.error('Ya existe una prenda con ese código')
-      } else {
-        console.error('Error creando prenda:', error)
-      }
+    } catch (err) {
+      feedback.error((err as Error).message || 'No se pudo crear la prenda')
+    } finally {
+      setSavingNew(false)
     }
   }
 
@@ -687,69 +677,41 @@ const Inventory = () => {
 
       {showModal && !showScanner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-bold mb-4">Nueva Prenda</h2>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-xl font-bold mb-1">Nueva prenda</h2>
+            <p className="text-sm text-gray-500 mb-4">El código escaneado no existe. Revísalo y créalo si es correcto.</p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newGarment.code}
-                    onChange={(e) => setNewGarment({ ...newGarment, code: e.target.value })}
-                    className="input-field flex-1"
-                    placeholder="Ej: PRD-001"
-                  />
-                  <button
-                    type="button"
-                    onClick={openScannerForNewCode}
-                    className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
-                    title="Escanear código"
-                  >
-                    <ScanBarcode className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
-                <input
-                  type="text"
-                  value={newGarment.name}
-                  onChange={(e) => setNewGarment({ ...newGarment, name: e.target.value })}
-                  className="input-field"
-                  placeholder="Ej: Camisa azul talla M"
+                <GarmentCodeInput
+                  value={newGarment.code}
+                  onChange={(code) => setNewGarment({ code })}
+                  onCheck={setNewCodeCheck}
+                  autoFocus
+                  addon={
+                    <button
+                      type="button"
+                      onClick={openScannerForNewCode}
+                      className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
+                      title="Escanear código"
+                    >
+                      <ScanBarcode className="w-5 h-5" />
+                    </button>
+                  }
                 />
               </div>
-              {isAdministrador && teams.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Equipo / Empresa</label>
-                  <select
-                    value={newGarmentTeamId}
-                    onChange={(e) => setNewGarmentTeamId(e.target.value)}
-                    className="input-field"
-                  >
-                    <option value="">Sin equipo asignado</option>
-                    {teams.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
                 Cancelar
               </button>
-              <button 
-                onClick={handleAddGarment} 
-                disabled={!canCreateGarment}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                  canCreateGarment
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                }`}
+              <button
+                onClick={handleAddGarment}
+                disabled={!canCreateGarment || savingNew || newCodeCheck.status !== 'ok'}
+                className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                {canCreateGarment ? 'Guardar' : 'Sin permiso'}
+                {savingNew && <Loader2 className="w-4 h-4 animate-spin" />}
+                {canCreateGarment ? 'Crear prenda' : 'Sin permiso'}
               </button>
             </div>
           </div>
