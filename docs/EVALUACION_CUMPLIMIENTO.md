@@ -56,9 +56,9 @@ Leyenda: ✅ cumple · 🟡 cumple con condición o configuración pendiente · 
 | 11.10(c) Protección de registros durante su retención | ✅🟡 | Historial inmutable (triggers que bloquean UPDATE/DELETE/TRUNCATE), FK `RESTRICT`, archivado en lugar de borrado; respaldos diarios de Supabase. Falta SOP de retención y archivo (📄). |
 | 11.10(d) Acceso limitado a personas autorizadas | ✅ | Cuentas individuales, RLS por empresa y módulo, roles, cuentas desactivables, cierre de sesión por inactividad (15 min). |
 | 11.10(e) Audit trail seguro, generado por el sistema, con fecha y hora; no oculta valores previos; se conserva igual que el registro | ✅ | `audit_log` por trigger (usuario, rol, fecha/hora del servidor, valor anterior y nuevo, campos, motivo); inmutable; acotado por empresa y módulo. |
-| 11.10(f) Verificación de secuencia de operaciones | ✅ | Transiciones de estado en el servidor; límite de 200 ciclos en mangueras; **la baja de una prenda es definitiva** (v1.3.0). |
+| 11.10(f) Verificación de secuencia de operaciones | ✅ | Transiciones de estado en el servidor; **la baja de una prenda es definitiva**; **límite de ciclos** (prendas 100, mangueras 200): el sistema detiene el registro y solo continúa con la autorización firmada de un supervisor, jefe o administrador (v1.3.0). |
 | 11.10(g) Verificación de autoridad | ✅ | Permisos por rol y módulo en funciones SECURITY DEFINER y políticas RLS (operador no da de baja, no edita, no ve reportes). |
-| 11.10(h) Verificación de dispositivos/origen de datos | ✅ | Validación del código QR/escaneado y del formato de código en el alta y en la importación; los ciclos se cuentan automáticamente, no se capturan. |
+| 11.10(h) Verificación de dispositivos/origen de datos | ✅ | Captura por pistola lectora de QR (entrada de teclado) en equipos de cómputo; validación del código y de su formato en el alta y en la importación; los ciclos se cuentan automáticamente, no se capturan. |
 | 11.10(i) Personal capacitado | 👤📄 | Registro de capacitación del cliente; el proveedor entrega manual de usuario. |
 | 11.10(j) Política escrita de responsabilidad por la firma electrónica | 👤📄 | SOP del cliente; el proveedor puede entregar plantilla. |
 | 11.10(k) Control de la documentación del sistema | 🟡📄 | Git, `docs/MIGRACIONES.md` (bitácora de cambios con verificación), versión visible en la aplicación (`v1.3.0 · commit`). Falta SOP de control de cambios. |
@@ -131,6 +131,8 @@ Leyenda: ✅ cumple · 🟡 cumple con condición o configuración pendiente · 
 | Reportes sin zona horaria ni versión del sistema. | ALCOA+ (consistente), Anexo 11 §10 | La hoja de parámetros incluye zona horaria y versión + commit. |
 | Sin encabezados de seguridad HTTP. | 11.30 | HSTS, CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. |
 | Versión fija, sin relación con el despliegue. | 11.10(k), Anexo 11 §10 | Versión + commit desplegado visible en la aplicación. |
+| Las prendas no tenían tope de ciclos; las mangueras se bloqueaban sin opción. | 11.10(f), 11.10(g) | Ambos se detienen en su límite (100 / 200); continuar exige la autorización de un superior con usuario y contraseña, registrada como su firma electrónica en la acción. |
+| Escaneo por cámara sin uso (se trabaja con pistola en computadoras). | Reducción de superficie | Se retiró la cámara y su librería; el navegador ya no concede permiso de cámara. |
 
 ## 6. Configuración pendiente en el Dashboard de Supabase (la hace el administrador del proyecto)
 
@@ -169,8 +171,7 @@ Orden sugerido; los marcados (P) los elabora el proveedor, (C) el cliente con ap
 | R1 | El bloqueo por intentos fallidos se cuenta desde el flujo de la aplicación; un ataque directo a la API de autenticación no suma intentos. | Aunque obtenga sesión, una cuenta bloqueada o desactivada no ve ningún dato (RLS); Supabase limita la tasa de intentos. | Password verification hook (sección 6). |
 | R2 | Un cambio de contraseña hecho directamente contra la API de autenticación no pasa por el historial de 5 ni reinicia la vigencia. | El cambio queda en los registros de Supabase Auth. | Requisitos de contraseña y "secure password change" en el Dashboard (sección 6). |
 | R3 | Respaldos diarios con retención de 7 días; pérdida máxima de 24 h. | Los registros vivos no se borran. | PITR opcional; exportación periódica de archivo (SOP). |
-| R4 | Las prendas no tienen bloqueo al llegar al límite de ciclos (las mangueras sí, a 200). | Semáforo de vida útil y filtros. | Decidir con el cliente si el límite de 100 ciclos debe bloquear nuevos lavados. |
-| R5 | Infraestructura de terceros (Supabase, Vercel). | Proveedores con certificaciones de seguridad. | Evaluación documentada de proveedores (sección 7, punto 2). |
+| R4 | Infraestructura de terceros (Supabase, Vercel). | Proveedores con certificaciones de seguridad. | Evaluación documentada de proveedores (sección 7, punto 2). |
 
 ## 9. Respuestas cortas al cuestionario del cliente
 

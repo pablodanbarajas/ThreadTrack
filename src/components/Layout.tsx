@@ -69,7 +69,7 @@ const Layout = () => {
       title: 'Prendas',
       items: [
         { path: '/', label: 'Inicio', icon: Home },
-        { path: '/inventory', label: 'Inventario', icon: Package, match: ['/prenda/', '/scanner'] },
+        { path: '/inventory', label: 'Inventario', icon: Package, match: ['/prenda/'] },
         { path: '/lote', label: 'Acciones en lote', icon: Layers },
         ...(canCreateGarment ? [{ path: '/crear-prenda', label: 'Crear prenda', icon: Plus }] : []),
         { path: '/bajas', label: 'Bajas', icon: PackageX },

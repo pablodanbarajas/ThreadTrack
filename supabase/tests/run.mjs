@@ -190,6 +190,23 @@ await expectErr('uso al llegar a 200 ciclos se rechaza (no se pierde en silencio
   as('opA', `SELECT * FROM register_hose_action(${H}, 'uso', 'Luis')`), /límite/)
 await expectErr('bulk es todo-o-nada', () =>
   as('opA', `SELECT * FROM register_bulk_hose_use(ARRAY[${H}]::uuid[], 'Luis')`), /límite/)
+{
+  const auth = (who, email, pwd) => as(who, `SELECT authorize_cycle_limit('manguera', ARRAY[${H}]::uuid[], '${email}', '${pwd}') r`).then((r) => r.rows[0].r)
+  let r = await auth('opA', 'operador@a.test', 'Secreta123!')
+  console.log(!r.ok ? '  ✔ un operador no puede autorizar exceder el límite' : '  ✘ operador autorizó'); !r.ok ? pass++ : fail++
+  r = await auth('opA', 'jefe@a.test', 'mala')
+  console.log(!r.ok ? '  ✔ autorización con contraseña incorrecta rechazada' : '  ✘ aceptó contraseña mala'); !r.ok ? pass++ : fail++
+  r = await auth('opA', 'jefe@b.test', 'Secreta123!')
+  console.log(!r.ok ? '  ✔ un jefe de otra empresa no puede autorizar' : '  ✘ autorizó otra empresa'); !r.ok ? pass++ : fail++
+  r = await auth('opA', 'jefe@a.test', 'Secreta123!')
+  console.log(r.ok ? '  ✔ el jefe autoriza exceder el límite' : '  ✘ ' + JSON.stringify(r)); r.ok ? pass++ : fail++
+  await expectOk('con autorización se registra el ciclo 201', () => as('opA', `SELECT * FROM register_hose_action(${H}, 'uso', 'Luis')`))
+  const over = await one(`SELECT a.cycle_after, s.user_email, s.meaning FROM hose_actions a JOIN electronic_signatures s ON s.id = a.signature_id
+                           WHERE a.hose_id = ${H} ORDER BY a.created_at DESC LIMIT 1`)
+  const okOver = over?.cycle_after === 201 && over.user_email === 'jefe@a.test' && /exceder el límite/.test(over.meaning)
+  console.log(okOver ? '  ✔ la acción queda firmada por el superior que autorizó' : '  ✘ ' + JSON.stringify(over)); okOver ? pass++ : fail++
+  await expectErr('la autorización se usa una sola vez', () => as('opA', `SELECT * FROM register_hose_action(${H}, 'uso', 'Luis')`), /límite/)
+}
 await expectErr('jefe de otro equipo no reemplaza', () =>
   as('jefeB', `SELECT replace_hose(${P}, 'desgaste', 'X')`), /Sin acceso/)
 await expectErr('operador no reemplaza', () =>
@@ -480,6 +497,23 @@ console.log('\n— Consultas paginadas')
   const st = (await as('jefeA', `SELECT garment_stats() s`)).rows[0].s
   const okStats = st.life.rojo === 3 && st.life.naranja === 0 && st.life.amarillo === 3 && st.reparacion >= 6
   console.log(okStats ? `  ✔ totales de Inicio en la base (activas ${st.active}, rojo ${st.life.rojo}, amarillo ${st.life.amarillo})` : '  ✘ ' + JSON.stringify(st)); okStats ? pass++ : fail++
+
+  // Prenda en el límite de 100 ciclos
+  await db.exec(`ALTER TABLE garment_actions DISABLE TRIGGER stamp_recorder_garment_actions`)
+  await db.query(`INSERT INTO garments (id, code, name, team_id, short_code, status) VALUES
+    ('bbbbbbbb-1111-0000-0000-000000000100', '202607A-OV-L-NE-100', 'Overol al límite', '00000000-0000-0000-0000-0000000000a1', 'P100', 'disponible')`)
+  await db.query(`INSERT INTO garment_actions (garment_id, action_type, performed_by)
+    SELECT 'bbbbbbbb-1111-0000-0000-000000000100', 'lavado', 'x' FROM generate_series(1, 100)`)
+  await db.exec(`ALTER TABLE garment_actions ENABLE TRIGGER stamp_recorder_garment_actions`)
+  const GL = "'bbbbbbbb-1111-0000-0000-000000000100'"
+  await expectErr('prenda con 100 ciclos: nuevo lavado detenido (TT001)', () =>
+    as('opA', `SELECT * FROM register_garment_action(${GL}, 'lavado', 'x')`), /límite de 100/)
+  const ga = (await as('opA', `SELECT authorize_cycle_limit('prenda', ARRAY[${GL}]::uuid[], 'jefe@a.test', 'Secreta123!') r`)).rows[0].r
+  console.log(ga.ok ? '  ✔ el jefe autoriza el ciclo 101 de la prenda' : '  ✘ ' + JSON.stringify(ga)); ga.ok ? pass++ : fail++
+  await expectOk('con autorización se registra el lavado 101', () => as('opA', `SELECT * FROM register_garment_action(${GL}, 'lavado', 'x')`))
+  const gs = await one(`SELECT s.user_email, s.meaning FROM garment_actions a JOIN electronic_signatures s ON s.id = a.signature_id
+                         WHERE a.garment_id = ${GL} ORDER BY a.created_at DESC LIMIT 1`)
+  console.log(gs?.user_email === 'jefe@a.test' && /ciclo 101/.test(gs.meaning) ? '  ✔ el lavado 101 queda firmado por el jefe' : '  ✘ ' + JSON.stringify(gs)); gs ? pass++ : fail++
 
   await db.query(`INSERT INTO equipment (id, code, name, team_id) VALUES ('eeeeeeee-0000-0000-0000-000000000002', 'EQ-B2', 'Equipo dos', '00000000-0000-0000-0000-0000000000a1')`)
   rows = await page(`SELECT * FROM list_equipment(NULL, 10, 0)`)

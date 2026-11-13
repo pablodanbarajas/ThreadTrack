@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  ScanBarcode, Camera, Droplets, ClipboardCheck, Scissors,
+  ScanBarcode, Droplets, ClipboardCheck, Scissors,
   PackageX, PackageCheck, X, CheckCircle2, AlertCircle, Loader2, Play, RotateCcw,
 } from 'lucide-react'
-import BarcodeScanner from '../components/BarcodeScanner'
 import { garmentService } from '../services/garmentService'
 import SignatureField from '../components/SignatureField'
 import RecordedBy from '../components/RecordedBy'
 import { garmentSignatureMeaning } from '../lib/signature'
+import { useCycleLimit, CycleLimitCancelled } from '../components/cycle-limit-context'
 import { signatureService } from '../services/accessService'
 import { StatusDot } from '../components/ui/StatusBadge'
 import { extractGarmentIdFromUrl } from '../lib/qrGenerator'
@@ -30,7 +30,6 @@ interface PersistedBatchState {
   selectedAction: ActionType
   inspectionResult: InspectionResult
   notes: string
-  cameraScanCount: number
   done: boolean
 }
 
@@ -41,7 +40,6 @@ const defaultBatchState: PersistedBatchState = {
   selectedAction: 'lavado',
   inspectionResult: 'aprobado',
   notes: '',
-  cameraScanCount: 0,
   done: false,
 }
 
@@ -64,7 +62,6 @@ const getStoredBatchState = (): PersistedBatchState => {
       selectedAction: isActionType(parsed.selectedAction) ? parsed.selectedAction : defaultBatchState.selectedAction,
       inspectionResult: isInspectionResult(parsed.inspectionResult) ? parsed.inspectionResult : defaultBatchState.inspectionResult,
       notes: typeof parsed.notes === 'string' ? parsed.notes : '',
-      cameraScanCount: typeof parsed.cameraScanCount === 'number' ? parsed.cameraScanCount : 0,
       done: typeof parsed.done === 'boolean' ? parsed.done : false,
     }
   } catch {
@@ -83,7 +80,6 @@ const BatchActions = () => {
   const storedBatchState = useRef(getStoredBatchState()).current
   const [items, setItems] = useState<ScannedItem[]>(storedBatchState.items)
   const [inputValue, setInputValue] = useState('')
-  const [showScanner, setShowScanner] = useState(false)
   const [lastAdded, setLastAdded] = useState<string | null>(null)
 
   const [selectedAction, setSelectedAction] = useState<ActionType>(storedBatchState.selectedAction)
@@ -94,7 +90,6 @@ const BatchActions = () => {
   const [signaturePassword, setSignaturePassword] = useState('') // nunca se guarda en sessionStorage
   const [done, setDone] = useState(storedBatchState.done)
 
-  const [cameraScanCount, setCameraScanCount] = useState(storedBatchState.cameraScanCount)
   const { invalidateGarments } = useGarmentCache()
 
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'warning' | 'success' } | null>(null)
@@ -111,10 +106,10 @@ const BatchActions = () => {
 
   // Keep input focused for pistol scanner
   useEffect(() => {
-    if (!showScanner && !applying) {
+    if (!applying) {
       inputRef.current?.focus()
     }
-  }, [showScanner, applying, items.length])
+  }, [applying, items.length])
 
   useEffect(() => {
     const state: PersistedBatchState = {
@@ -122,11 +117,10 @@ const BatchActions = () => {
       selectedAction,
       inspectionResult,
       notes,
-      cameraScanCount,
       done,
     }
     sessionStorage.setItem(BATCH_ACTIONS_STORAGE_KEY, JSON.stringify(state))
-  }, [items, selectedAction, inspectionResult, notes, cameraScanCount, done])
+  }, [items, selectedAction, inspectionResult, notes, done])
 
   const resolveGarmentFromCode = useCallback(async (raw: string) => {
     const trimmed = raw.trim()
@@ -159,7 +153,6 @@ const BatchActions = () => {
           showToast('Esta prenda ya está en la lista', 'warning')
           return prev
         }
-        setCameraScanCount(c => c + 1)
         const newItem: ScannedItem = {
           uid: `${Date.now()}-${garment.id}`,
           garmentId: garment.id,
@@ -188,11 +181,6 @@ const BatchActions = () => {
     }
   }
 
-  const handleCameraScan = (code: string) => {
-    // In continuous mode the camera stays open — just process the code
-    resolveGarmentFromCode(code)
-  }
-
   const removeItem = (uid: string) => {
     setItems(prev => prev.filter(i => i.uid !== uid))
   }
@@ -202,7 +190,6 @@ const BatchActions = () => {
     setNotes('')
     setDone(false)
     setInputValue('')
-    setCameraScanCount(0)
     sessionStorage.removeItem(BATCH_ACTIONS_STORAGE_KEY)
     setTimeout(() => inputRef.current?.focus(), 100)
   }
@@ -210,6 +197,7 @@ const BatchActions = () => {
   const pendingCount = items.filter(i => i.applyStatus === 'pending').length
 
   const signatureMeaning = garmentSignatureMeaning(selectedAction, selectedAction === 'inspeccion' ? inspectionResult : undefined)
+  const { withCycleLimit } = useCycleLimit()
 
   const applyToAll = async () => {
     if (pendingCount === 0) return
@@ -230,14 +218,27 @@ const BatchActions = () => {
     }
 
     const toProcess = items.filter(i => i.applyStatus === 'pending')
+    // Si alguna prenda llega al límite de ciclos, una sola autorización del
+    // superior cubre todas las del lote; si se rechaza, no se vuelve a pedir.
+    const pendingIds = toProcess.map(i => i.garmentId)
+    let declined = false
 
     for (const item of toProcess) {
       try {
-        await garmentService.registerAction(item.garmentId, selectedAction, {
+        const register = () => garmentService.registerAction(item.garmentId, selectedAction, {
           result: selectedAction === 'inspeccion' ? inspectionResult : undefined,
           notes: notes || undefined,
           signatureToken,
         })
+        try {
+          await (declined ? register() : withCycleLimit('prenda', pendingIds, register))
+        } catch (err) {
+          if (err instanceof CycleLimitCancelled) {
+            declined = true
+            throw new Error('Límite de ciclos alcanzado: no se autorizó continuar')
+          }
+          throw err
+        }
         setItems(prev =>
           prev.map(i => i.uid === item.uid ? { ...i, applyStatus: 'success' } : i)
         )
@@ -292,14 +293,6 @@ const BatchActions = () => {
                 disabled={applying}
                 autoComplete="off"
               />
-              <button
-                onClick={() => setShowScanner(true)}
-                disabled={applying}
-                className="sm:hidden px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
-                title="Usar cámara"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
             </div>
             {/* Fixed-height slot so the warning fading in/out never shifts the layout */}
             <div className="mt-2 h-8 overflow-hidden">
@@ -519,17 +512,6 @@ const BatchActions = () => {
           )}
         </div>
       </div>
-
-      {/* Camera scanner — continuous mode, stays open until manually closed */}
-      {showScanner && (
-        <BarcodeScanner
-          onScan={handleCameraScan}
-          onClose={() => setShowScanner(false)}
-          mode="auto"
-          continuous
-          scanCount={cameraScanCount}
-        />
-      )}
     </div>
   )
 }

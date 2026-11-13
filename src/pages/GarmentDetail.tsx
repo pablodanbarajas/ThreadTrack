@@ -7,6 +7,7 @@ import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
 import InspectionResultPicker from '../components/InspectionResultPicker'
 import { garmentSignatureMeaning } from '../lib/signature'
+import { useCycleLimit, CycleLimitCancelled } from '../components/cycle-limit-context'
 import { signatureService } from '../services/accessService'
 import { documentService } from '../services/documentService'
 import { parseGarmentCode } from '../lib/garmentCodeParser'
@@ -151,6 +152,7 @@ const GarmentDetail = () => {
   }
 
   const signatureMeaning = garmentSignatureMeaning(actionType, actionType === 'inspeccion' ? inspectionResult : undefined)
+  const { withCycleLimit } = useCycleLimit()
 
   const handleAction = async () => {
     if (!garment) return
@@ -158,16 +160,17 @@ const GarmentDetail = () => {
     setActionError(null)
     try {
       const signatureToken = signatureMeaning ? await signatureService.sign(signaturePassword) : undefined
-      await garmentService.registerAction(garment.id, actionType, {
+      await withCycleLimit('prenda', [garment.id], () => garmentService.registerAction(garment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
         signatureToken,
-      })
+      }))
       invalidateGarments()
       setShowActionModal(false)
       setSignaturePassword('')
       await loadGarmentData()
     } catch (err: any) {
+      if (err instanceof CycleLimitCancelled) return
       console.error('Error registrando acción:', err)
       setActionError(err.message || 'Error al registrar la acción')
     } finally {

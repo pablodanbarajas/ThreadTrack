@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Waves, Plus, Search, Loader, Pencil, Archive, PlusCircle, Download, Upload, AlertTriangle, Clock } from 'lucide-react'
 import { useRole } from '../contexts/AuthContext'
+import { useCycleLimit, CycleLimitCancelled } from '../components/cycle-limit-context'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Pagination from '../components/ui/Pagination'
 import { hoseService } from '../services/hoseService'
@@ -44,6 +45,7 @@ const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString('es-M
 
 const HoseInventory = () => {
   const { canCreateEquipment, canDeleteEquipment, canRegisterHoseAction } = useRole()
+  const { withCycleLimit } = useCycleLimit()
   const [stored] = useState(readStored)
   const [searchTerm, setSearchTerm] = useState(stored.searchTerm)
   const search = useDebouncedValue(searchTerm)
@@ -182,10 +184,11 @@ const HoseInventory = () => {
     setCycleSubmitting(true)
     setCycleError(null)
     try {
-      await hoseService.registerBulkUse(activeHoseIds, { notes: cycleNotes })
+      await withCycleLimit('manguera', activeHoseIds, () => hoseService.registerBulkUse(activeHoseIds, { notes: cycleNotes }))
       await loadEquipment()
       setCycleEquipment(null)
     } catch (err: any) {
+      if (err instanceof CycleLimitCancelled) return
       setCycleError(err.message || 'Error al registrar el ciclo')
     } finally {
       setCycleSubmitting(false)
