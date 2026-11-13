@@ -42,7 +42,8 @@ async function asAnon(sql) {
 // Ejecuta sql como usuario autenticado de Supabase (rol authenticated + JWT)
 async function as(user, sql) {
   const [sub, email] = USERS[user]
-  const claims = JSON.stringify({ sub, email, role: 'authenticated' })
+  // session_id fijo por usuario: simula una sesión continua de Supabase Auth
+  const claims = JSON.stringify({ sub, email, role: 'authenticated', session_id: sub })
   return db.transaction(async (tx) => {
     await tx.exec(`SET LOCAL ROLE authenticated; SELECT set_config('request.jwt.claims', '${claims}', true);`)
     return tx.query(sql)
@@ -129,16 +130,26 @@ await expectErr('baja SIN firma electrónica rechazada', () =>
   as('jefeA', `SELECT * FROM register_garment_action(${G}, 'baja', 'Pedro', NULL, 'Tela rota')`), /firma/)
 await expectErr('resultado de inspección SIN firma rechazado', () =>
   as('jefeA', `SELECT * FROM register_garment_action(${G}, 'inspeccion', 'Pedro', 'aprobado')`), /firma/)
-let badSig = (await as('jefeA', `SELECT request_signature('incorrecta') r`)).rows[0].r
+let noUser = (await as('jefeA', `SELECT request_signature('Secreta123!') r`)).rows[0].r
+console.log(!noUser.ok && noUser.needs_user_id ? '  ✔ primera firma de la sesión exige usuario + contraseña (11.200)' : '  ✘ ' + JSON.stringify(noUser)); noUser.needs_user_id ? pass++ : fail++
+let wrongUser = (await as('jefeA', `SELECT request_signature('Secreta123!', 'otro@a.test') r`)).rows[0].r
+console.log(!wrongUser.ok ? '  ✔ firma con usuario distinto al de la sesión rechazada' : '  ✘ aceptó otro usuario'); !wrongUser.ok ? pass++ : fail++
+let badSig = (await as('jefeA', `SELECT request_signature('incorrecta', 'jefe@a.test') r`)).rows[0].r
 console.log(!badSig.ok ? '  ✔ firma con contraseña incorrecta rechazada' : '  ✘ firma incorrecta aceptada'); !badSig.ok ? pass++ : fail++
 let failLogged = await one(`SELECT count(*)::int n FROM login_attempts WHERE email = 'jefe@a.test' AND source = 'firma' AND NOT success`)
-console.log(failLogged.n === 1 ? '  ✔ intento de firma fallido queda registrado' : '  ✘ intento no registrado: ' + failLogged.n); failLogged.n === 1 ? pass++ : fail++
-let sigJefe = (await as('jefeA', `SELECT request_signature('Secreta123!') r`)).rows[0].r
+console.log(failLogged.n === 2 ? '  ✔ intentos de firma fallidos quedan registrados' : '  ✘ intentos registrados: ' + failLogged.n); failLogged.n === 2 ? pass++ : fail++
+let sigJefe = (await as('jefeA', `SELECT request_signature('Secreta123!', 'JEFE@a.test') r`)).rows[0].r
+let sig2 = (await as('jefeA', `SELECT request_signature('Secreta123!') r`)).rows[0].r
+console.log(sig2.ok ? '  ✔ firmas siguientes de la misma sesión: basta la contraseña' : '  ✘ ' + JSON.stringify(sig2)); sig2.ok ? pass++ : fail++
 console.log(sigJefe.ok && sigJefe.token ? '  ✔ firma con contraseña correcta emite token' : '  ✘ token no emitido'); sigJefe.ok ? pass++ : fail++
 await expectErr('token de firma de otro usuario no sirve', () =>
   as('admin', `SELECT * FROM register_garment_action(${G}, 'inspeccion', 'X', 'aprobado', NULL, '${sigJefe.token}')`), /firma/)
 await expectOk('jefe da de baja con motivo y firma', () =>
   as('jefeA', `SELECT * FROM register_garment_action(${G}, 'baja', 'Pedro', NULL, 'Tela rota', '${sigJefe.token}')`))
+await expectErr('prenda dada de baja no admite nuevas acciones (11.10 f)', () =>
+  as('jefeA', `SELECT * FROM register_garment_action(${G}, 'lavado', 'x')`), /definitivo/)
+await expectErr('ni siquiera por SQL directo se reactiva una baja', () =>
+  db.query(`UPDATE garments SET status = 'disponible' WHERE id = ${G}`), /definitivo/)
 let sig = await one(`SELECT s.meaning, s.user_email, s.user_role, a.signature_id IS NOT NULL linked
   FROM electronic_signatures s JOIN garment_actions a ON a.signature_id = s.id WHERE a.action_type = 'baja'`)
 const okSig = sig && sig.linked && sig.user_email === 'jefe@a.test' && /baja/.test(sig.meaning) && sig.user_role === 'jefe'
@@ -288,6 +299,10 @@ await expectRows('operador desbloqueado vuelve a ver prendas', () => as('opA', `
 await expectErr('bitácora de intentos inmutable', () => db.query(`DELETE FROM login_attempts`), /inmutables/)
 let lockAudit = await one(`SELECT count(*)::int n FROM audit_log WHERE table_name = 'account_locks'`)
 console.log(lockAudit.n >= 2 ? '  ✔ bloqueo y desbloqueo quedan en audit_log' : '  ✘ audit ' + lockAudit.n); lockAudit.n >= 2 ? pass++ : fail++
+let alerts = (await as('admin', `SELECT security_alerts() a`)).rows[0].a
+console.log(alerts.failed_24h >= 1 ? `  ✔ alertas de seguridad para el administrador (fallidos 24 h: ${alerts.failed_24h})` : '  ✘ ' + JSON.stringify(alerts)); alerts.failed_24h >= 1 ? pass++ : fail++
+let alertsOp = (await as('opA', `SELECT security_alerts() a`)).rows[0].a
+console.log(alertsOp.failed_24h === 0 ? '  ✔ un operador no recibe alertas de seguridad' : '  ✘ ' + JSON.stringify(alertsOp)); alertsOp.failed_24h === 0 ? pass++ : fail++
 let users = (await as('admin', `SELECT email, is_active, locked_until FROM get_all_users()`)).rows
 console.log(users.length === 4 && 'is_active' in users[0] ? '  ✔ get_all_users incluye estado y bloqueo' : '  ✘ get_all_users'); users.length === 4 ? pass++ : fail++
 

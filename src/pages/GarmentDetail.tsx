@@ -449,7 +449,7 @@ const GarmentDetail = () => {
                         performedBy={action.performed_by}
                         recordedByName={action.recorded_by_name}
                         recordedByEmail={action.recorded_by_email}
-                        signed={!!action.signature_id}
+                        signatureId={action.signature_id}
                         className="mt-1"
                       />
                     </div>

@@ -46,15 +46,34 @@ export const accessService = {
 // 1) request_signature(contraseña) la verifica en el servidor y emite un token
 //    válido 5 minutos para el mismo usuario.
 // 2) Las acciones críticas reciben ese token.
+// Usuario (correo) capturado en el campo de firma. La primera firma de cada
+// sesión exige usuario + contraseña (21 CFR Part 11 §11.200(a)(1)); el campo
+// de firma lo guarda aquí y sign() lo envía junto con la contraseña.
+let pendingUserId = ''
+
 export const signatureService = {
+  setUserId(userId: string) {
+    pendingUserId = userId
+  },
+
+  async requiresUserId(): Promise<boolean> {
+    const { data, error } = await supabase.rpc('signature_requires_user_id')
+    if (error) return true
+    return data !== false
+  },
+
   async sign(password: string): Promise<string> {
     if (!password) throw new Error('La firma electrónica requiere tu contraseña')
-    const { data, error } = await supabase.rpc('request_signature', { p_password: password })
+    const { data, error } = await supabase.rpc('request_signature', {
+      p_password: password,
+      p_user_id: pendingUserId.trim() || null,
+    })
     if (error) throw error
     if (!data?.ok) {
       if (data?.locked) throw new Error(formatLockMessage(null))
       throw new Error(data?.error || 'Firma electrónica rechazada')
     }
+    pendingUserId = ''
     return data.token as string
   },
 }

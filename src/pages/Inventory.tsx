@@ -843,7 +843,7 @@ const Inventory = () => {
                         performedBy={action.performed_by}
                         recordedByName={action.recorded_by_name}
                         recordedByEmail={action.recorded_by_email}
-                        signed={!!action.signature_id}
+                        signatureId={action.signature_id}
                         className="mt-1"
                       />
                       <p className="text-xs text-gray-400 mt-2">{formatDate(action.created_at)}</p>

@@ -2,6 +2,8 @@ import { saveAs } from 'file-saver'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import type { AuditLogEntry } from '../types'
+import { APP_VERSION_FULL } from '../version'
+import { getSignatures, type SignatureManifest } from './signatureLookup'
 import { auditOpLabel, auditTableLabel, describeChanges, describeRecord, collectAuditIds, type AuditResolver } from '../lib/auditFormat'
 
 type Row = Record<string, string | number | null>
@@ -14,6 +16,20 @@ export const endOfDay = (yyyyMmDd: string) => new Date(`${yyyyMmDd}T23:59:59.999
 export const startOfDay = (yyyyMmDd: string) => new Date(`${yyyyMmDd}T00:00:00`).toISOString()
 
 const PAGE = 1000
+
+// Las fechas se guardan en UTC en el servidor y se muestran en la zona del equipo
+const TIME_ZONE = (() => {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const off = -new Date().getTimezoneOffset() / 60
+  return `${tz} (UTC${off >= 0 ? '+' : ''}${off})`
+})()
+
+// Columnas de firma electrónica (21 CFR Part 11 §11.50: nombre, fecha y hora, significado)
+const signatureCols = (sig?: SignatureManifest): Row => ({
+  'Firmado por': sig ? (sig.user_name || sig.user_email) : '',
+  'Fecha y hora de la firma': sig ? fmt(sig.signed_at) : '',
+  'Significado de la firma': sig?.meaning ?? '',
+})
 
 // Supabase devuelve máx. 1000 filas por consulta: paginar
 async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
@@ -34,7 +50,12 @@ function download(sheets: { name: string; rows: Row[] }[], filename: string, met
     XLSX.utils.book_append_sheet(wb, ws, sheet.name.slice(0, 31))
   }
   // Hoja de control: quién generó el reporte, cuándo y con qué parámetros
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ ...meta, 'Generado': fmt(new Date().toISOString()) }]), 'Parametros')
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
+    ...meta,
+    'Generado': fmt(new Date().toISOString()),
+    'Zona horaria de fechas': TIME_ZONE,
+    'Versión del sistema': `ThreadTrack ${APP_VERSION_FULL}`,
+  }]), 'Parametros')
   const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
   saveAs(new Blob([buf], { type: 'application/octet-stream' }), `${filename}_${stamp()}.xlsx`)
 }
@@ -89,6 +110,7 @@ export const historyReportService = {
         .order('created_at', { ascending: true })
         .range(a, b)
     )
+    const sigs = await getSignatures(rows.map((r) => r.signature_id))
     download(
       [{
         name: 'Acciones prendas',
@@ -102,7 +124,7 @@ export const historyReportService = {
           'Notas': r.notes ?? '',
           'Registrado por': r.recorded_by_name ?? r.performed_by ?? '',
           'Correo del usuario': r.recorded_by_email ?? '',
-          'Firma electrónica': r.signature_id ? 'Sí' : '',
+          ...signatureCols(sigs.get(r.signature_id)),
         })),
       }],
       'historial_acciones_prendas',
@@ -153,6 +175,7 @@ export const historyReportService = {
         .order('created_at', { ascending: true })
         .range(a, b)
     )
+    const sigs = await getSignatures(rows.map((r) => r.signature_id))
     download(
       [{
         name: 'Acciones mangueras',
@@ -167,7 +190,7 @@ export const historyReportService = {
           'Notas': r.notes ?? '',
           'Registrado por': r.recorded_by_name ?? r.performed_by ?? '',
           'Correo del usuario': r.recorded_by_email ?? '',
-          'Firma electrónica': r.signature_id ? 'Sí' : '',
+          ...signatureCols(sigs.get(r.signature_id)),
         })),
       }],
       'historial_acciones_mangueras',
