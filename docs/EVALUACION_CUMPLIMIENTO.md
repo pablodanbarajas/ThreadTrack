@@ -141,7 +141,7 @@ Leyenda: ✅ cumple · 🟡 cumple con condición o configuración pendiente · 
 | Inactivity timeout | Auth → Sessions | ✅ 1 h (la app cierra a los 15 min) | Refuerza en el servidor el cierre por inactividad de la aplicación. |
 | Time-box user sessions | Auth → Sessions | ✅ 12 h | Obliga a reautenticarse al menos una vez por turno. |
 | Requisitos de contraseña | Auth → Providers → Email | ✅ Mínimo 12 caracteres; minúsculas, mayúsculas, dígitos y símbolos; contraseñas filtradas bloqueadas | Que la política se cumpla incluso si alguien cambia su contraseña por fuera de la aplicación (riesgo R2). |
-| Secure password change / Require current password | Auth → Providers → Email | ✅ Secure password change activado; activar también "Require current password when updating" | Exige sesión reciente para cambiar la contraseña. |
+| Secure password change / Require current password | Auth → Providers → Email | ✅ Secure password change y "Require current password when updating" activados | Exige sesión reciente para cambiar la contraseña. |
 | Password verification hook | Auth → Hooks | Activar si el plan lo permite | Lleva el conteo y bloqueo de intentos al servidor de autenticación (riesgo R1). |
 | Point-in-Time Recovery | Database → Backups | Opcional (~100 USD/mes, 7 días) | Baja la pérdida máxima de datos de 24 h a ~2 min. |
 | Prueba de restauración | Database → Backups → Restore to new project | ✅ Hecha el 2026-11-13; repetir cada 6 meses | Evidencia exigida por el Anexo 11 §7.2 y el cuestionario. |

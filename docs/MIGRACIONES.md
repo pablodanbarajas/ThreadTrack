@@ -21,13 +21,15 @@ fecha, descripción y revisión.
 | 2026-11-10 | `20261110190000` | SQL Editor (manual) | Filtros del inventario (cliente, inactividad, orden), `existing_garment_codes` y retiro del trigger de asignación. Verificado: firma de 15 parámetros y trigger eliminado. |
 | 2026-11-10 | `20261110200000` | SQL Editor (manual) | Mangueras al nivel de prendas: filtros de `list_equipment`, `hose_calibers`, `hose_stats`, `get_hose_status_at`, `existing_equipment_codes`, `create_equipment` versionada. Verificado: firmas de las 7 funciones. |
 | 2026-11-11 | `20261111120000` | SQL Editor (manual) | Audit trail, intentos de acceso y bloqueos acotados por módulo para administradores del cliente. Verificado: políticas nuevas y alcance simulado por usuario (Prendas no ve Mangueras y viceversa). |
+| 2026-11-13 | `20261113120000` | SQL Editor (manual) | Controles Part 11: baja definitiva, primera firma de la sesión con usuario + contraseña, alertas de seguridad. Verificado por el administrador: funciones presentes. |
+| 2026-11-13 | `20261113130000` | SQL Editor (manual) | Límite de ciclos (prendas 100, mangueras 200) con autorización firmada de un superior. Ejecutada sin errores. |
 
 Como se aplicaron a mano, el historial de migraciones de Supabase no las
 registra. La primera vez que se use el CLI contra producción, márcalas como
 aplicadas para que `db push` no intente repetirlas:
 
 ```bash
-supabase migration repair --status applied 20261110120000 20261110120100 20261110120200 20261110120300 20261110120400 20261110140000 20261110160000 20261110170000 20261110180000 20261110190000 20261110200000 20261111120000
+supabase migration repair --status applied 20261110120000 20261110120100 20261110120200 20261110120300 20261110120400 20261110140000 20261110160000 20261110170000 20261110180000 20261110190000 20261110200000 20261111120000 20261113120000 20261113130000
 ```
 
 ## Fase 0 — Línea base (hacer una sola vez)

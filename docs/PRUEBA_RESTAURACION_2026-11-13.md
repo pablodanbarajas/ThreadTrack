@@ -84,7 +84,7 @@ Capturas archivadas fuera del repositorio público, en `docs/evidencias/restaura
 
 ## 9. Cierre
 
-- [ ] Eliminar el proyecto temporal de restauración en Supabase (*Project Settings → General → Delete project*).
+- [x] Proyecto temporal de restauración eliminado (2026-11-13).
 - [ ] Siguiente prueba: periódica (se sugiere cada 6 meses) y después de cualquier cambio mayor de infraestructura.
 
 | Ejecutó | Revisó | Fecha |
