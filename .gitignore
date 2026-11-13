@@ -27,3 +27,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Evidencias de validación (capturas): se archivan en el sistema documental, no en el repositorio público
+docs/evidencias/

@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { FeedbackProvider } from './components/ui/FeedbackProvider'
+import CycleLimitProvider from './components/CycleLimitProvider'
 import { GarmentCacheProvider } from './contexts/GarmentCacheContext'
 import { HoseCacheProvider } from './contexts/HoseCacheContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -8,7 +9,6 @@ import Layout from './components/Layout'
 import Home from './pages/Home'
 import Inventory from './pages/Inventory'
 import Bajas from './pages/Bajas'
-import Scanner from './pages/Scanner'
 import CreateGarment from './pages/CreateGarment'
 import GarmentDetail from './pages/GarmentDetail'
 import AdminUsers from './pages/AdminUsers'
@@ -24,6 +24,7 @@ import ChangePassword from './pages/ChangePassword'
 function App() {
   return (
     <FeedbackProvider>
+    <CycleLimitProvider>
     <AuthProvider>
       <Router>
         <Routes>
@@ -44,7 +45,7 @@ function App() {
             <Route index element={<ProtectedRoute requiredModule="prendas"><Home /></ProtectedRoute>} />
             <Route path="inventory" element={<ProtectedRoute requiredModule="prendas"><Inventory /></ProtectedRoute>} />
             <Route path="bajas" element={<ProtectedRoute requiredModule="prendas"><Bajas /></ProtectedRoute>} />
-            <Route path="scanner" element={<ProtectedRoute requiredModule="prendas"><Scanner /></ProtectedRoute>} />
+            <Route path="scanner" element={<Navigate to="/inventory" replace />} />
             <Route path="crear-prenda" element={<ProtectedRoute requiredModule="prendas"><CreateGarment /></ProtectedRoute>} />
             <Route path="lote" element={<ProtectedRoute requiredModule="prendas"><BatchActions /></ProtectedRoute>} />
             <Route path="prenda/:id" element={<ProtectedRoute requiredModule="prendas"><GarmentDetail /></ProtectedRoute>} />
@@ -59,6 +60,7 @@ function App() {
         </Routes>
       </Router>
     </AuthProvider>
+    </CycleLimitProvider>
     </FeedbackProvider>
   )
 }

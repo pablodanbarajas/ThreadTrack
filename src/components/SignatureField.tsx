@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react'
 import { PenLine } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { signatureService } from '../services/accessService'
 
 interface SignatureFieldProps {
   meaning: string
@@ -11,9 +13,19 @@ interface SignatureFieldProps {
  * Firma electrónica (21 CFR Part 11 §11.50 / §11.200).
  * Muestra el nombre impreso del firmante y el significado de la firma, y pide
  * la contraseña, que se verifica en el servidor (signatureService.sign).
+ * En la primera firma de la sesión pide también el usuario (correo): los dos
+ * componentes de identificación (§11.200(a)(1)(i)).
  */
 const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) => {
   const { user, displayName } = useAuth()
+  const [needsUserId, setNeedsUserId] = useState(false)
+  const [userId, setUserId] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    signatureService.requiresUserId().then((v) => { if (alive) setNeedsUserId(v) })
+    return () => { alive = false; signatureService.setUserId('') }
+  }, [])
 
   return (
     <div className="overflow-hidden rounded-lg border border-blue-200">
@@ -34,6 +46,19 @@ const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) =>
           <dd className="font-medium text-gray-900">{meaning}</dd>
         </dl>
 
+        {needsUserId && (
+          <label className="block text-sm font-medium text-gray-700">
+            Usuario (correo)
+            <input
+              type="email"
+              autoComplete="username"
+              value={userId}
+              onChange={(e) => { setUserId(e.target.value); signatureService.setUserId(e.target.value) }}
+              placeholder="Primera firma de la sesión: escribe tu correo"
+              className="input-field mt-1"
+            />
+          </label>
+        )}
         <label className="block text-sm font-medium text-gray-700">
           Contraseña
           <input
@@ -47,6 +72,7 @@ const SignatureField = ({ meaning, password, onChange }: SignatureFieldProps) =>
         </label>
         <p className="text-[11px] leading-snug text-gray-500">
           Equivale a tu firma autógrafa y queda registrada con fecha y hora.
+          {needsUserId && ' En las siguientes firmas de esta sesión bastará tu contraseña.'}
         </p>
       </div>
     </div>

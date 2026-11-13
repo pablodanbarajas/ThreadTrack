@@ -6,10 +6,12 @@ import {
   ChevronsLeft, ChevronsRight, Menu, X, UserCircle,
 } from 'lucide-react'
 import { useAuth, useRole } from '../contexts/AuthContext'
-import { APP_VERSION } from '../version'
+import { APP_VERSION, APP_BUILD } from '../version'
 import { useFeedback } from './ui/feedback-context'
 import { Notice } from './ui/StatusBadge'
 import { userService } from '../services/userService'
+import { supabase } from '../lib/supabase'
+import IdleLogout from './IdleLogout'
 import Logo from '/CSCI_Logo_Color_Sin_Fondo.png'
 
 interface NavItem {
@@ -42,6 +44,17 @@ const Layout = () => {
   const { canViewPrendas, canViewMangueras, canViewReports, canCreateGarment } = useRole()
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [mobileOpen, setMobileOpen] = useState(false)
+  // Aviso inmediato de cuentas bloqueadas e intentos fallidos (21 CFR 11.300(d))
+  const [alerts, setAlerts] = useState<{ locked: number; failed_24h: number } | null>(null)
+
+  useEffect(() => {
+    if (role !== 'administrador') return
+    let alive = true
+    const load = () => supabase.rpc('security_alerts').then(({ data }) => { if (alive && data) setAlerts(data) })
+    load()
+    const t = window.setInterval(load, 5 * 60 * 1000)
+    return () => { alive = false; window.clearInterval(t) }
+  }, [role])
 
   useEffect(() => {
     try {
@@ -56,7 +69,7 @@ const Layout = () => {
       title: 'Prendas',
       items: [
         { path: '/', label: 'Inicio', icon: Home },
-        { path: '/inventory', label: 'Inventario', icon: Package, match: ['/prenda/', '/scanner'] },
+        { path: '/inventory', label: 'Inventario', icon: Package, match: ['/prenda/'] },
         { path: '/lote', label: 'Acciones en lote', icon: Layers },
         ...(canCreateGarment ? [{ path: '/crear-prenda', label: 'Crear prenda', icon: Plus }] : []),
         { path: '/bajas', label: 'Bajas', icon: PackageX },
@@ -114,7 +127,7 @@ const Layout = () => {
             {!compact && (
               <div className="min-w-0 leading-tight">
                 <p className="truncate text-sm font-bold text-white">ThreadTrack</p>
-                <p className="text-[10px] uppercase tracking-widest text-slate-400">Trazabilidad · v{APP_VERSION}</p>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400" title={`Versión ${APP_VERSION} · compilación ${APP_BUILD}`}>Trazabilidad · v{APP_VERSION} · {APP_BUILD}</p>
               </div>
             )}
           </Link>
@@ -242,9 +255,20 @@ const Layout = () => {
               Es necesario para que tus registros y firmas electrónicas muestren tu nombre impreso.
             </Notice>
           )}
+          {role === 'administrador' && alerts && alerts.locked > 0 && (
+            <Notice
+              tone="error"
+              title={`${alerts.locked} ${alerts.locked === 1 ? 'cuenta bloqueada' : 'cuentas bloqueadas'} por intentos fallidos`}
+              className="mb-5"
+              action={<Link to="/admin/usuarios" className="btn-primary shrink-0 py-1.5 text-sm">Revisar usuarios</Link>}
+            >
+              {alerts.failed_24h} intentos fallidos de acceso o firma en las últimas 24 horas. Verifica si fueron del propio usuario.
+            </Notice>
+          )}
           <Outlet />
         </div>
       </main>
+      <IdleLogout />
     </div>
   )
 }

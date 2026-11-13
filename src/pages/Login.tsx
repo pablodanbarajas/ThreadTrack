@@ -10,6 +10,14 @@ const Login = () => {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  // Aviso si la sesión anterior se cerró por inactividad
+  const [notice] = useState(() => {
+    try {
+      const r = sessionStorage.getItem('threadtrack.logoutReason')
+      sessionStorage.removeItem('threadtrack.logoutReason')
+      return r === 'inactividad' ? 'Tu sesión se cerró por inactividad. Vuelve a iniciar sesión.' : ''
+    } catch { return '' }
+  })
   const [loading, setLoading] = useState(false)
   const { signIn, user } = useAuth()
   const location = useLocation()
@@ -75,6 +83,7 @@ const Login = () => {
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               {error && <Notice tone="error">{error}</Notice>}
+              {!error && notice && <Notice tone="info">{notice}</Notice>}
 
               <div>
                 <label htmlFor="login-email" className="mb-1.5 block text-sm font-medium text-gray-700">

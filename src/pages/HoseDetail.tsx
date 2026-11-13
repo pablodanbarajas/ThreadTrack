@@ -35,7 +35,7 @@ const ActionRow = ({ action }: { action: HoseAction }) => (
         performedBy={action.performed_by}
         recordedByName={action.recorded_by_name}
         recordedByEmail={action.recorded_by_email}
-        signed={!!action.signature_id}
+        signatureId={action.signature_id}
       />
       <div>{new Date(action.created_at).toLocaleString()}</div>
     </div>

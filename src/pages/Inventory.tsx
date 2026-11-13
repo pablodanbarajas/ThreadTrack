@@ -13,16 +13,15 @@ import { useArchiveGarment } from '../hooks/useArchiveGarment'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import Pagination from '../components/ui/Pagination'
 import ImportGarmentsModal from '../components/ImportGarmentsModal'
-import GarmentCodeInput, { type GarmentCodeCheck } from '../components/GarmentCodeInput'
 import InventoryFilterBar, { FilterField } from '../components/InventoryFilterBar'
 import SignatureField from '../components/SignatureField'
 import ActionAuthor from '../components/ActionAuthor'
 import RecordedBy from '../components/RecordedBy'
 import InspectionResultPicker from '../components/InspectionResultPicker'
 import { garmentSignatureMeaning } from '../lib/signature'
+import { useCycleLimit, CycleLimitCancelled } from '../components/cycle-limit-context'
 import { signatureService } from '../services/accessService'
 import { generateReportExcel } from '../services/reportService'
-import BarcodeScanner from '../components/BarcodeScanner'
 import { generateQRUrl, extractGarmentId } from '../lib/qrGenerator'
 import { parseGarmentCode, COLORS, SIZES, type Color, type Size } from '../lib/garmentCodeParser'
 import { WASH_STERILIZATION_CYCLE_LIMIT, getCycleLifePercent, getCycleLifeStatus } from '../lib/lifeStatus'
@@ -99,11 +98,8 @@ const Inventory = () => {
   const [filterStatus, setFilterStatus] = useState<string>(storedFilters.filterStatus)
   const [filterDateFrom, setFilterDateFrom] = useState(storedFilters.filterDateFrom)
   const [filterDateTo, setFilterDateTo] = useState(storedFilters.filterDateTo)
-  const [showModal, setShowModal] = useState(false)
   const [showActionModal, setShowActionModal] = useState(false)
   const [showHistoryModal, setShowHistoryModal] = useState(false)
-  const [showScanner, setShowScanner] = useState(false)
-  const [scannerTarget, setScannerTarget] = useState<'search' | 'newCode'>('search')
   const [selectedGarment, setSelectedGarment] = useState<Garment | null>(null)
   const [garmentHistory, setGarmentHistory] = useState<GarmentAction[]>([])
   const [actionType, setActionType] = useState<ActionType>('lavado')
@@ -112,9 +108,6 @@ const Inventory = () => {
   const [actionLoading, setActionLoading] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [signaturePassword, setSignaturePassword] = useState('')
-  const [newGarment, setNewGarment] = useState({ code: '' })
-  const [newCodeCheck, setNewCodeCheck] = useState<GarmentCodeCheck>({ status: 'empty' })
-  const [savingNew, setSavingNew] = useState(false)
   const [showQRModal, setShowQRModal] = useState(false)
   const [copiedQR, setCopiedQR] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
@@ -288,27 +281,6 @@ const Inventory = () => {
   // Resetear página al cambiar filtros
   useEffect(() => { setCurrentPage(1) }, [debouncedSearch, filterIdleDays, sortBy, pageSize, filterStatus, filterDateFrom, filterDateTo, filterColor, filterSize, filterBatch, filterLifeStatuses])
 
-  const handleAddGarment = async () => {
-    if (!canCreateGarment) {
-      feedback.error('No tienes permisos para crear prendas')
-      return
-    }
-    if (newCodeCheck.status !== 'ok') return
-    setSavingNew(true)
-    try {
-      // El nombre siempre se genera del código
-      await garmentService.create({ code: newCodeCheck.code, name: newCodeCheck.name })
-      feedback.success(`Prenda ${newCodeCheck.code} creada`)
-      setNewGarment({ code: '' })
-      setShowModal(false)
-      loadGarments()
-    } catch (err) {
-      feedback.error((err as Error).message || 'No se pudo crear la prenda')
-    } finally {
-      setSavingNew(false)
-    }
-  }
-
   const downloadQR = () => {
     if (!selectedGarment || !qrRef.current) return
 
@@ -372,6 +344,7 @@ const Inventory = () => {
   }
 
   const signatureMeaning = garmentSignatureMeaning(actionType, actionType === 'inspeccion' ? inspectionResult : undefined)
+  const { withCycleLimit } = useCycleLimit()
 
   const handleAction = async () => {
     if (!selectedGarment) return
@@ -379,16 +352,17 @@ const Inventory = () => {
     setActionError(null)
     try {
       const signatureToken = signatureMeaning ? await signatureService.sign(signaturePassword) : undefined
-      await garmentService.registerAction(selectedGarment.id, actionType, {
+      await withCycleLimit('prenda', [selectedGarment.id], () => garmentService.registerAction(selectedGarment.id, actionType, {
         result: actionType === 'inspeccion' ? inspectionResult : undefined,
         notes: actionNotes || undefined,
         signatureToken,
-      })
+      }))
       setShowActionModal(false)
       setSelectedGarment(null)
       setSignaturePassword('')
       loadGarments()
     } catch (error: any) {
+      if (error instanceof CycleLimitCancelled) return
       console.error('Error registrando acción:', error)
       setActionError(error.message || 'Error al registrar la acción')
     } finally {
@@ -422,30 +396,6 @@ const Inventory = () => {
       hour: '2-digit',
       minute: '2-digit'
     })
-  }
-
-  const openScannerForSearch = () => {
-    setScannerTarget('search')
-    setShowScanner(true)
-  }
-
-  const openScannerForNewCode = () => {
-    setScannerTarget('newCode')
-    setShowModal(false) // Oculta el modal de Nueva Prenda
-    setTimeout(() => setShowScanner(true), 100) // Espera a que se oculte antes de mostrar el escáner
-  }
-
-  const handleScanResult = (code: string) => {
-    if (scannerTarget === 'search') {
-      // Extrae el ID de la URL del QR, si es una URL válida
-      const extractedId = extractGarmentId(code)
-      // Si es una URL con ID, usa el ID; si no, busca el código como antes
-      setSearchTerm(extractedId || code)
-    } else {
-      setNewGarment((prev) => ({ ...prev, code }))
-      setTimeout(() => setShowModal(true), 100)
-    }
-    setShowScanner(false)
   }
 
   const downloadFilteredQRs = async () => {
@@ -543,13 +493,6 @@ const Inventory = () => {
 
   return (
     <div className="w-full pb-20 md:pb-0">
-      {/* Modal de Confirmación de Eliminación */}
-      {showScanner && (
-        <BarcodeScanner
-          onScan={handleScanResult}
-          onClose={() => setShowScanner(false)}
-        />
-      )}
 
       <div className="flex flex-col gap-3 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -596,17 +539,10 @@ const Inventory = () => {
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar código, nombre..."
+            placeholder="Escanea un QR con la pistola o busca por código o nombre..."
             className="input-field flex-1"
+            autoFocus
           />
-          <button
-            type="button"
-            onClick={openScannerForSearch}
-            className="sm:hidden px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors flex-shrink-0"
-            title="Escanear QR/código para buscar"
-          >
-            <ScanBarcode className="w-5 h-5" />
-          </button>
           <button type="submit" className="btn-primary flex items-center gap-2">
             <Search className="w-4 h-4" />
             Buscar
@@ -673,49 +609,6 @@ const Inventory = () => {
           onClose={() => setShowImport(false)}
           onImported={() => loadGarments()}
         />
-      )}
-
-      {showModal && !showScanner && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-            <h2 className="text-xl font-bold mb-1">Nueva prenda</h2>
-            <p className="text-sm text-gray-500 mb-4">El código escaneado no existe. Revísalo y créalo si es correcto.</p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
-                <GarmentCodeInput
-                  value={newGarment.code}
-                  onChange={(code) => setNewGarment({ code })}
-                  onCheck={setNewCodeCheck}
-                  autoFocus
-                  addon={
-                    <button
-                      type="button"
-                      onClick={openScannerForNewCode}
-                      className="px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg transition-colors"
-                      title="Escanear código"
-                    >
-                      <ScanBarcode className="w-5 h-5" />
-                    </button>
-                  }
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
-                Cancelar
-              </button>
-              <button
-                onClick={handleAddGarment}
-                disabled={!canCreateGarment || savingNew || newCodeCheck.status !== 'ok'}
-                className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {savingNew && <Loader2 className="w-4 h-4 animate-spin" />}
-                {canCreateGarment ? 'Crear prenda' : 'Sin permiso'}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Modal de Acción */}
@@ -843,7 +736,7 @@ const Inventory = () => {
                         performedBy={action.performed_by}
                         recordedByName={action.recorded_by_name}
                         recordedByEmail={action.recorded_by_email}
-                        signed={!!action.signature_id}
+                        signatureId={action.signature_id}
                         className="mt-1"
                       />
                       <p className="text-xs text-gray-400 mt-2">{formatDate(action.created_at)}</p>
