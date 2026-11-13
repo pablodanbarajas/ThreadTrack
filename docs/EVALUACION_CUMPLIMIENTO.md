@@ -93,7 +93,7 @@ Leyenda: ✅ cumple · 🟡 cumple con condición o configuración pendiente · 
 | 5 | Intercambio de datos con verificación | ✅ | Importación con validación previa (formato, duplicados, existentes) y vista previa antes de crear. |
 | 6 | Verificación de exactitud de datos críticos | ✅ | Validación del código en alta e importación; el nombre se genera del código; ciclos automáticos. |
 | 7.1 | Almacenamiento seguro, accesible, legible y exacto | ✅ | PostgreSQL con RLS, cifrado en reposo, inmutabilidad. |
-| 7.2 | Respaldos periódicos y verificación de la restauración | 🟡📄 | Respaldos diarios (plan Pro, 7 días). **Falta la prueba de restauración documentada.** |
+| 7.2 | Respaldos periódicos y verificación de la restauración | ✅📄 | Respaldos diarios (plan Pro, 7 días). **Prueba de restauración aprobada el 2026-11-13** (`docs/PRUEBA_RESTAURACION_2026-11-13.md`). Falta el SOP con la periodicidad de la prueba. |
 | 8 | Impresiones claras | ✅ | Reportes Excel legibles con hoja de parámetros. |
 | 9 | Audit trail de cambios GMP con motivo; disponible, legible y **revisado periódicamente** | ✅📄 | Audit trail con motivo obligatorio en ediciones. La revisión periódica es SOP del cliente. |
 | 10 | Gestión de cambios y configuración | 🟡📄 | Git + bitácora de migraciones + versión visible; falta SOP de control de cambios. |
@@ -138,13 +138,13 @@ Leyenda: ✅ cumple · 🟡 cumple con condición o configuración pendiente · 
 
 | Ajuste | Dónde | Valor recomendado | Por qué |
 |---|---|---|---|
-| Inactivity timeout | Auth → Sessions | 30 min | Refuerza en el servidor el cierre por inactividad de la aplicación. |
-| Time-box user sessions | Auth → Sessions | 12 h | Obliga a reautenticarse al menos una vez por turno. |
-| Requisitos de contraseña | Auth → Providers → Email | Mínimo 12 caracteres; minúsculas, mayúsculas, dígitos y símbolos | Que la política se cumpla incluso si alguien cambia su contraseña por fuera de la aplicación (riesgo R2). |
-| Secure password change | Auth → Providers → Email | Activado | Exige sesión reciente para cambiar la contraseña. |
+| Inactivity timeout | Auth → Sessions | ✅ 1 h (la app cierra a los 15 min) | Refuerza en el servidor el cierre por inactividad de la aplicación. |
+| Time-box user sessions | Auth → Sessions | ✅ 12 h | Obliga a reautenticarse al menos una vez por turno. |
+| Requisitos de contraseña | Auth → Providers → Email | ✅ Mínimo 12 caracteres; minúsculas, mayúsculas, dígitos y símbolos; contraseñas filtradas bloqueadas | Que la política se cumpla incluso si alguien cambia su contraseña por fuera de la aplicación (riesgo R2). |
+| Secure password change / Require current password | Auth → Providers → Email | ✅ Secure password change activado; activar también "Require current password when updating" | Exige sesión reciente para cambiar la contraseña. |
 | Password verification hook | Auth → Hooks | Activar si el plan lo permite | Lleva el conteo y bloqueo de intentos al servidor de autenticación (riesgo R1). |
 | Point-in-Time Recovery | Database → Backups | Opcional (~100 USD/mes, 7 días) | Baja la pérdida máxima de datos de 24 h a ~2 min. |
-| Prueba de restauración | Database → Backups → Restore to new project | Una vez + periódica | Evidencia exigida por el Anexo 11 §7.2 y el cuestionario. |
+| Prueba de restauración | Database → Backups → Restore to new project | ✅ Hecha el 2026-11-13; repetir cada 6 meses | Evidencia exigida por el Anexo 11 §7.2 y el cuestionario. |
 
 ## 7. Paquete de documentación (GAMP 5) — siguiente fase
 
@@ -183,5 +183,5 @@ Orden sugerido; los marcados (P) los elabora el proveedor, (C) el cliente con ap
 | 4. Conteo de esterilizaciones | Automático por cada acción registrada; nadie puede editar el conteo; las correcciones de datos descriptivos exigen motivo y quedan en el audit trail; el historial completo se reconstruye a cualquier fecha. |
 | 5. Registros y trazabilidad | Historial completo por QR; estado a cualquier fecha; registros que no se borran; reportes históricos exportables. |
 | 6. Seguridad | Cifrado en tránsito (TLS) y en reposo; control de acceso por empresa y módulo; cambios controlados con bitácora; intentos fallidos registrados; bloqueo automático a los 5 intentos. |
-| 7. Respaldos | Respaldos automáticos diarios; RTO estimado y prueba de restauración por documentar (sección 6); procedimiento formal en preparación. |
+| 7. Respaldos | Respaldos automáticos diarios (retención 7 días). Prueba de restauración documentada el 2026-11-13: la base se restauró en ≈ 3 min con datos íntegros; recuperación completa del servicio estimada en ≈ 1 h; pérdida máxima ≤ 24 h. Procedimiento formal en preparación. |
 | Adicional | Diseñado considerando 21 CFR Part 11, Anexo 11, GAMP 5 e integridad de datos (este documento). Paquete de validación en preparación; la validación en su uso previsto la ejecuta y aprueba el cliente con la evidencia del proveedor. |
